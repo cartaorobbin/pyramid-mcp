@@ -213,11 +213,14 @@ def test_exclude_patterns():
 
 
 def test_tool_handler_creation():
-    """Test MCP tool handler creation."""
+    """Test MCP tool handler creation - now calls actual views."""
     introspector = PyramidIntrospector()
     
     def sample_view(request):
-        return Response('test')
+        return Response('test response')
+    
+    def json_view(request):
+        return {'message': 'hello', 'id': request.matchdict.get('id')}
     
     route_info = {
         'name': 'test_route',
@@ -232,18 +235,27 @@ def test_tool_handler_creation():
     
     handler = introspector._create_route_handler(route_info, view_info, 'GET')
     
-    # Test handler execution
+    # Test handler execution with string response
     result = handler(id='123', param='value')
     
-    assert isinstance(result, dict)
-    assert 'action' in result
-    assert 'parameters' in result
-    assert 'route' in result
-    assert 'method' in result
+    assert isinstance(result, str)
+    assert result == 'test response'
     
-    assert result['parameters'] == {'id': '123', 'param': 'value'}
-    assert result['route'] == 'test_route'
-    assert result['method'] == 'GET'
+    # Test with JSON view
+    json_view_info = {
+        'callable': json_view,
+        'request_methods': ['GET']
+    }
+    
+    json_handler = introspector._create_route_handler(route_info, json_view_info, 'GET')
+    json_result = json_handler(id='456', param='test')
+    
+    assert isinstance(json_result, str)
+    # Should be JSON formatted string
+    import json
+    parsed = json.loads(json_result)
+    assert parsed['message'] == 'hello'
+    assert parsed['id'] == '456'
 
 
 def test_integration_with_complex_routes():

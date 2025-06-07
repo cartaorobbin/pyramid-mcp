@@ -265,7 +265,16 @@ class PyramidIntrospector:
         # Group views by HTTP method
         views_by_method = {}
         for view in views:
-            methods = view.get('request_methods') or ['GET']
+            # Use view's request methods, or fall back to route's request methods
+            methods = view.get('request_methods')
+            if not methods:
+                # Fall back to route's request methods
+                route_methods = route_info.get('request_methods')
+                if route_methods:
+                    methods = list(route_methods)
+                else:
+                    methods = ['GET']  # Final fallback
+                    
             for method in methods:
                 if method not in views_by_method:
                     views_by_method[method] = []
@@ -482,25 +491,153 @@ class PyramidIntrospector:
         """
         view_callable = view_info.get('callable')
         route_pattern = route_info.get('pattern', '')
+        route_name = route_info.get('name', '')
         
         def handler(**kwargs):
-            """MCP tool handler that delegates to Pyramid view.
-            
-            This is a placeholder implementation. In a real implementation,
-            you would need to:
-            1. Create a proper Pyramid request object
-            2. Set up the request context and matchdict
-            3. Call the view callable
-            4. Handle the response appropriately
-            
-            For now, this returns a description of what would be called.
-            """
-            return {
-                "action": f"Would call {view_callable.__name__ if view_callable else 'unknown'} "
-                         f"for {method} {route_pattern}",
-                "parameters": kwargs,
-                "route": route_info.get('name'),
-                "method": method
-            }
+            """MCP tool handler that delegates to Pyramid view."""
+            try:
+                # Create a minimal request object for the view
+                request = self._create_request_for_view(kwargs, route_pattern, method)
+                
+                # Call the view callable
+                if view_callable:
+                    response = view_callable(request)
+                    
+                    # Convert response to MCP format
+                    return self._convert_response_to_mcp(response)
+                else:
+                    return {
+                        "error": f"No view callable found for route {route_name}",
+                        "route": route_name,
+                        "method": method
+                    }
+                    
+            except Exception as e:
+                # Return error in MCP format
+                return {
+                    "error": f"Error calling view: {str(e)}",
+                    "route": route_name,
+                    "method": method,
+                    "parameters": kwargs
+                }
         
         return handler
+    
+    def _create_request_for_view(self, kwargs: Dict[str, Any], route_pattern: str, method: str):
+        """Create a minimal request object for calling Pyramid views.
+        
+        Args:
+            kwargs: MCP tool arguments
+            route_pattern: Route pattern (e.g., '/api/hello')
+            method: HTTP method
+            
+        Returns:
+            Request-like object with necessary attributes
+        """
+        import re
+        from pyramid.testing import DummyRequest
+        
+        # Extract path parameters from route pattern
+        path_params = re.findall(r'\{([^}]+)\}', route_pattern)
+        path_param_names = [param.split(':')[0] for param in path_params]
+        
+        # Separate path parameters from other parameters
+        matchdict = {}
+        query_params = {}
+        json_body = {}
+        
+        for key, value in kwargs.items():
+            if key in path_param_names:
+                matchdict[key] = value
+            else:
+                if method.upper() in ['POST', 'PUT', 'PATCH']:
+                    json_body[key] = value
+                else:
+                    query_params[key] = value
+        
+        # Create a dummy request with the appropriate data
+        if method.upper() in ['POST', 'PUT', 'PATCH'] and json_body:
+            import json
+            # For POST requests with JSON body, create request with JSON data
+            request = DummyRequest(json_body=json_body)
+            request.body = json.dumps(json_body).encode('utf-8')
+            request.content_type = 'application/json'
+        else:
+            # For GET requests or requests without body
+            request = DummyRequest()
+        
+        request.method = method.upper()
+        request.matchdict = matchdict
+        request.params = query_params
+        
+        return request
+    
+    def _convert_response_to_mcp(self, response):
+        """Convert Pyramid view response to MCP tool response format.
+        
+        Args:
+            response: Pyramid view response (dict, string, or Response object)
+            
+        Returns:
+            MCP-compatible response
+        """
+        import json
+        from pyramid.response import Response
+        
+        # Handle different response types
+        if isinstance(response, dict):
+            # Direct dictionary response (most common for JSON APIs)
+            return json.dumps(response, indent=2)
+        elif isinstance(response, str):
+            # String response
+            return response
+        elif isinstance(response, Response):
+            # Pyramid Response object
+            try:
+                # Get the body content
+                if hasattr(response, 'text'):
+                    content = response.text
+                elif hasattr(response, 'body'):
+                    body = response.body
+                    if isinstance(body, bytes):
+                        content = body.decode('utf-8')
+                    else:
+                        content = str(body)
+                else:
+                    content = str(response)
+                
+                # Try to parse as JSON for pretty formatting
+                try:
+                    parsed = json.loads(content)
+                    return json.dumps(parsed, indent=2)
+                except json.JSONDecodeError:
+                    return content
+                    
+            except Exception:
+                return str(response)
+        elif hasattr(response, 'json') and callable(response.json):
+            # Response object with json() method
+            try:
+                return json.dumps(response.json(), indent=2)
+            except Exception:
+                return str(response)
+        elif hasattr(response, 'text'):
+            # Response object with text attribute
+            return str(response.text)
+        elif hasattr(response, 'body'):
+            # Response object with body attribute
+            try:
+                body = response.body
+                if isinstance(body, bytes):
+                    body = body.decode('utf-8')
+                # Try to parse as JSON for pretty formatting
+                try:
+                    parsed = json.loads(body)
+                    return json.dumps(parsed, indent=2)
+                except json.JSONDecodeError:
+                    return body
+            except Exception:
+                return str(response)
+        else:
+            # Fallback to string representation
+            return str(response)

@@ -115,11 +115,11 @@ def create_app():
     config.add_route('api_hello', '/api/hello')
     config.add_route('api_users', '/api/users')
     
-    # Scan for view configurations first
-    config.scan()
-    
     # Include pyramid-mcp plugin (this registers tools and mounts MCP endpoints)
     config.include('pyramid_mcp')
+    
+    # Scan for view configurations
+    config.scan()
     
     return config.make_wsgi_app()
 

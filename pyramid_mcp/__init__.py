@@ -86,8 +86,12 @@ def includeme(config: Configurator) -> None:
     config.add_request_method(_get_mcp_from_request, "mcp", reify=True)
 
     # Register a post-configure hook to discover routes and register tools
+    # Use order=999999 to ensure this runs after all other configuration including scans
     config.action(
-        "pyramid_mcp.setup_complete", _setup_mcp_complete, args=(config, pyramid_mcp)
+        "pyramid_mcp.setup_complete", 
+        _setup_mcp_complete, 
+        args=(config, pyramid_mcp),
+        order=999999  # Run this very late in the configuration process
     )
 
 

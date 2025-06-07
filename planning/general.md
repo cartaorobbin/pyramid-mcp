@@ -166,6 +166,99 @@ def add(a: int, b: int) -> int:
 
 The examples directory is now clean and professional with one focused example and comprehensive documentation.
 
+### [2024-12-28] Fix Deferred Configuration for Route Discovery
+
+**Status**: DONE ✅
+**Assigned**: Assistant  
+**Estimated Time**: 30 minutes
+**Actual Time**: ~20 minutes
+
+#### Plan
+- [x] Fix includeme function to use proper Pyramid deferred configuration
+- [x] Use config.action() with high order priority to run after all scans
+- [x] Remove requirement for users to manually control scan timing
+- [x] Test that route discovery works with natural configuration order
+- [x] Verify all existing tests still pass
+
+#### Progress
+- [x] ✅ Updated includeme() to use config.action() with order=999999
+- [x] ✅ Deferred setup runs after all configuration including scans
+- [x] ✅ Reverted simple_app.py to use natural order (include, then scan)
+- [x] ✅ All 72 tests pass confirming functionality works
+- [x] ✅ Route discovery tests pass showing tools are discovered correctly
+
+#### Technical Details
+- **Pyramid config.action()**: Used deferred configuration system properly
+- **High Priority Order**: order=999999 ensures MCP setup runs very late
+- **Natural Order**: Users can now use standard Pyramid patterns without timing issues
+- **Backward Compatible**: Existing code continues to work unchanged
+
+#### Outcomes
+- **Better DX**: Users don't need to worry about include/scan timing
+- **Pyramid Conventions**: Follows standard Pyramid plugin patterns
+- **All Tests Pass**: 72/72 tests pass with 79% coverage
+- **Route Discovery Works**: Auto-discovery functions correctly with natural order
+
+#### User Experience Improvement
+Before:
+```python
+config.add_route('api_users', '/api/users')
+config.scan()  # Required to be called first
+config.include('pyramid_mcp')  # Then include
+```
+
+After:
+```python  
+config.add_route('api_users', '/api/users')
+config.include('pyramid_mcp')  # Include anywhere
+config.scan()  # Scan anywhere - order doesn't matter
+```
+
+The fix makes pyramid-mcp work like a proper Pyramid plugin with deferred configuration.
+
+### [2024-12-28] Implement Real Route Calling for Auto-Discovered Tools
+
+**Status**: IN PROGRESS
+**Assigned**: Assistant  
+**Estimated Time**: 2 hours
+
+#### Plan
+- [ ] Analyze current `_create_route_handler` function that returns simulation data
+- [ ] Design proper request/response flow for calling actual Pyramid views
+- [ ] Implement request object creation with proper matchdict and params
+- [ ] Handle HTTP method routing (GET, POST, PUT, DELETE) correctly
+- [ ] Convert MCP tool arguments to proper request parameters
+- [ ] Call the actual view callable and handle the response
+- [ ] Convert Pyramid response back to MCP tool response format
+- [ ] Test with pytest webtest to to ensure auto-discovered tools work properly
+- [ ] Verify all existing tests still pass
+
+#### Progress
+- [x] ✅ Identified that `_create_route_handler` returns simulation data instead of calling views
+- [ ] Analyzing Pyramid request/response flow for proper implementation
+- [ ] Implementing actual route calling functionality
+
+#### Technical Requirements
+- **Request Creation**: Create proper Pyramid request objects with matchdict, params, and body
+- **Method Handling**: Support GET (query params), POST/PUT (JSON body), DELETE properly
+- **View Calling**: Invoke the actual Pyramid view callable with proper context
+- **Response Handling**: Convert Pyramid responses to MCP-compatible format
+- **Error Handling**: Graceful error handling for HTTP errors, validation failures
+- **Testing**: Ensure manual tools still work alongside route-discovered tools
+
+#### Implementation Strategy
+1. **Minimal Request Object**: Create a lightweight request object with necessary attributes
+2. **Parameter Mapping**: Map MCP tool arguments to request parameters based on HTTP method
+3. **View Invocation**: Call the view callable directly with the request object
+4. **Response Conversion**: Convert view response to MCP tool response format
+5. **Backward Compatibility**: Ensure existing functionality remains unchanged
+
+#### Expected Outcomes
+- Auto-discovered tools will call actual Pyramid view functions
+- MCP clients will receive real API responses instead of simulation data
+- Full integration between MCP protocol and Pyramid view layer
+- Comprehensive testing confirms functionality works end-to-end
+
 ## Current Status
 
 **All major infrastructure tasks completed!** ✅
