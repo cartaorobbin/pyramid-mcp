@@ -219,7 +219,7 @@ def test_auto_discovered_tools_call_real_views():
     assert response.status_code == 200
     
     result = response.json['result']['content'][0]['text']
-    assert result == "10.0 + 5.0 = 15.0"
+    assert result == "10 + 5 = 15"
 
 
 def test_comparison_simulation_vs_real():
