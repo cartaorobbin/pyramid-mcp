@@ -54,7 +54,10 @@ def test_includeme_mounts_routes():
     # Include pyramid_mcp
     includeme(config)
 
-    # Check that routes are mounted (they should be committed automatically)
+    # Commit the configuration to make routes available
+    config.commit()
+
+    # Check that routes are mounted
     routes = config.get_routes_mapper().get_routes()
     mcp_routes = [
         route for route in routes if route.name and route.name.startswith("mcp_")

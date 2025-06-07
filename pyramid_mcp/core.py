@@ -35,6 +35,10 @@ class MCPConfiguration:
     exclude_patterns: Optional[List[str]] = None
     enable_sse: bool = True
     enable_http: bool = True
+    # Route discovery configuration
+    route_discovery_enabled: bool = False
+    route_discovery_include_patterns: Optional[List[str]] = None
+    route_discovery_exclude_patterns: Optional[List[str]] = None
 
 
 class PyramidMCP:
@@ -84,7 +88,7 @@ class PyramidMCP:
         )
 
         # Initialize introspection
-        self.introspector = PyramidIntrospector()
+        self.introspector = PyramidIntrospector(configurator)
 
         # Storage for manually registered tools
         self.manual_tools: Dict[str, MCPTool] = {}
@@ -118,18 +122,22 @@ class PyramidMCP:
     def discover_tools(self) -> None:
         """Discover and register tools from Pyramid routes."""
         if self.configurator:
-            # Get the registry to access route information
-            registry = self.configurator.registry
-            introspector = registry.introspector
+            # Route discovery - only if enabled
+            if self.config.route_discovery_enabled:
+                # Create a configuration object for route discovery
+                class RouteDiscoveryConfig:
+                    def __init__(self, mcp_config):
+                        self.include_patterns = mcp_config.route_discovery_include_patterns or []
+                        self.exclude_patterns = mcp_config.route_discovery_exclude_patterns or []
+                
+                discovery_config = RouteDiscoveryConfig(self.config)
+                
+                # Discover routes and convert to MCP tools
+                tools = self.introspector.discover_tools(discovery_config)
 
-            # Discover routes and convert to MCP tools
-            tools = self.introspector.discover_tools_from_pyramid(
-                introspector, self.config
-            )
-
-            # Register discovered tools
-            for tool in tools:
-                self.protocol_handler.register_tool(tool)
+                # Register discovered tools
+                for tool in tools:
+                    self.protocol_handler.register_tool(tool)
 
         elif self.wsgi_app:
             # For WSGI apps, we need a different approach
@@ -141,6 +149,14 @@ class PyramidMCP:
             self.protocol_handler.register_tool(tool)
 
         self._tools_discovered = True
+
+    def _add_mcp_routes_only(self) -> None:
+        """Add MCP routes without discovering tools (for includeme timing)."""
+        if not self.configurator:
+            raise RuntimeError("Cannot add routes without a configurator")
+
+        mount_path = self.config.mount_path
+        self._add_mcp_routes(mount_path)
 
     def tool(
         self,

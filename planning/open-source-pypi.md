@@ -367,12 +367,23 @@ jobs:
 - [GitHub Actions](https://github.com/features/actions) - CI/CD
 - [ReadTheDocs](https://readthedocs.org/) - Documentation hosting
 
+## Core Feature Implementation Needed
+
+**IMPORTANT**: Before proceeding with PyPI release, we should implement the **Route Discovery Feature** which is the core value proposition of pyramid-mcp.
+
+See: `planning/route-discovery-feature.md` for detailed implementation plan.
+
+**Recommendation**: Complete route discovery implementation first, then proceed with PyPI release for maximum impact.
+
 ## Next Steps
 
-1. **Immediate**: Review and approve this plan
-2. **This week**: Begin Phase 1 (Repository Preparation)
-3. **Next week**: Complete Phase 2 (PyPI Setup)
-4. **Following week**: Finish Phase 3 & 4 (Documentation & Release)
+1. **Immediate**: Implement Route Discovery Feature (2-3 days) 
+2. **After Route Discovery**: Complete Phase 2 (PyPI Setup)
+3. **Then**: Finish Phase 3 & 4 (Documentation & Release)
+
+### Alternative: Release Now, Feature Later
+- Release current version as 0.1.0 (basic tool registration)
+- Implement route discovery for 0.2.0 (major feature release)
 
 ## Notes & Updates
 

@@ -76,8 +76,8 @@ def includeme(config: Configurator) -> None:
     # Store registry for tool decorator in testing scenarios
     _tool_registry_storage.registry = config.registry
 
-    # Auto-mount MCP endpoints
-    pyramid_mcp.mount()
+    # Add MCP routes immediately (before action execution)
+    pyramid_mcp._add_mcp_routes_only()
 
     # Add a directive to access pyramid_mcp from configurator
     config.add_directive("get_mcp", _get_mcp_directive)
@@ -85,9 +85,9 @@ def includeme(config: Configurator) -> None:
     # Add request method to access MCP tools
     config.add_request_method(_get_mcp_from_request, "mcp", reify=True)
 
-    # Register a post-configure hook to register any pending tools
+    # Register a post-configure hook to discover routes and register tools
     config.action(
-        "pyramid_mcp.register_pending_tools", _register_pending_tools, args=(config,)
+        "pyramid_mcp.setup_complete", _setup_mcp_complete, args=(config, pyramid_mcp)
     )
 
 
@@ -165,6 +165,10 @@ def _extract_mcp_config_from_settings(settings: dict) -> MCPConfiguration:
         exclude_patterns=_parse_list_setting(settings.get("mcp.exclude_patterns")),
         enable_sse=_parse_bool_setting(settings.get("mcp.enable_sse", "true")),
         enable_http=_parse_bool_setting(settings.get("mcp.enable_http", "true")),
+        # Route discovery settings
+        route_discovery_enabled=_parse_bool_setting(settings.get("mcp.route_discovery.enabled", "false")),
+        route_discovery_include_patterns=_parse_list_setting(settings.get("mcp.route_discovery.include_patterns")),
+        route_discovery_exclude_patterns=_parse_list_setting(settings.get("mcp.route_discovery.exclude_patterns")),
     )
 
 
@@ -194,14 +198,22 @@ def _get_mcp_from_request(request: Any) -> PyramidMCP:
     return request.registry.pyramid_mcp
 
 
-def _register_pending_tools(config: Configurator) -> None:
+def _setup_mcp_complete(config: Configurator, pyramid_mcp: PyramidMCP) -> None:
+    """Complete MCP setup after all configuration is done."""
+    # This is called after all configuration is done via Pyramid's action system
+    # At this point, all routes and views have been added and committed
+    
+    # Discover and register tools from routes (routes were already added in includeme)
+    pyramid_mcp.discover_tools()
+    
+    # Register any pending manual tools that weren't caught earlier
+    _register_pending_tools(pyramid_mcp)
+
+
+def _register_pending_tools(pyramid_mcp: PyramidMCP) -> None:
     """Register any tools that were decorated but not immediately registered."""
-    # This is called after all configuration is done
-    # Scan for any functions with _mcp_tool_config that need registration
     import gc
     import types
-
-    pyramid_mcp = config.registry.pyramid_mcp
 
     # Find all functions with _mcp_tool_config attribute
     for obj in gc.get_objects():
