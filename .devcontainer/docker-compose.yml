@@ -1,0 +1,24 @@
+version: '3'
+services:
+  dev-service:
+      # Note that the path of the Dockerfile and context is relative to the *primary*
+      # docker-compose.yml file (the first in the devcontainer.json "dockerComposeFile"
+      # array). The sample below assumes your primary file is in the root of your project.
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VARIANT: "ubuntu-22.04"
+    volumes:
+      - ..:/pyramid_mcp:cached
+      - bashhistory:/commandhistory
+    command: /bin/sh -c "while sleep 1000; do :; done"
+    networks:
+      - internal
+
+
+networks:
+  internal:
+
+volumes:
+    bashhistory:

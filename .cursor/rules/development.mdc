@@ -1,0 +1,555 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Development Rules
+
+This document outlines the development rules and guidelines for the pyramid-mcp project. Following these rules ensures code quality, maintainability, and effective collaboration.
+
+## Core Development Principles
+
+### 1. Plan Before Coding ⭐
+**ALWAYS plan before writing any code.**
+
+- **Think first, code second**: Before touching any code, take time to understand the problem and design the solution
+- **Create a clear plan**: Write down what you're going to do, how you're going to do it, and what the expected outcome is
+- **Consider edge cases**: Think through potential issues and how to handle them
+- **Review existing code**: Understand how your changes fit into the existing codebase
+- **Break down complex tasks**: Split large features into smaller, manageable pieces
+
+### 2. Task Management with Planning Files ⭐
+**ALWAYS maintain planning files to track what we did.**
+
+- **Organized structure**: Use `planning/` directory for all planning files
+- **General vs Feature**: Use `planning/general.md` for infrastructure/general tasks, create feature-specific files for major features
+- **Create/update files**: Before starting any work, document what you plan to do in the appropriate planning file
+- **Track progress**: Update the files as you complete tasks
+- **Document decisions**: Record important decisions and why they were made
+- **Include completion status**: Mark tasks as TODO, IN PROGRESS, DONE, or BLOCKED
+- **Reference issues/PRs**: Link to relevant GitHub issues or pull requests
+
+## Code Quality Standards
+
+### Pre-Development Checklist
+Before starting any development work:
+
+- [ ] Read and understand the requirement
+- [ ] Create or update appropriate planning file with your planned work
+- [ ] Choose between `planning/general.md` or create feature-specific file
+- [ ] Check existing issues and PRs for related work
+- [ ] Plan your approach and get feedback if needed
+- [ ] Ensure your development environment is set up (`make install`)
+
+### Development Workflow
+
+1. **Branch Management**
+   ```bash
+   git checkout -b feature/descriptive-name
+   # or
+   git checkout -b bugfix/issue-description
+   ```
+
+2. **Code Development**
+   - Follow PEP 8 style guidelines
+   - Write clear, self-documenting code
+   - Add docstrings to all functions and classes
+   - Include type hints where appropriate
+
+3. **Testing Requirements**
+   - Write tests for all new functionality
+   - Ensure existing tests pass: `make test`
+   - Run full test suite: `tox`
+   - Aim for high test coverage
+
+4. **Code Quality Checks**
+   ```bash
+   make check  # Run formatters and linters
+   ```
+
+### Documentation Standards
+
+- **Docstrings**: Use Google-style docstrings for all public functions and classes
+- **Comments**: Write comments for complex logic, not obvious code
+- **README updates**: Update README.md if adding new features or changing setup
+- **Type hints**: Use type hints for function parameters and return values
+
+### Commit Standards
+
+- **Commit messages**: Use clear, descriptive commit messages
+- **Atomic commits**: Each commit should represent one logical change
+- **Pre-commit hooks**: Let pre-commit hooks format your code automatically
+
+Example commit message format:
+```
+feat: add user authentication system
+
+- Implement JWT token authentication
+- Add user login/logout endpoints
+- Include password hashing utilities
+- Add authentication middleware
+
+Closes #123
+```
+
+## Pull Request Guidelines
+
+### Before Creating a PR
+
+- [ ] Update appropriate planning file with completed work
+- [ ] All tests pass locally
+- [ ] Code quality checks pass (`make check`)
+- [ ] Documentation is updated if needed
+- [ ] Commit messages are clear and descriptive
+
+### PR Requirements
+
+1. **Title**: Clear, descriptive title
+2. **Description**: 
+   - What was changed and why
+   - Link to related issues
+   - Any breaking changes
+   - Screenshots if UI changes
+3. **Testing**: Describe how the changes were tested
+4. **Checklist**: Include a checklist of completed items
+
+### PR Template
+```markdown
+## Description
+Brief description of changes
+
+## Related Issues
+Closes #123
+
+## Changes Made
+- [ ] Feature/fix 1
+- [ ] Feature/fix 2
+
+## Testing
+- [ ] Unit tests pass
+- [ ] Manual testing completed
+- [ ] Edge cases considered
+
+## Documentation
+- [ ] Code is documented
+- [ ] README updated if needed
+- [ ] Planning files updated
+```
+
+## File Organization
+
+### Required Files for Each Feature/Bug Fix
+
+1. **Planning files** - Track what you're doing and have done in `planning/` directory
+2. **Tests** - In the `tests/` directory  
+3. **Documentation** - Update relevant docs
+
+### Planning File Structure
+
+The `planning/` directory contains all task tracking and planning files:
+
+- **`planning/general.md`** - Overall project tasks, infrastructure, and cross-cutting concerns
+- **`planning/[feature-name].md`** - Feature-specific planning and tasks
+- **`planning/feature-template.md`** - Template for creating new feature files
+- **`planning/README.md`** - Documentation for the planning system
+
+### When to Use Which Planning File
+
+**Use `planning/general.md` for:**
+- Infrastructure and tooling updates
+- Project-wide changes
+- Documentation updates
+- Quick fixes and small improvements
+- Development process improvements
+
+**Create `planning/[feature-name].md` for:**
+- Features taking more than 1 day
+- Complex features with multiple tasks
+- Features requiring team coordination
+- Features with dependencies or special requirements
+
+### Planning File Template
+
+See `planning/feature-template.md` for the complete template, or use this basic structure:
+
+```markdown
+### [YYYY-MM-DD] Task Description
+
+**Status**: TODO | IN PROGRESS | DONE | BLOCKED
+**Assigned**: Your Name
+**Estimated Time**: X hours
+**Related Issue**: #123
+
+#### Plan
+- [ ] Task 1: Description
+- [ ] Task 2: Description
+- [ ] Task 3: Description
+
+#### Progress
+- [x] Completed task with notes
+- [ ] Current task
+- [ ] Future task
+
+#### Decisions Made
+- Decision 1: Reasoning
+- Decision 2: Reasoning
+
+#### Blockers/Issues
+- Issue 1: Description and resolution plan
+```
+
+## Dependency Management and Library Usage ⭐
+
+### Core Dependency Tools
+
+#### Poetry - Primary Dependency Manager
+**ALWAYS use Poetry for dependency management.**
+
+- **Exclusive use**: Poetry is the ONLY allowed dependency manager
+- **No mixing**: Never use pip, pipenv, conda, or other tools alongside Poetry
+- **Lock file**: Always commit `poetry.lock` to ensure reproducible builds
+- **Version constraints**: Use semantic versioning with appropriate constraints
+
+```bash
+# Adding dependencies
+poetry add requests              # Production dependency
+poetry add --group dev pytest   # Development dependency
+poetry add --group docs mkdocs  # Documentation dependency
+
+# Updating dependencies
+poetry update                    # Update all dependencies
+poetry update requests          # Update specific package
+poetry show --outdated         # Check for outdated packages
+```
+
+#### Poetry Groups Organization
+Organize dependencies into clear groups:
+
+```toml
+[tool.poetry.dependencies]
+python = ">=3.9,<4.0"
+# Core runtime dependencies only
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.2.0"
+pytest-cov = "^4.0.0"
+mypy = "^0.981"
+pre-commit = "^2.20.0"
+tox = "^3.25.1"
+black = "^22.0.0"
+ruff = "^0.1.0"
+
+[tool.poetry.group.docs.dependencies]
+mkdocs = "^1.6.1"
+mkdocstrings = "^0.29.1"
+mkdocstrings-python = "^1.16.10"
+
+[tool.poetry.group.test.dependencies]
+# Additional test-only dependencies if needed
+```
+
+### Testing Framework
+
+#### pytest - Primary Test Runner
+**ALWAYS use pytest for all testing needs.**
+
+- **Exclusive testing**: pytest is the ONLY allowed test framework
+- **No alternatives**: Never use unittest, nose, or other test frameworks
+- **Configuration**: Use `pyproject.toml` for pytest configuration
+- **Coverage**: Always use pytest-cov for coverage reporting
+
+```toml
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_functions = ["test_*"]
+addopts = [
+    "--cov=pyramid_mcp",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-fail-under=80",
+    "--strict-markers",
+    "--strict-config",
+]
+markers = [
+    "slow: marks tests as slow",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+```
+
+#### Testing Best Practices
+- **File structure**: Mirror source structure in `tests/` directory
+- **Test naming**: Use descriptive test names starting with `test_`
+- **Fixtures**: Use pytest fixtures for reusable test setup
+- **Coverage**: Maintain minimum 80% test coverage
+- **Markers**: Use markers to categorize tests
+
+```bash
+# Running tests
+poetry run pytest                    # All tests
+poetry run pytest tests/unit/       # Unit tests only
+poetry run pytest -m "not slow"     # Skip slow tests
+poetry run pytest --cov-report=html # Generate HTML coverage report
+```
+
+### Documentation Framework
+
+#### MkDocs - Primary Documentation Tool
+**ALWAYS use MkDocs for documentation generation.**
+
+- **Exclusive docs**: MkDocs is the ONLY allowed documentation generator
+- **No alternatives**: Never use Sphinx, GitBook, or other doc tools
+- **Configuration**: Use `mkdocs.yml` for all documentation settings
+- **Extensions**: Use mkdocstrings for API documentation from docstrings
+
+```yaml
+# mkdocs.yml structure
+site_name: Pyramid MCP
+repo_url: https://github.com/your-org/pyramid-mcp
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+```
+
+### Forbidden Libraries and Patterns
+
+#### ⚠️ NEVER USE: Pydantic
+**Pydantic is STRICTLY FORBIDDEN in this project.**
+
+- **No Pydantic**: Never add pydantic as a dependency
+- **No BaseModel**: Don't use Pydantic's BaseModel or validation
+- **Alternatives**: Use dataclasses, TypedDict, or attrs instead
+- **Reason**: Architectural decision to avoid dependency complexity
+
+```python
+# ❌ FORBIDDEN - Never do this
+from pydantic import BaseModel
+
+class User(BaseModel):
+    name: str
+    age: int
+
+# ✅ ALLOWED - Use dataclasses instead
+from dataclasses import dataclass
+from typing import TypedDict
+
+@dataclass
+class User:
+    name: str
+    age: int
+
+# Or TypedDict for simple structures
+class UserDict(TypedDict):
+    name: str
+    age: int
+```
+
+### Dependency Addition Guidelines
+
+#### Before Adding Any Dependency
+**ALWAYS follow this checklist before adding new dependencies:**
+
+- [ ] Check if functionality exists in Python standard library
+- [ ] Verify the library is actively maintained (recent commits/releases)
+- [ ] Check license compatibility with project
+- [ ] Ensure it's not on the forbidden list
+- [ ] Consider the size and complexity it adds
+- [ ] Document the decision in appropriate planning file
+
+#### Preferred Libraries by Category
+
+**Web Frameworks:**
+- ✅ Pyramid (primary framework)
+- ✅ FastAPI (if needed for specific APIs)
+- ❌ Django (too heavy for our use case)
+- ❌ Flask (prefer Pyramid)
+
+**Data Handling:**
+- ✅ dataclasses (Python standard library)
+- ✅ attrs (for complex data structures)
+- ✅ TypedDict (for simple dictionaries)
+- ❌ Pydantic (explicitly forbidden)
+
+**Testing:**
+- ✅ pytest (required)
+- ✅ pytest-cov (for coverage)
+- ✅ pytest-mock (for mocking)
+- ❌ unittest (use pytest instead)
+- ❌ nose (deprecated)
+
+**HTTP Clients:**
+- ✅ httpx (async-first)
+- ✅ requests (synchronous)
+- ❌ urllib3 directly (use higher-level clients)
+
+**Date/Time:**
+- ✅ datetime (Python standard library)
+- ✅ dateutil (for parsing)
+- ❌ arrow (prefer standard library)
+- ❌ pendulum (unnecessary complexity)
+
+#### Version Constraints Best Practices
+
+```toml
+# Good version constraints
+requests = "^2.31.0"        # Allow compatible updates
+pytest = "^7.2.0"          # Major version locked
+python = ">=3.9,<4.0"      # Clear range
+
+# Avoid these patterns
+requests = "*"              # Too permissive
+pytest = "==7.2.0"         # Too restrictive (blocks security updates)
+python = "^3.9"            # Could allow Python 4.x unexpectedly
+```
+
+### Development Environment
+
+#### Setup
+```bash
+make install          # Install dependencies and pre-commit hooks
+poetry shell         # Activate virtual environment
+```
+
+#### Daily Workflow
+```bash
+make check          # Format and lint code
+make test           # Run tests
+tox                 # Test across Python versions (optional locally)
+```
+
+#### Dependency Management Commands
+```bash
+# Check dependencies
+poetry show --tree          # Show dependency tree
+poetry show --outdated      # Check for updates
+poetry check                # Validate pyproject.toml
+
+# Update dependencies
+poetry update               # Update all within constraints
+poetry update requests      # Update specific package
+poetry lock --no-update     # Regenerate lock file
+
+# Audit and security
+poetry audit                # Check for known vulnerabilities
+```
+
+## Review Process
+
+### Self-Review Checklist
+Before requesting review:
+
+- [ ] Code follows project conventions
+- [ ] All tests pass
+- [ ] Documentation is complete
+- [ ] Planning files are updated
+- [ ] No debugging code left behind
+- [ ] Error handling is appropriate
+- [ ] Performance implications considered
+
+### Code Review Guidelines
+
+**For Reviewers:**
+- Focus on design, logic, and maintainability
+- Suggest improvements, don't just point out problems
+- Be constructive and respectful
+- Check that planning files reflect the work done
+
+**For Authors:**
+- Be open to feedback
+- Explain complex decisions in comments or PR description
+- Update planning files based on review feedback if scope changes
+
+## Emergency/Hotfix Process
+
+Even for urgent fixes:
+
+1. **Still plan first** - Even 5 minutes of planning can prevent bigger issues
+2. **Update planning files** - Document what you're fixing and why in `planning/general.md`
+3. **Create hotfix branch**: `hotfix/critical-issue-description`
+4. **Minimal, focused changes** - Fix only what's necessary
+5. **Fast-track review** - Get quick review but don't skip testing
+
+## Tools and Resources
+
+### Essential Commands
+
+#### Poetry Commands
+```bash
+# Environment management
+poetry install              # Install all dependencies
+poetry shell               # Activate virtual environment
+poetry env info            # Show virtual environment info
+
+# Dependency management
+poetry add package         # Add production dependency
+poetry add --group dev pkg # Add development dependency
+poetry remove package      # Remove dependency
+poetry update             # Update all dependencies
+poetry show --tree        # Show dependency tree
+poetry show --outdated    # Check for updates
+poetry check              # Validate pyproject.toml
+poetry audit              # Security audit
+```
+
+#### Testing Commands
+```bash
+# Basic testing
+poetry run pytest                    # Run all tests
+poetry run pytest --cov            # Run with coverage
+poetry run pytest -v               # Verbose output
+poetry run pytest tests/unit/      # Run specific directory
+poetry run pytest -k "test_name"   # Run tests matching pattern
+poetry run pytest -m "not slow"    # Skip slow tests
+
+# Coverage reporting
+poetry run pytest --cov-report=html    # HTML coverage report
+poetry run pytest --cov-report=term    # Terminal coverage report
+poetry run pytest --cov-fail-under=80  # Fail if coverage below 80%
+```
+
+#### Documentation Commands
+```bash
+# MkDocs commands
+poetry run mkdocs serve     # Serve docs locally
+poetry run mkdocs build     # Build static docs
+poetry run mkdocs gh-deploy # Deploy to GitHub Pages
+```
+
+#### Development Workflow Commands
+```bash
+make help           # Show all available make commands
+make install        # Full project setup
+make check          # Format and lint code
+make test           # Run full test suite
+make docs           # Build documentation
+tox                 # Test across Python versions
+```
+
+### Pre-commit Hooks
+The project uses pre-commit hooks to automatically:
+- Format code with black
+- Sort imports with isort
+- Lint with flake8
+- Run other quality checks
+
+## Questions or Issues?
+
+- Check existing issues first
+- Create detailed issue reports
+- Ask for help early rather than struggling alone
+- Update planning files when blocked with explanation
+
+---
+
+**Remember**: These rules exist to make our development process smoother and our code better. When in doubt, plan first and document what you're doing in the appropriate planning file! 

@@ -1,0 +1,89 @@
+name: "AWS CodeArtifact login Action"
+description: Github Action to fetch a token for AWS CodeArtifact and (optionally) retrieve a repository URL
+inputs:
+  aws-access-key-id:
+    description: AWS Access Key ID
+    required: true
+  aws-secret-access-key:
+    description: AWS Secret Access Key
+    required: true
+  aws-region:
+    description: AWS Region, e.g. eu-central-1
+    required: true
+    default: "us-east-1"
+  role-to-assume:
+    description: IAM Role to assume that has access to CodeArtifact
+    required: false
+  codeartifact-domain:
+    description: CodeArtifact domain to which the package repository belongs
+    required: true
+  codeartifact-domain-owner:
+    description: Owner (AWS Account) of the CodeArtifact domain
+    required: true
+  codeartifact-repository:
+    description: CodeArtifact repository for which to optionally fetch the URL
+    required: false
+  configure-pip:
+    description: Configure pip with temporary CodeArtifact credentials
+    required: false
+    default: "false"
+  configure-poetry:
+    description: Configure Poetry with temporary CodeArtifact credentials
+    required: false
+    default: "false"
+  configure-uv:
+    description: Configure uv with temporary CodeArtifact credentials
+    required: false
+    default: "false"
+outputs:
+  codeartifact-token:
+    description: "Temporary token to authenticate with AWS CodeArtifact repositories"
+    value: ${{ steps.codeartifact-metadata.outputs.codeartifact-token }}
+  codeartifact-user:
+    description: "Username for usage with package tools such as pip and Poetry"
+    value: "aws"
+  codeartifact-repo-url:
+    description: "URL for the specified repository"
+    value: ${{ steps.codeartifact-metadata.outputs.codeartifact-repo-url }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ inputs.aws-access-key-id }}
+        aws-secret-access-key: ${{ inputs.aws-secret-access-key }}
+        aws-region: ${{ inputs.aws-region }}
+        role-to-assume: ${{ inputs.role-to-assume }}
+        role-duration-seconds: 3600
+        role-skip-session-tagging: true
+    - name: Fetch CodeArtifact metadata
+      id: codeartifact-metadata
+      shell: bash
+      run: |
+        echo "codeartifact-token=$(aws codeartifact get-authorization-token --domain ${{ inputs.codeartifact-domain }} --domain-owner ${{ inputs.codeartifact-domain-owner }} --query authorizationToken --output text)" >> $GITHUB_OUTPUT
+
+        if [ -n "${{ inputs.codeartifact-repository }}" ]; then
+          echo "codeartifact-repo-url=$(aws codeartifact get-repository-endpoint --domain ${{ inputs.codeartifact-domain }} --domain-owner ${{ inputs.codeartifact-domain-owner }} --repository ${{ inputs.codeartifact-repository }} --format pypi --query repositoryEndpoint --output text)" >> $GITHUB_OUTPUT
+        fi
+        
+    - name: Configure pip
+      shell: bash
+      if: ${{ inputs.configure-pip == 'true' }}
+      run: aws codeartifact login --tool pip --domain  ${{ inputs.codeartifact-domain }} --domain-owner ${{ inputs.codeartifact-domain-owner }} --repository  ${{ inputs.codeartifact-repository }}
+
+    - name: Configure poetry
+      shell: bash
+      if: ${{ inputs.configure-poetry == 'true' }}
+      run: |
+          poetry config repositories.${{ inputs.codeartifact-repository }} ${{ steps.codeartifact-metadata.outputs.codeartifact-repo-url }}
+          poetry config http-basic.${{ inputs.codeartifact-repository }} aws ${{ steps.codeartifact-metadata.outputs.codeartifact-token }}
+
+    - name: Configure uv
+      shell: bash
+      if: ${{ inputs.configure-uv == 'true' }}
+      run: |
+          TOKEN=${{ steps.codeartifact-metadata.outputs.codeartifact-token }}
+          URL=$(echo ${{ steps.codeartifact-metadata.outputs.codeartifact-repo-url }} | sed 's/^https:\/\///')
+          echo "UV_EXTRA_INDEX_URL=https://aws:${TOKEN}@${URL}simple" >> $GITHUB_ENV
