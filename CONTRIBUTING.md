@@ -129,11 +129,24 @@ def calculate_mcp_response(request: Dict[str, Any]) -> Dict[str, Any]:
 
 ```
 tests/
-├── unit/           # Unit tests
-├── integration/    # Integration tests  
-├── conftest.py     # Test fixtures
-└── test_*.py       # Test files
+├── conftest.py                     # Comprehensive fixtures (16+ fixtures)
+├── test_unit_core.py               # Core functionality unit tests (15 tests)
+├── test_unit_protocol.py           # MCP protocol unit tests (16 tests)
+├── test_unit_introspection.py      # Route discovery unit tests (21 tests)
+├── test_integration_webtest.py     # HTTP integration tests (20 tests)
+├── test_integration_plugin.py      # Plugin integration tests (15 tests)
+├── test_integration_end_to_end.py  # End-to-end tests (7 tests)
+└── README.md                       # Test documentation
 ```
+
+**Total: 94 tests with 76% coverage**
+
+#### File Purposes
+
+- **Unit tests** (`test_unit_*.py`): Test individual components in isolation
+- **Integration tests** (`test_integration_*.py`): Test component interactions
+- **Fixtures** (`conftest.py`): Reusable test setup organized by category
+- **Documentation** (`README.md`): Comprehensive test organization guide
 
 ### Writing Tests
 
