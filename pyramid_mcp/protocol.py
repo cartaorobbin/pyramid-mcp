@@ -138,6 +138,7 @@ class MCPTool:
     description: Optional[str] = None
     input_schema: Optional[Dict[str, Any]] = None
     handler: Optional[Callable] = None
+    permission: Optional[str] = None  # Pyramid permission requirement
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to MCP tool format."""
@@ -174,11 +175,12 @@ class MCPProtocolHandler:
         # Update capabilities to indicate we have tools
         self.capabilities["tools"] = {}
 
-    def handle_message(self, message_data: Dict[str, Any]) -> Dict[str, Any]:
+    def handle_message(self, message_data: Dict[str, Any], auth_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Handle an incoming MCP message.
 
         Args:
             message_data: The parsed JSON message
+            auth_context: Optional authentication context with request and security policy
 
         Returns:
             The response message as a dictionary
@@ -192,7 +194,7 @@ class MCPProtocolHandler:
             elif request.method == "tools/list":
                 return self._handle_list_tools(request)
             elif request.method == "tools/call":
-                return self._handle_call_tool(request)
+                return self._handle_call_tool(request, auth_context)
             else:
                 error = MCPError(
                     code=MCPErrorCode.METHOD_NOT_FOUND.value,
@@ -223,7 +225,7 @@ class MCPProtocolHandler:
         response = MCPResponse(id=request.id, result=result)
         return response.to_dict()
 
-    def _handle_call_tool(self, request: MCPRequest) -> Dict[str, Any]:
+    def _handle_call_tool(self, request: MCPRequest, auth_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Handle MCP tools/call request."""
         params = request.params or {}
         tool_name = params.get("name")
@@ -252,6 +254,46 @@ class MCPProtocolHandler:
             )
             response = MCPResponse(id=request.id, error=error)
             return response.to_dict()
+
+        # Check permissions if tool requires them
+        if tool.permission:
+            if auth_context:
+                pyramid_request = auth_context.get('request')
+                
+                if pyramid_request:
+                    try:
+                        # Use Pyramid's request.has_permission method which integrates with the security policy
+                        has_perms = pyramid_request.has_permission(tool.permission, None)
+                        
+                        # has_permission returns Allowed/Denied objects that evaluate to True/False
+                        if not has_perms:
+                            error = MCPError(
+                                code=MCPErrorCode.INVALID_PARAMS.value,
+                                message=f"Authentication required for tool '{tool_name}'",
+                            )
+                            response = MCPResponse(id=request.id, error=error)
+                            return response.to_dict()
+                    except Exception:
+                        error = MCPError(
+                            code=MCPErrorCode.INVALID_PARAMS.value,
+                            message=f"Authentication required for tool '{tool_name}'",
+                        )
+                        response = MCPResponse(id=request.id, error=error)
+                        return response.to_dict()
+                else:
+                    error = MCPError(
+                        code=MCPErrorCode.INVALID_PARAMS.value,
+                        message=f"Authentication required for tool '{tool_name}'",
+                    )
+                    response = MCPResponse(id=request.id, error=error)
+                    return response.to_dict()
+            else:
+                error = MCPError(
+                    code=MCPErrorCode.INVALID_PARAMS.value,
+                    message=f"Authentication required for tool '{tool_name}'",
+                )
+                response = MCPResponse(id=request.id, error=error)
+                return response.to_dict()
 
         try:
             # Call the tool handler with arguments

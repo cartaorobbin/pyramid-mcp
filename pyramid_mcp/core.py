@@ -163,6 +163,7 @@ class PyramidMCP:
         name: Optional[str] = None,
         description: Optional[str] = None,
         schema: Optional[Type[Schema]] = None,
+        permission: Optional[str] = None,
     ) -> Callable:
         """Decorator to register a function as an MCP tool.
 
@@ -170,6 +171,7 @@ class PyramidMCP:
             name: Tool name (defaults to function name)
             description: Tool description (defaults to function docstring)
             schema: Marshmallow schema for input validation
+            permission: Pyramid permission requirement for this tool
 
         Returns:
             Decorated function
@@ -178,6 +180,10 @@ class PyramidMCP:
             >>> @mcp.tool(description="Add two numbers")
             >>> def add(a: int, b: int) -> int:
             ...     return a + b
+            
+            >>> @mcp.tool(description="Get user info", permission="authenticated")
+            >>> def get_user(id: int) -> dict:
+            ...     return {"id": id, "name": "User"}
         """
 
         def decorator(func: Callable) -> Callable:
@@ -198,6 +204,7 @@ class PyramidMCP:
                 description=tool_description,
                 input_schema=input_schema,
                 handler=func,
+                permission=permission,
             )
 
             self.manual_tools[tool_name] = tool
@@ -279,8 +286,13 @@ class PyramidMCP:
             # Parse JSON request body
             message_data = request.json_body
 
+            # Create authentication context for MCP protocol handler
+            auth_context = {
+                'request': request
+            }
+
             # Handle the message through protocol handler
-            response = self.protocol_handler.handle_message(message_data)
+            response = self.protocol_handler.handle_message(message_data, auth_context)
             return response
 
         except Exception as e:

@@ -11,8 +11,12 @@ Fixtures are organized by category:
 """
 
 import pytest
+import jwt
+import datetime
 from marshmallow import Schema, ValidationError, fields
 from pyramid.config import Configurator
+from pyramid.authentication import AuthTktAuthenticationPolicy
+from pyramid.authorization import ACLAuthorizationPolicy
 
 # Removed unused imports
 from webtest import TestApp
@@ -20,6 +24,26 @@ from webtest import TestApp
 from pyramid_mcp import tool
 from pyramid_mcp.core import MCPConfiguration, PyramidMCP
 from pyramid_mcp.protocol import MCPProtocolHandler
+
+# Permission constants
+PERMISSIONS = {
+    'VIEW': 'view',
+    'EDIT': 'edit', 
+    'ADMIN': 'admin',
+    'DELETE': 'delete'
+}
+
+# User roles and permissions
+USER_ROLES = {
+    'anonymous': [],
+    'viewer': ['view'],
+    'editor': ['view', 'edit'],
+    'admin': ['view', 'edit', 'admin', 'delete']
+}
+
+# JWT configuration
+JWT_SECRET = 'test-secret-key-for-jwt-tokens'
+JWT_ALGORITHM = 'HS256'
 
 
 # Test schemas
@@ -206,6 +230,169 @@ def testapp_factory(pyramid_app_factory):
         app = pyramid_app_factory(config)
         return TestApp(app)
     return _create_testapp
+
+
+# =============================================================================
+# 🔒 JWT AUTHENTICATION FIXTURES
+# =============================================================================
+
+@pytest.fixture
+def valid_jwt_token():
+    """Generate a valid JWT token for testing."""
+    payload = {
+        'user_id': 'test_user',
+        'username': 'testuser',
+        'roles': ['authenticated'],
+        'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1),
+        'iat': datetime.datetime.utcnow()
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+@pytest.fixture
+def expired_jwt_token():
+    """Generate an expired JWT token for testing."""
+    payload = {
+        'user_id': 'test_user',
+        'username': 'testuser', 
+        'roles': ['authenticated'],
+        'exp': datetime.datetime.utcnow() - datetime.timedelta(hours=1),  # Expired 1 hour ago
+        'iat': datetime.datetime.utcnow() - datetime.timedelta(hours=2)
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+class JWTSecurityPolicy:
+    """Simple JWT security policy for testing."""
+    
+    def identity(self, request):
+        """Extract identity from JWT token in Authorization header."""
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return None
+            
+        token = auth_header[7:]  # Remove 'Bearer ' prefix
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            return payload
+        except jwt.ExpiredSignatureError:
+            return None
+        except jwt.InvalidTokenError:
+            return None
+    
+    def authenticated_userid(self, request):
+        """Get the authenticated user ID."""
+        identity = self.identity(request)
+        return identity.get('user_id') if identity else None
+    
+    def permits(self, request, context, permission):
+        """Check if current user has the given permission."""
+        identity = self.identity(request)
+        if not identity:
+            return False
+            
+        # For testing, we'll use simple role-based permissions
+        if permission == 'authenticated':
+            return True  # Any valid JWT token grants authenticated permission
+        
+        # Add other permission logic here as needed
+        return True
+    
+    def effective_principals(self, request):
+        """Get all effective principals for the current request."""
+        identity = self.identity(request)
+        if not identity:
+            return ['system.Everyone']
+            
+        principals = ['system.Everyone', 'system.Authenticated']
+        principals.append(f"userid:{identity.get('user_id')}")
+        
+        for role in identity.get('roles', []):
+            principals.append(f"role:{role}")
+            
+        return principals
+
+
+@pytest.fixture
+def pyramid_config_with_jwt_auth(users_db, user_id_counter):
+    """Pyramid configuration with JWT authentication enabled."""
+    config = Configurator()
+    
+    # Set up JWT authentication
+    config.set_security_policy(JWTSecurityPolicy())
+    
+    # Add test routes (both protected and public)
+    config.add_route("create_user", "/users", request_method="POST")
+    config.add_route("get_user", "/users/{id}", request_method="GET") 
+    config.add_route("update_user", "/users/{id}", request_method="PUT")
+    config.add_route("delete_user", "/users/{id}", request_method="DELETE")
+    config.add_route("list_users", "/users", request_method="GET")
+    
+    # Add protected routes that require authentication
+    config.add_route("get_protected_user", "/protected/users/{id}", request_method="GET")
+    config.add_route("get_public_info", "/public/info", request_method="GET")
+    
+    # Add view configurations
+    config.add_view(create_user_view, route_name="create_user", renderer="json")
+    config.add_view(get_user_view, route_name="get_user", renderer="json")
+    config.add_view(update_user_view, route_name="update_user", renderer="json") 
+    config.add_view(delete_user_view, route_name="delete_user", renderer="json")
+    config.add_view(list_users_view, route_name="list_users", renderer="json")
+    
+    # Add protected and public views
+    config.add_view(get_protected_user_view, route_name="get_protected_user", 
+                   permission="authenticated", renderer="json")
+    config.add_view(get_public_info_view, route_name="get_public_info", renderer="json")
+    
+    # Store test data in registry
+    config.registry.users_db = users_db
+    config.registry.user_id_counter = user_id_counter
+    
+    return config
+
+
+@pytest.fixture
+def testapp_with_jwt_auth(pyramid_config_with_jwt_auth, users_db):
+    """TestApp with JWT authentication and MCP integration."""
+    pyramid_config_with_jwt_auth.include("pyramid_mcp")
+    
+    # Add test user for protected route testing
+    users_db[1] = {"id": 1, "name": "Test User", "email": "test@example.com"}
+    
+    # First make the WSGI app to ensure PyramidMCP is properly initialized
+    app = pyramid_config_with_jwt_auth.make_wsgi_app()
+    
+    # Now access the PyramidMCP instance for decorator registration
+    pyramid_mcp = pyramid_config_with_jwt_auth.registry.pyramid_mcp
+    
+    # Use the new decorator syntax with permission support
+    @pyramid_mcp.tool(
+        name="get_protected_user",
+        description="Get user info (requires authentication)",
+        permission="authenticated"
+    )
+    def get_protected_user_tool(id: int):
+        """MCP tool for protected user access."""
+        # Access user data from registry
+        user = users_db.get(id)
+        if not user:
+            raise ValueError("User not found")
+        
+        return {"user": user, "protected": True, "authenticated": True}
+    
+    @pyramid_mcp.tool(
+        name="get_public_info",
+        description="Get public information (no authentication required)"
+    )
+    def get_public_info_tool():
+        """MCP tool for public information access."""
+        return {
+            "message": "This is public information",
+            "timestamp": datetime.datetime.utcnow().isoformat(),
+            "public": True
+        }
+    
+    return TestApp(app)
 
 
 # =============================================================================
@@ -469,3 +656,27 @@ def calculate_tool(operation: str, a: float, b: float) -> float:
         return a / b
     else:
         raise ValueError(f"Unknown operation: {operation}")
+
+
+# JWT-enabled views for authentication testing
+def get_protected_user_view(request):
+    """Protected view that requires authentication."""
+    user_id = int(request.matchdict["id"])
+    users_db = request.registry.users_db
+    
+    # This view requires authentication - it should only be callable with valid JWT
+    user = users_db.get(user_id)
+    if not user:
+        request.response.status = 404
+        return {"error": "User not found"}
+    
+    return {"user": user, "protected": True, "authenticated": True}
+
+
+def get_public_info_view(request):
+    """Public view accessible without authentication."""
+    return {
+        "message": "This is public information",
+        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "public": True
+    }

@@ -94,6 +94,57 @@ def process_text(text: str, operation: str = "upper") -> str:
     return operations[operation](text)
 
 
+# Example with permission requirements
+@tool(name="admin_users", description="Administrative user operations", permission="admin")
+def admin_user_operations(action: str, user_id: int = None) -> dict:
+    """Perform administrative operations on users (requires admin permission).
+    
+    Args:
+        action: The action to perform (list, create, delete, etc.)
+        user_id: User ID for user-specific operations
+        
+    Returns:
+        Result of the administrative operation
+    """
+    if action == "list":
+        return {
+            "users": [
+                {"id": 1, "name": "Alice", "role": "user"},
+                {"id": 2, "name": "Bob", "role": "admin"},
+                {"id": 3, "name": "Charlie", "role": "user"}
+            ],
+            "total": 3
+        }
+    elif action == "delete" and user_id:
+        return {"message": f"User {user_id} deleted successfully", "action": "delete"}
+    else:
+        return {"error": "Invalid action or missing user_id"}
+
+
+@tool(name="user_profile", description="Get user profile information", permission="authenticated")
+def get_user_profile(user_id: int) -> dict:
+    """Get detailed user profile information (requires authentication).
+    
+    Args:
+        user_id: The ID of the user to get profile for
+        
+    Returns:
+        User profile information
+    """
+    # This would typically fetch from a database
+    profiles = {
+        1: {"id": 1, "name": "Alice", "email": "alice@example.com", "role": "user", "last_login": "2024-12-28"},
+        2: {"id": 2, "name": "Bob", "email": "bob@example.com", "role": "admin", "last_login": "2024-12-27"},
+        3: {"id": 3, "name": "Charlie", "email": "charlie@example.com", "role": "user", "last_login": "2024-12-26"}
+    }
+    
+    profile = profiles.get(user_id)
+    if not profile:
+        raise ValueError(f"User {user_id} not found")
+    
+    return profile
+
+
 def create_app():
     """Create and configure the Pyramid application with MCP support."""
     
@@ -144,8 +195,10 @@ def main():
     print("  • http://localhost:8080/mcp (MCP JSON-RPC endpoint)")
     print()
     print("🛠️  Available MCP tools:")
-    print("  • calculator - Perform math operations")
-    print("  • text_processor - Process text")
+    print("  • calculator - Perform math operations (public)")
+    print("  • text_processor - Process text (public)")
+    print("  • user_profile - Get user profile (requires 'authenticated' permission)")
+    print("  • admin_users - Admin operations (requires 'admin' permission)")
     print("  • api_hello - Auto-discovered from /api/hello")
     print("  • api_users - Auto-discovered from /api/users")
     print()

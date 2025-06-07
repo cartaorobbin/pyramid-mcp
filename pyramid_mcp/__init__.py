@@ -99,6 +99,7 @@ def tool(
     name: Optional[str] = None,
     description: Optional[str] = None,
     schema: Optional[Type[Schema]] = None,
+    permission: Optional[str] = None,
 ) -> Callable:
     """
     Decorator to register a function as an MCP tool using the current Pyramid registry.
@@ -110,6 +111,7 @@ def tool(
         name: Tool name (defaults to function name)
         description: Tool description (defaults to function docstring)
         schema: Marshmallow schema for input validation
+        permission: Pyramid permission requirement for this tool
 
     Returns:
         Decorated function
@@ -118,6 +120,10 @@ def tool(
         @tool(description="Add two numbers")
         def add(a: int, b: int) -> int:
             return a + b
+            
+        @tool(description="Get user info", permission="authenticated")
+        def get_user(id: int) -> dict:
+            return {"id": id, "name": "User"}
     """
 
     def decorator(func: Callable) -> Callable:
@@ -129,6 +135,7 @@ def tool(
             "name": tool_name,
             "description": tool_description,
             "schema": schema,
+            "permission": permission,
         }
 
         # Try to register immediately if registry is available
@@ -136,14 +143,14 @@ def tool(
         if registry is not None:
             pyramid_mcp = getattr(registry, "pyramid_mcp", None)
             if pyramid_mcp:
-                pyramid_mcp.tool(name, description, schema)(func)
+                pyramid_mcp.tool(name, description, schema, permission)(func)
         else:
             # Check if we have a stored registry for testing
             stored_registry = getattr(_tool_registry_storage, "registry", None)
             if stored_registry:
                 pyramid_mcp = getattr(stored_registry, "pyramid_mcp", None)
                 if pyramid_mcp:
-                    pyramid_mcp.tool(name, description, schema)(func)
+                    pyramid_mcp.tool(name, description, schema, permission)(func)
 
         return func
 
@@ -228,5 +235,8 @@ def _register_pending_tools(pyramid_mcp: PyramidMCP) -> None:
         ):
             tool_config = obj._mcp_tool_config
             pyramid_mcp.tool(
-                tool_config["name"], tool_config["description"], tool_config["schema"]
+                tool_config["name"], 
+                tool_config["description"], 
+                tool_config["schema"],
+                tool_config.get("permission", None)  # Default to None for backward compatibility
             )(obj)
