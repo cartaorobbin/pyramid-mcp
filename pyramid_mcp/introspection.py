@@ -51,7 +51,7 @@ class PyramidIntrospector:
             # Get all view introspectables for cross-referencing
             view_category = introspector.get_category("views") or []
             view_introspectables = [item["introspectable"] for item in view_category]
-            view_by_route = {}
+            view_by_route: Dict[str, List[Any]] = {}
             for view_intr in view_introspectables:
                 route_name = view_intr.get("route_name")
                 if route_name:
@@ -269,7 +269,7 @@ class PyramidIntrospector:
         Returns:
             List of MCP tools for this route
         """
-        tools = []
+        tools: List[MCPTool] = []
         route_name = route_info.get("name", "")
         route_pattern = route_info.get("pattern", "")
         views = route_info.get("views", [])
@@ -279,7 +279,7 @@ class PyramidIntrospector:
             return tools
 
         # Group views by HTTP method
-        views_by_method = {}
+        views_by_method: Dict[str, List[Dict[str, Any]]] = {}
         for view in views:
             # Use view's request methods, or fall back to route's request methods
             methods = view.get("request_methods")

@@ -4,6 +4,108 @@ This file contains all completed tasks from the pyramid-mcp project, organized c
 
 ## 🎉 COMPLETED TASKS
 
+### [2025-01-28] Fix Claude Desktop Docker Integration
+
+**Status**: DONE ✅
+**Assigned**: Assistant  
+**Estimated Time**: 1-2 hours
+**Actual Time**: ~1 hour
+**Related Issue**: Docker setup working but Claude integration needed adjustments
+
+#### Implementation Summary
+**All Claude Desktop integration tasks completed successfully:**
+
+- ✅ **Docker build**: SUCCESS - Image builds without errors
+- ✅ **Docker run**: SUCCESS - Container runs and responds to MCP protocol  
+- ✅ **Container response**: SUCCESS - Returns proper MCP initialize response with 4 tools
+- ✅ **Claude Desktop Integration**: Tested and validated full functionality
+- ✅ **Authentication**: Pre-configured API keys working properly
+- ✅ **End-to-end testing**: Claude Desktop can use all 4 registered tools successfully
+
+#### Outcome
+Claude Desktop now integrates seamlessly with Docker container using stdio transport, providing reliable MCP tool access with proper authentication.
+
+### [2025-01-28] Docker Integration for Pyramid MCP Examples
+
+**Status**: DONE ✅
+**Assigned**: Assistant  
+**Estimated Time**: 2-3 hours
+**Actual Time**: ~6 hours (comprehensive implementation)
+**Related Issue**: Claude Desktop integration issues with path configuration
+
+#### Problem Analysis & Solution
+**Original Issues:**
+- Claude Desktop expected command-based MCP server configuration
+- Required absolute paths to Python executables and script files  
+- Path configuration was error-prone and system-dependent
+- Virtual environment paths varied between systems
+
+**Solution Implemented:**
+- Docker container with stdio endpoint for Claude Desktop
+- Eliminated path configuration issues completely
+- Provided consistent Docker environment across all systems
+
+#### Implementation Summary
+
+**Phase 1: Docker Container Creation - COMPLETE ✅**
+- ✅ **Multi-stage Dockerfile Creation**: Secure, optimized Docker build in examples/secure/ directory
+- ✅ **Individual pyproject.toml**: Created dedicated pyproject.toml for each example
+- ✅ **Security Best Practices**: Non-root user, health checks, isolated environment
+- ✅ **Docker Testing**: Comprehensive build and run testing
+
+**Phase 2: Claude Desktop Integration - COMPLETE ✅**
+- ✅ **Stdio Transport Implementation**: Command-based Docker configuration for Claude Desktop
+- ✅ **MCP Protocol Compliance**: Proper JSON-RPC responses with input schemas
+- ✅ **Authentication Setup**: MCP_API_KEY environment variable with pre-configured keys
+- ✅ **Tool Registration**: All 4 secure example tools properly registered and accessible
+
+**Phase 2.5: Stdio Transport CLI - COMPLETE ✅**
+- ✅ **CLI Enhancement**: Enhanced `pyramid_mcp.cli` module with Click framework
+- ✅ **Dual Loading Support**: Support for both INI files (`--ini development.ini`) and Python modules (`--app simple_app:create_app`)
+- ✅ **JSON-RPC Communication**: Full stdin/stdout JSON-RPC communication loop
+- ✅ **Error Handling**: Comprehensive error handling and logging for production use
+
+**Phase 2.7: Simple Example Integration - COMPLETE ✅**
+- ✅ **Docker Configuration**: Updated Dockerfile for simple example using stdio transport
+- ✅ **Module Loading**: Direct Python module loading eliminating need for INI files
+- ✅ **Claude Desktop Config**: Working claude_desktop_config.json with stdio transport
+- ✅ **Documentation**: Complete setup guides and troubleshooting documentation
+
+#### Technical Achievements
+**Docker Architecture:**
+- Multi-stage Docker build for optimization
+- Secure container with non-root user
+- Health checks and restart policies
+- Individual pyproject.toml per example for isolation
+
+**Stdio Transport:**
+- Full JSON-RPC stdin/stdout communication
+- Integration with existing pyramid_mcp HTTP functionality
+- Preserved all authentication and security mechanisms
+- CLI entry point (`pstdio`) for easy deployment
+
+**Claude Desktop Integration:**
+- Working claude_desktop_config.json configuration
+- Pre-configured API keys (service-key-123, user-key-456)
+- All 4 MCP tools accessible from Claude Desktop
+- Comprehensive authentication testing
+
+#### Expected Benefits Achieved
+- ✅ **Eliminated path issues**: No absolute paths needed for Claude Desktop
+- ✅ **Consistent environment**: Same container everywhere  
+- ✅ **Simple Claude config**: Just command + API key configuration
+- ✅ **Portable**: Works on any system with Docker
+- ✅ **Secure**: Isolated container environment with proper authentication
+- ✅ **Reliable**: Health checks and comprehensive error handling
+
+#### Files Created/Modified
+- `examples/secure/Dockerfile` - Multi-stage Docker build
+- `examples/secure/pyproject.toml` - Example-specific dependencies
+- `examples/secure/claude_desktop_config.json` - Working Claude configuration
+- `pyramid_mcp/cli.py` - Click-based CLI with stdio transport
+- `claude_desktop_config_alternatives.md` - Configuration options documentation
+- Updated READMEs and documentation across examples
+
 ### [2025-01-16] Enable Docker-in-Docker for Development Container
 
 **Status**: DONE ✅

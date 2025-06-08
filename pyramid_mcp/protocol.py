@@ -8,7 +8,7 @@ between MCP clients and servers.
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from marshmallow import Schema, fields
 
@@ -60,12 +60,12 @@ class MCPRequest:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        result = {"jsonrpc": self.jsonrpc, "method": self.method}
+        response_dict = {"jsonrpc": self.jsonrpc, "method": self.method}
         if self.params is not None:
-            result["params"] = self.params
+            response_dict["params"] = self.params
         if self.id is not None:
-            result["id"] = self.id
-        return result
+            response_dict["id"] = self.id
+        return response_dict
 
 
 @dataclass
@@ -79,14 +79,14 @@ class MCPResponse:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        result = {"jsonrpc": self.jsonrpc}
+        response_dict = {"jsonrpc": self.jsonrpc}
         if self.id is not None:
-            result["id"] = self.id
+            response_dict["id"] = self.id
         if self.error:
-            result["error"] = self.error.to_dict()
+            response_dict["error"] = self.error.to_dict()
         elif self.result is not None:
-            result["result"] = self.result
-        return result
+            response_dict["result"] = self.result
+        return response_dict
 
 
 # MCP Tool-related schemas
@@ -142,12 +142,12 @@ class MCPTool:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to MCP tool format."""
-        result = {"name": self.name}
+        tool_dict = {"name": self.name}
         if self.description:
-            result["description"] = self.description
+            tool_dict["description"] = self.description
         if self.input_schema:
-            result["inputSchema"] = self.input_schema
-        return result
+            tool_dict["inputSchema"] = self.input_schema
+        return tool_dict
 
 
 class MCPProtocolHandler:
@@ -227,7 +227,7 @@ class MCPProtocolHandler:
             try:
                 if message_data and "id" in message_data:
                     request_id = message_data["id"]
-            except:
+            except Exception:
                 pass
 
             error = MCPError(code=MCPErrorCode.INTERNAL_ERROR.value, message=str(e))
@@ -367,7 +367,7 @@ class MCPProtocolHandler:
         """Handle MCP resources/list request."""
         # For now, return empty resources list
         # This can be extended to support MCP resources in the future
-        result = {"resources": []}
+        result: Dict[str, Any] = {"resources": []}
         response = MCPResponse(id=request.id, result=result)
         return response.to_dict()
 
@@ -375,11 +375,13 @@ class MCPProtocolHandler:
         """Handle MCP prompts/list request."""
         # For now, return empty prompts list
         # This can be extended to support MCP prompts in the future
-        result = {"prompts": []}
+        result: Dict[str, Any] = {"prompts": []}
         response = MCPResponse(id=request.id, result=result)
         return response.to_dict()
 
-    def _handle_notifications_initialized(self, request: MCPRequest) -> Dict[str, Any]:
+    def _handle_notifications_initialized(
+        self, request: MCPRequest
+    ) -> Optional[Dict[str, Any]]:
         """Handle MCP notifications/initialized request."""
         # This is a notification - no response should be sent for notifications
         # But since our current architecture expects a response, we'll return None
@@ -399,7 +401,7 @@ def create_json_schema_from_marshmallow(schema_class: type) -> Dict[str, Any]:
     # This is a simplified conversion - a more complete implementation
     # would handle all Marshmallow field types and options
     schema_instance = schema_class()
-    json_schema = {"type": "object", "properties": {}, "required": []}
+    json_schema: Dict[str, Any] = {"type": "object", "properties": {}, "required": []}
 
     for field_name, field_obj in schema_instance.fields.items():
         field_schema = {"type": "string"}  # Default to string

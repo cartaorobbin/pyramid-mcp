@@ -125,7 +125,7 @@ class PyramidMCP:
             # Route discovery - only if enabled
             if self.config.route_discovery_enabled:
                 # Create a configuration object for route discovery
-                class RouteDiscoveryConfig:
+                class RouteDiscoveryConfig:  # type: ignore
                     def __init__(self, mcp_config):
                         self.include_patterns = (
                             mcp_config.route_discovery_include_patterns or []
