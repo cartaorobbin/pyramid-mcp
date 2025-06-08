@@ -286,9 +286,15 @@ class PyramidMCP:
             # Parse JSON request body
             message_data = request.json_body
 
+            # Get the context from the context factory (if any)
+            # This integrates MCP with Pyramid's security system
+            context = getattr(request, 'context', None)
+
             # Create authentication context for MCP protocol handler
+            # Include both request and context for proper security integration
             auth_context = {
-                'request': request
+                'request': request,
+                'context': context
             }
 
             # Handle the message through protocol handler

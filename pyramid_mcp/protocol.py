@@ -259,13 +259,27 @@ class MCPProtocolHandler:
         if tool.permission:
             if auth_context:
                 pyramid_request = auth_context.get('request')
+                context = auth_context.get('context')
                 
                 if pyramid_request:
                     try:
-                        # Use Pyramid's request.has_permission method which integrates with the security policy
-                        has_perms = pyramid_request.has_permission(tool.permission, None)
+                        # Get the security policy from the registry
+                        from pyramid.interfaces import ISecurityPolicy
+                        registry = getattr(pyramid_request, 'registry', None)
                         
-                        # has_permission returns Allowed/Denied objects that evaluate to True/False
+                        if registry:
+                            policy = registry.queryUtility(ISecurityPolicy)
+                            if policy and context is not None:
+                                # Use policy.permits with context factory - proper integration!
+                                has_perms = policy.permits(pyramid_request, context, tool.permission)
+                            else:
+                                # Fallback to request.has_permission if no context factory
+                                has_perms = pyramid_request.has_permission(tool.permission, context)
+                        else:
+                            # No registry available, use basic permission check
+                            has_perms = pyramid_request.has_permission(tool.permission, context)
+                        
+                        # has_permission/permits returns Allowed/Denied objects that evaluate to True/False
                         if not has_perms:
                             error = MCPError(
                                 code=MCPErrorCode.INVALID_PARAMS.value,
