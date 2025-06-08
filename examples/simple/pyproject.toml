@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "pyramid-mcp-simple-example"
+version = "1.0.0"
+description = "Simple Pyramid MCP example demonstrating basic functionality"
+authors = ["pyramid-mcp contributors"]
+packages = []
+
+[tool.poetry.dependencies]
+python = ">=3.9,<4.0"
+pyramid = "^2.0"
+waitress = "^3.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api" 

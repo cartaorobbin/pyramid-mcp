@@ -22,7 +22,8 @@ This document outlines the development rules and guidelines for the pyramid-mcp 
 **ALWAYS maintain planning files to track what we did.**
 
 - **Organized structure**: Use `planning/` directory for all planning files
-- **General vs Feature**: Use `planning/general.md` for infrastructure/general tasks, create feature-specific files for major features
+- **General vs Feature**: Use `planning/general.md` for ACTIVE infrastructure/general tasks, create feature-specific files for major features
+- **Completion Tracking**: Move completed tasks from `planning/general.md` to `planning/done.md` for clean organization
 - **Create/update files**: Before starting any work, document what you plan to do in the appropriate planning file
 - **Track progress**: Update the files as you complete tasks
 - **Document decisions**: Record important decisions and why they were made
@@ -36,7 +37,7 @@ Before starting any development work:
 
 - [ ] Read and understand the requirement
 - [ ] Create or update appropriate planning file with your planned work
-- [ ] Choose between `planning/general.md` or create feature-specific file
+- [ ] Choose between `planning/general.md` (for current work) or create feature-specific file
 - [ ] Check existing issues and PRs for related work
 - [ ] Plan your approach and get feedback if needed
 - [ ] Ensure your development environment is set up (`make install`)
@@ -148,7 +149,8 @@ Closes #123
 
 The `planning/` directory contains all task tracking and planning files:
 
-- **`planning/general.md`** - Overall project tasks, infrastructure, and cross-cutting concerns
+- **`planning/general.md`** - ACTIVE project tasks, infrastructure, and cross-cutting concerns
+- **`planning/done.md`** - COMPLETED project tasks for historical reference
 - **`planning/[feature-name].md`** - Feature-specific planning and tasks
 - **`planning/feature-template.md`** - Template for creating new feature files
 - **`planning/README.md`** - Documentation for the planning system
@@ -156,11 +158,16 @@ The `planning/` directory contains all task tracking and planning files:
 ### When to Use Which Planning File
 
 **Use `planning/general.md` for:**
-- Infrastructure and tooling updates
-- Project-wide changes
-- Documentation updates
-- Quick fixes and small improvements
-- Development process improvements
+- ACTIVE infrastructure and tooling updates  
+- Current project-wide changes
+- Ongoing documentation updates
+- TODO quick fixes and small improvements
+- IN PROGRESS development process improvements
+
+**Move to `planning/done.md` when:**
+- Tasks are marked as DONE ✅
+- Implementation is complete and tested
+- Work is ready for archival reference
 
 **Create `planning/[feature-name].md` for:**
 - Features taking more than 1 day
@@ -475,7 +482,7 @@ Before requesting review:
 Even for urgent fixes:
 
 1. **Still plan first** - Even 5 minutes of planning can prevent bigger issues
-2. **Update planning files** - Document what you're fixing and why in `planning/general.md`
+2. **Update planning files** - Document what you're fixing and why in `planning/general.md` (move to `planning/done.md` when complete)
 3. **Create hotfix branch**: `hotfix/critical-issue-description`
 4. **Minimal, focused changes** - Fix only what's necessary
 5. **Fast-track review** - Get quick review but don't skip testing

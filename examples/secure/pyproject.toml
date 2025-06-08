@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "pyramid-mcp-secure-example"
+version = "1.0.0"
+description = "Secure Pyramid MCP example with authentication and context factories"
+authors = ["pyramid-mcp contributors"]
+packages = []
+
+[tool.poetry.dependencies]
+python = ">=3.9,<4.0"
+pyramid = "^2.0"
+waitress = "^3.0.0"
+PyJWT = "^2.8.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api" 

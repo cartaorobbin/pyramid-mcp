@@ -5,9 +5,16 @@ This directory contains all project planning and task tracking files.
 ## File Organization
 
 ### `general.md`
-- **Purpose**: Overall project tasks, infrastructure work, and cross-cutting concerns
-- **Use for**: Project setup, CI/CD, general improvements, documentation updates
+- **Purpose**: **ACTIVE** project tasks, infrastructure work, and cross-cutting concerns
+- **Use for**: Current/TODO project setup, CI/CD, general improvements, documentation updates
 - **Examples**: Setting up development rules, dependency management, build system changes
+- **Status**: Only contains TODO and IN PROGRESS tasks
+
+### `done.md`
+- **Purpose**: **COMPLETED** project tasks archive
+- **Use for**: Historical record of finished work, implementation reference, progress tracking
+- **Examples**: Completed test infrastructure, finished security features, deployed examples
+- **Status**: Only contains DONE tasks from general.md and feature files
 
 ### Feature-Specific Files
 - **Pattern**: `[feature-name].md` (e.g., `user-authentication.md`, `api-endpoints.md`)
@@ -46,8 +53,8 @@ Use `general.md` for:
 
 1. **Planning**: Create or update the appropriate planning file
 2. **Development**: Update progress as you work
-3. **Completion**: Mark tasks as DONE and update related files
-4. **Archive**: Move completed tasks to Archive section to keep files clean
+3. **Completion**: Mark tasks as DONE and move them to `done.md`
+4. **Archive**: Keep active files clean by only showing current work
 
 ## Cross-References
 
@@ -61,7 +68,8 @@ Use `general.md` for:
 ```
 planning/
 ├── README.md                 # This file
-├── general.md               # General project tasks
+├── general.md               # ACTIVE general project tasks
+├── done.md                  # COMPLETED tasks archive
 ├── feature-template.md      # Template for new features
 ├── user-authentication.md   # User auth feature planning
 ├── api-endpoints.md         # API development planning

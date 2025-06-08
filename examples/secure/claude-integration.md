@@ -14,8 +14,139 @@ Claude Desktop can connect to MCP servers to expand Claude's capabilities with c
 ## Prerequisites
 
 1. **Claude Desktop installed** - Download from [Claude.ai](https://claude.ai/download)
-2. **Secure MCP server running** - Follow the [Secure Example README](README.md) to start the server
+2. **Secure MCP server running** - Either follow the [Secure Example README](README.md) or use Docker (recommended)
 3. **Valid authentication** - JWT token or API key for accessing protected tools
+
+## Setup Options
+
+Choose one of these setup methods:
+
+- **🐳 [Docker Setup](#docker-setup-recommended)** - Recommended for ease of use and reliability
+- **🐍 [Local Python Setup](#local-python-setup)** - For development and customization
+
+## Docker Setup (Recommended)
+
+The Docker approach eliminates path configuration issues and provides a consistent environment across all systems.
+
+### Step 1: Build and Run Docker Container
+
+From the project root directory:
+
+```bash
+# Build the Docker image
+docker build -f examples/secure/Dockerfile -t pyramid-mcp-secure .
+
+# Run the container
+docker run -d -p 8080:8080 --name pyramid-mcp pyramid-mcp-secure
+
+# Verify it's running
+curl http://localhost:8080/auth/login
+# Should return: 404 Not Found with "predicate mismatch for view login (request_method = POST)"
+# This confirms the server is running and responding
+```
+
+### Step 2: Configure Claude Desktop for HTTP Transport
+
+Create or edit your Claude Desktop configuration file with HTTP transport:
+
+```json
+{
+  "mcpServers": {
+    "pyramid-secure": {
+      "transport": {
+        "type": "http",
+        "url": "http://localhost:8080/mcp-secure",
+        "headers": {
+          "X-API-Key": "service-key-123"
+        }
+      }
+    }
+  }
+}
+```
+
+### Step 3: Container Management
+
+```bash
+# Stop the container
+docker stop pyramid-mcp
+
+# Start the container again
+docker start pyramid-mcp
+
+# View logs
+docker logs pyramid-mcp
+
+# Remove the container
+docker rm pyramid-mcp
+```
+
+### Docker Configuration Examples
+
+#### Basic Admin Access
+```json
+{
+  "mcpServers": {
+    "pyramid-admin": {
+      "transport": {
+        "type": "http",
+        "url": "http://localhost:8080/mcp-admin",
+        "headers": {
+          "X-API-Key": "service-key-123"
+        }
+      }
+    }
+  }
+}
+```
+
+#### User-Level Access
+```json
+{
+  "mcpServers": {
+    "pyramid-user": {
+      "transport": {
+        "type": "http",
+        "url": "http://localhost:8080/mcp-secure",
+        "headers": {
+          "X-API-Key": "user-key-456"
+        }
+      }
+    }
+  }
+}
+```
+
+#### JWT Token Authentication
+```json
+{
+  "mcpServers": {
+    "pyramid-jwt": {
+      "transport": {
+        "type": "http",
+        "url": "http://localhost:8080/mcp-secure",
+        "headers": {
+          "Authorization": "Bearer YOUR_JWT_TOKEN_HERE"
+        }
+      }
+    }
+  }
+}
+```
+
+### Benefits of Docker Setup
+
+- ✅ **No path configuration** - No need to specify Python executable paths
+- ✅ **Consistent environment** - Same container works on Windows, macOS, and Linux
+- ✅ **Isolated dependencies** - No conflicts with your system Python
+- ✅ **Easy deployment** - Single Docker command to start/stop
+- ✅ **Reliable** - Container restarts automatically if it crashes
+
+## Local Python Setup
+
+### Step 1: Install Dependencies
+
+Follow the [Secure Example README](README.md) for detailed installation instructions.
 
 ## Configuration
 

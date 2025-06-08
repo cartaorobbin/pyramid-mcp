@@ -1,7 +1,7 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
 // https://github.com/microsoft/vscode-dev-containers/tree/v0.245.0/containers/ubuntu
 {
-	"name": "Ubuntu",
+	"name": "Pyramid MCP Development",
 	"dockerComposeFile": ["docker-compose.yml"],
 	"service": "dev-service",
 	"workspaceFolder": "/pyramid_mcp",
@@ -10,7 +10,7 @@
 	// },
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [],
+	"forwardPorts": [8080, 8000, 3000],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
 	// "postCreateCommand": "uname -a",
@@ -21,9 +21,39 @@
 	// Comment out to connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
 	"remoteUser": "vscode",
 	"features": {
-		"python": "3.11.3"
-		// "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-		// "ghcr.io/devcontainers-contrib/features/poetry:2": {}
+		"python": "3.11.3",
+		"ghcr.io/devcontainers/features/docker-in-docker:2": {
+			"moby": true,
+			"dockerDashComposeVersion": "v2"
+		}
+	},
+
+	// VS Code extensions to install
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python",
+				"ms-python.black-formatter",
+				"ms-python.flake8",
+				"ms-python.mypy-type-checker",
+				"ms-azuretools.vscode-docker",
+				"redhat.vscode-yaml",
+				"ms-vscode.makefile-tools",
+				"charliermarsh.ruff"
+			],
+			"settings": {
+				"python.defaultInterpreterPath": "/pyramid_mcp/.venv/bin/python",
+				"python.terminal.activateEnvironment": true,
+				"docker.dockerPath": "docker",
+				"files.watcherExclude": {
+					"**/.git/objects/**": true,
+					"**/.git/subtree-cache/**": true,
+					"**/node_modules/**": true,
+					"**/.venv/**": true,
+					"**/.tox/**": true
+				}
+			}
+		}
 	}
 }
 
