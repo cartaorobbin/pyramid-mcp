@@ -5,16 +5,24 @@ This directory contains all project planning and task tracking files.
 ## File Organization
 
 ### `general.md`
-- **Purpose**: **ACTIVE** project tasks, infrastructure work, and cross-cutting concerns
-- **Use for**: Current/TODO project setup, CI/CD, general improvements, documentation updates
-- **Examples**: Setting up development rules, dependency management, build system changes
-- **Status**: Only contains TODO and IN PROGRESS tasks
+- **Purpose**: **CURRENT/ACTIVE** tasks being worked on right now
+- **Use for**: Tasks in active development, immediate work in progress
+- **Examples**: Current Docker integration, active bug fixes, ongoing feature implementation
+- **Status**: Only contains IN PROGRESS and immediate TODO tasks
+- **Goal**: Keep focused and manageable (max 1-3 active task groups)
+
+### `backlog.md`
+- **Purpose**: **PLANNED** future tasks (product backlog)
+- **Use for**: TODO tasks planned for future development, prioritized feature list
+- **Examples**: Route discovery phases, PyPI publishing, planned enhancements
+- **Status**: Organized by priority (HIGH/MEDIUM/LOW), ready to move to general.md
+- **Goal**: Complete list of planned work with time estimates
 
 ### `done.md`
 - **Purpose**: **COMPLETED** project tasks archive
 - **Use for**: Historical record of finished work, implementation reference, progress tracking
 - **Examples**: Completed test infrastructure, finished security features, deployed examples
-- **Status**: Only contains DONE tasks from general.md and feature files
+- **Status**: Only contains DONE tasks from general.md, backlog.md, and feature files
 
 ### Feature-Specific Files
 - **Pattern**: `[feature-name].md` (e.g., `user-authentication.md`, `api-endpoints.md`)
@@ -37,10 +45,17 @@ Create a new feature planning file when:
 
 Use `general.md` for:
 
-- ✅ Quick fixes and small improvements
-- ✅ Infrastructure and tooling updates
-- ✅ Documentation-only changes
-- ✅ Project-wide refactors
+- ✅ Tasks currently being worked on
+- ✅ Active development in progress
+- ✅ Immediate priority work
+- ✅ No more than 1-3 active task groups
+
+Use `backlog.md` for:
+
+- ✅ Planned future features
+- ✅ TODO tasks not yet started
+- ✅ Prioritized development pipeline
+- ✅ Feature requirements and planning
 
 ## File Naming Conventions
 
@@ -51,10 +66,11 @@ Use `general.md` for:
 
 ## Workflow
 
-1. **Planning**: Create or update the appropriate planning file
-2. **Development**: Update progress as you work
-3. **Completion**: Mark tasks as DONE and move them to `done.md`
-4. **Archive**: Keep active files clean by only showing current work
+1. **Planning**: Add new tasks to `backlog.md` with priority
+2. **Active Work**: Move tasks from `backlog.md` to `general.md` when starting
+3. **Development**: Update progress in `general.md` as you work
+4. **Completion**: Move completed tasks from `general.md` to `done.md`
+5. **Focus**: Keep `general.md` focused on only current active work
 
 ## Cross-References
 
@@ -68,13 +84,13 @@ Use `general.md` for:
 ```
 planning/
 ├── README.md                 # This file
-├── general.md               # ACTIVE general project tasks
+├── general.md               # CURRENT/ACTIVE tasks being worked on
+├── backlog.md               # PLANNED future tasks (prioritized)
 ├── done.md                  # COMPLETED tasks archive
 ├── feature-template.md      # Template for new features
-├── user-authentication.md   # User auth feature planning
-├── api-endpoints.md         # API development planning
-├── database-migration.md    # Database changes planning
-└── deployment-pipeline.md   # CI/CD planning
+├── user-authentication.md   # User auth feature planning (if needed)
+├── api-endpoints.md         # API development planning (if needed)
+└── deployment-pipeline.md   # CI/CD planning (if needed)
 ```
 
 ---
