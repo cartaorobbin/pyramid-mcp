@@ -69,7 +69,7 @@ When feature is complete, verify:
 - [ ] Feature is manually tested
 - [ ] Code is reviewed and merged
 - [ ] Feature is deployed/released
-- [ ] planning/general.md is updated with completion
+- [ ] planning/general.md is updated with completion (then moved to planning/done.md)
 
 ## Archive
 
