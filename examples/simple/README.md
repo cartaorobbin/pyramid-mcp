@@ -1,67 +1,150 @@
-# pyramid-mcp Examples
+# Simple Pyramid MCP Example
 
-This directory contains examples showing how to use pyramid-mcp in your applications.
+This is a simple example demonstrating pyramid-mcp integration with basic MCP tools and API endpoint discovery.
 
-## Simple App Example
+## Features
 
-**File**: `simple_app.py`
+- ✅ Basic MCP tools (`calculator`, `text_processor`)
+- ✅ Permission-based tools (`user_profile`, `admin_users`)
+- ✅ Auto-discovery of API endpoints as MCP tools
+- ✅ Simple setup with minimal configuration
+- ✅ Docker support for easy deployment
 
-A minimal example demonstrating:
-- Basic pyramid-mcp setup with `config.include('pyramid_mcp')`
-- Manual tool registration using the `@tool` decorator
-- Automatic route discovery for API endpoints
-- Complete runnable server
+## Available MCP Tools
 
-### Running the Example
+### Public Tools (No Authentication Required)
+- **calculator**: Perform basic math operations (add, subtract, multiply, divide)
+- **text_processor**: Process text with various operations (upper, lower, reverse, title)
 
+### Protected Tools (Authentication Required)
+- **user_profile**: Get user profile information (requires `authenticated` permission)
+- **admin_users**: Administrative user operations (requires `admin` permission)
+
+### Auto-Discovered API Tools
+- **api_hello**: Say hello endpoint from `/api/hello`
+- **api_users**: List users endpoint from `/api/users`
+
+## Running Locally
+
+### Direct Python Execution
 ```bash
-# From the project root
-python examples/simple_app.py
+cd examples/simple
+python simple_app.py
 ```
 
-The server will start on `http://localhost:8080` with:
-- Regular API endpoints at `/api/*`
-- MCP JSON-RPC endpoint at `/mcp`
-
-### What's Included
-
-**Manual MCP Tools:**
-- `calculator` - Perform basic math operations
-- `text_processor` - Process text in various ways
-
-**Auto-discovered Tools:**
-- `api_hello` - From the `/api/hello` endpoint
-- `api_users` - From the `/api/users` endpoint
-
-### Testing the Example
-
-You can test the MCP endpoint using curl:
-
+### Using Poetry
 ```bash
-# List available tools
+cd examples/simple
+poetry install
+poetry run python simple_app.py
+```
+
+The server will start on `http://localhost:8080` with MCP endpoint at `http://localhost:8080/mcp`.
+
+## Docker Support
+
+### Build and Run for Claude Desktop (stdio transport)
+```bash
+cd examples/simple
+docker build -t pyramid-mcp-simple .
+```
+
+The container is designed to run with stdio transport for Claude Desktop integration.
+
+### Test MCP Connection (HTTP mode for manual testing)
+```bash
+# Run in HTTP mode for testing
+docker run -p 8080:8080 pyramid-mcp-simple python simple_app.py
+
+# In another terminal, test MCP endpoint
 curl -X POST http://localhost:8080/mcp \
   -H "Content-Type: application/json" \
-  -d '{
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+
+# Test calculator tool
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"calculator","arguments":{"operation":"add","a":5,"b":3}}}'
+
+# Test text processor tool
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"text_processor","arguments":{"text":"hello world","operation":"title"}}}'
+```
+
+## Claude Desktop Integration
+
+Add this to your Claude Desktop configuration (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "pyramid-mcp-simple": {
+      "command": "docker",
+      "args": [
+        "run", "--rm", "-i",
+        "pyramid-mcp-simple"
+      ]
+    }
+  }
+}
+```
+
+This configuration uses stdio transport, which is the proper MCP approach.
+
+## Configuration
+
+The app uses these MCP settings:
+- **Server Name**: `simple-pyramid-app`
+- **Version**: `1.0.0`
+- **Mount Path**: `/mcp`
+- **Route Discovery**: Enabled for `api/*` patterns
+
+## API Endpoints
+
+### Standard HTTP Endpoints
+- `GET /api/hello?name=YourName` - Hello endpoint
+- `GET /api/users` - List users
+
+### MCP JSON-RPC Endpoint
+- `POST /mcp` - MCP protocol endpoint
+
+## Example MCP Client Usage
+
+```python
+import requests
+
+# List available tools
+response = requests.post('http://localhost:8080/mcp', json={
     "jsonrpc": "2.0",
     "id": 1,
     "method": "tools/list",
     "params": {}
-  }'
+})
 
-# Call the calculator tool
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -d '{
+# Call calculator tool
+response = requests.post('http://localhost:8080/mcp', json={
     "jsonrpc": "2.0",
     "id": 2,
     "method": "tools/call",
     "params": {
-      "name": "calculator",
-      "arguments": {"operation": "add", "a": 5, "b": 3}
+        "name": "calculator",
+        "arguments": {
+            "operation": "add",
+            "a": 10,
+            "b": 5
+        }
     }
-  }'
+})
 ```
 
-## Integration with AI Platforms
+## Development
 
-For detailed instructions on integrating with Claude, OpenAI, and other AI platforms, see the [Integration Documentation](../docs/integration.md). 
+To extend this example:
+
+1. Add new `@tool` decorated functions for MCP tools
+2. Add new `@view_config` decorated functions for API endpoints
+3. Configure route discovery patterns in settings
+4. Update Docker build if needed
+
+This simple example is perfect for getting started with pyramid-mcp integration! 

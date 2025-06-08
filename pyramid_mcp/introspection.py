@@ -34,106 +34,111 @@ class PyramidIntrospector:
             return []
 
         routes_info = []
-        
+
         try:
             # Get the registry and introspector
             registry = self.configurator.registry
             introspector = registry.introspector
-            
+
             # Get route mapper for additional route information
             route_mapper = self.configurator.get_routes_mapper()
             route_objects = {route.name: route for route in route_mapper.get_routes()}
-            
+
             # Get all route introspectables
-            route_category = introspector.get_category('routes') or []
-            route_introspectables = [item['introspectable'] for item in route_category]
-            
+            route_category = introspector.get_category("routes") or []
+            route_introspectables = [item["introspectable"] for item in route_category]
+
             # Get all view introspectables for cross-referencing
-            view_category = introspector.get_category('views') or []
-            view_introspectables = [item['introspectable'] for item in view_category]
+            view_category = introspector.get_category("views") or []
+            view_introspectables = [item["introspectable"] for item in view_category]
             view_by_route = {}
             for view_intr in view_introspectables:
-                route_name = view_intr.get('route_name')
+                route_name = view_intr.get("route_name")
                 if route_name:
                     if route_name not in view_by_route:
                         view_by_route[route_name] = []
                     view_by_route[route_name].append(view_intr)
-            
+
             # Process each route
             for route_intr in route_introspectables:
-                route_name = route_intr.get('name')
+                route_name = route_intr.get("name")
                 if not route_name:
                     continue
-                    
+
                 # Get route object for additional metadata
                 route_obj = route_objects.get(route_name)
-                
+
                 # Get associated views
                 views = view_by_route.get(route_name, [])
-                
+
                 # Build comprehensive route information
                 route_info = {
-                    'name': route_name,
-                    'pattern': route_intr.get('pattern', ''),
-                    'request_methods': route_intr.get('request_methods', []),
-                    'factory': route_intr.get('factory'),
-                    'predicates': {
-                        'xhr': route_intr.get('xhr'),
-                        'request_method': route_intr.get('request_method'),
-                        'path_info': route_intr.get('path_info'),
-                        'request_param': route_intr.get('request_param'),
-                        'header': route_intr.get('header'),
-                        'accept': route_intr.get('accept'),
-                        'custom_predicates': route_intr.get('custom_predicates', []),
+                    "name": route_name,
+                    "pattern": route_intr.get("pattern", ""),
+                    "request_methods": route_intr.get("request_methods", []),
+                    "factory": route_intr.get("factory"),
+                    "predicates": {
+                        "xhr": route_intr.get("xhr"),
+                        "request_method": route_intr.get("request_method"),
+                        "path_info": route_intr.get("path_info"),
+                        "request_param": route_intr.get("request_param"),
+                        "header": route_intr.get("header"),
+                        "accept": route_intr.get("accept"),
+                        "custom_predicates": route_intr.get("custom_predicates", []),
                     },
-                    'route_object': route_obj,
-                    'views': []
+                    "route_object": route_obj,
+                    "views": [],
                 }
-                
+
                 # Process associated views
                 for view_intr in views:
-                    view_callable = view_intr.get('callable')
+                    view_callable = view_intr.get("callable")
                     if view_callable:
                         view_info = {
-                            'callable': view_callable,
-                            'name': view_intr.get('name', ''),
-                            'request_methods': view_intr.get('request_methods', []),
-                            'permission': None,  # Will be populated from permissions introspectables
-                            'renderer': None,
-                            'context': view_intr.get('context'),
-                            'predicates': {
-                                'xhr': view_intr.get('xhr'),
-                                'accept': view_intr.get('accept'),
-                                'header': view_intr.get('header'),
-                                'request_param': view_intr.get('request_param'),
-                                'match_param': view_intr.get('match_param'),
-                                'csrf_token': view_intr.get('csrf_token'),
-                            }
+                            "callable": view_callable,
+                            "name": view_intr.get("name", ""),
+                            "request_methods": view_intr.get("request_methods", []),
+                            "permission": None,  # Will be populated from permissions introspectables
+                            "renderer": None,
+                            "context": view_intr.get("context"),
+                            "predicates": {
+                                "xhr": view_intr.get("xhr"),
+                                "accept": view_intr.get("accept"),
+                                "header": view_intr.get("header"),
+                                "request_param": view_intr.get("request_param"),
+                                "match_param": view_intr.get("match_param"),
+                                "csrf_token": view_intr.get("csrf_token"),
+                            },
                         }
-                        
+
                         # Try to get renderer information from templates
-                        template_category = introspector.get_category('templates') or []
-                        template_introspectables = [item['introspectable'] for item in template_category]
+                        template_category = introspector.get_category("templates") or []
+                        template_introspectables = [
+                            item["introspectable"] for item in template_category
+                        ]
                         for template_intr in template_introspectables:
                             # Match templates to views - this is a heuristic approach
                             # since templates don't directly reference view callables
-                            if (template_intr.get('name') and 
-                                hasattr(view_callable, '__name__') and 
-                                view_callable.__name__ in str(template_intr.get('name', ''))):
-                                view_info['renderer'] = {
-                                    'name': template_intr.get('name'),
-                                    'type': template_intr.get('type')
+                            if (
+                                template_intr.get("name")
+                                and hasattr(view_callable, "__name__")
+                                and view_callable.__name__
+                                in str(template_intr.get("name", ""))
+                            ):
+                                view_info["renderer"] = {
+                                    "name": template_intr.get("name"),
+                                    "type": template_intr.get("type"),
                                 }
                                 break
-                        
-                        route_info['views'].append(view_info)
-                
+
+                        route_info["views"].append(view_info)
+
                 routes_info.append(route_info)
-                
+
         except Exception as e:
             # Log the error but don't fail completely
             print(f"Error discovering routes: {e}")
-            
+
         return routes_info
 
     def discover_tools(self, config: Any) -> List[MCPTool]:
@@ -161,15 +166,15 @@ class PyramidIntrospector:
             List of discovered MCP tools
         """
         tools: List[MCPTool] = []
-        
+
         # Discover routes using our comprehensive discovery method
         routes_info = self.discover_routes()
-        
+
         for route_info in routes_info:
             # Skip routes that should be excluded
             if self._should_exclude_route(route_info, config):
                 continue
-                
+
             # Convert route to MCP tools (one per HTTP method)
             route_tools = self._convert_route_to_tools(route_info, config)
             tools.extend(route_tools)
@@ -185,34 +190,40 @@ class PyramidIntrospector:
         Returns:
             True if route should be excluded, False otherwise
         """
-        route_name = route_info.get('name', '')
-        route_pattern = route_info.get('pattern', '')
-        
+        route_name = route_info.get("name", "")
+        route_pattern = route_info.get("pattern", "")
+
         # Exclude MCP routes themselves
-        if route_name.startswith('mcp_'):
+        if route_name.startswith("mcp_"):
             return True
-            
+
         # Exclude static routes and assets
-        if 'static' in route_name.lower() or route_pattern.startswith('/static'):
+        if "static" in route_name.lower() or route_pattern.startswith("/static"):
             return True
-            
+
         # Check include patterns
-        include_patterns = getattr(config, 'include_patterns', None)
+        include_patterns = getattr(config, "include_patterns", None)
         if include_patterns:
-            if not any(self._pattern_matches(pattern, route_pattern, route_name) 
-                      for pattern in include_patterns):
+            if not any(
+                self._pattern_matches(pattern, route_pattern, route_name)
+                for pattern in include_patterns
+            ):
                 return True
-        
+
         # Check exclude patterns
-        exclude_patterns = getattr(config, 'exclude_patterns', None)
+        exclude_patterns = getattr(config, "exclude_patterns", None)
         if exclude_patterns:
-            if any(self._pattern_matches(pattern, route_pattern, route_name) 
-                  for pattern in exclude_patterns):
+            if any(
+                self._pattern_matches(pattern, route_pattern, route_name)
+                for pattern in exclude_patterns
+            ):
                 return True
-        
+
         return False
 
-    def _pattern_matches(self, pattern: str, route_pattern: str, route_name: str) -> bool:
+    def _pattern_matches(
+        self, pattern: str, route_pattern: str, route_name: str
+    ) -> bool:
         """Check if a pattern matches a route pattern or name.
 
         Args:
@@ -224,26 +235,31 @@ class PyramidIntrospector:
             True if pattern matches, False otherwise
         """
         # Normalize route pattern for matching
-        normalized_route = route_pattern.lstrip('/')
-        
+        normalized_route = route_pattern.lstrip("/")
+
         # Handle wildcard patterns
-        if '*' in pattern or '?' in pattern:
+        if "*" in pattern or "?" in pattern:
             # Pattern with wildcards - convert to regex
-            pattern_regex = pattern.replace('*', '.*').replace('?', '.')
-            pattern_regex = f'^{pattern_regex}$'
-            
+            pattern_regex = pattern.replace("*", ".*").replace("?", ".")
+            pattern_regex = f"^{pattern_regex}$"
+
             # Check against both route pattern and name
-            return bool(re.match(pattern_regex, normalized_route) or 
-                       re.match(pattern_regex, route_name))
+            return bool(
+                re.match(pattern_regex, normalized_route)
+                or re.match(pattern_regex, route_name)
+            )
         else:
             # Exact pattern - should match as prefix for routes and exact/prefix for names
-            route_match = (normalized_route == pattern or 
-                          normalized_route.startswith(pattern + '/'))
+            route_match = normalized_route == pattern or normalized_route.startswith(
+                pattern + "/"
+            )
             name_match = route_name.startswith(pattern)
-            
+
             return route_match or name_match
 
-    def _convert_route_to_tools(self, route_info: Dict[str, Any], config: Any) -> List[MCPTool]:
+    def _convert_route_to_tools(
+        self, route_info: Dict[str, Any], config: Any
+    ) -> List[MCPTool]:
         """Convert a route to one or more MCP tools.
 
         Args:
@@ -254,64 +270,64 @@ class PyramidIntrospector:
             List of MCP tools for this route
         """
         tools = []
-        route_name = route_info.get('name', '')
-        route_pattern = route_info.get('pattern', '')
-        views = route_info.get('views', [])
-        
+        route_name = route_info.get("name", "")
+        route_pattern = route_info.get("pattern", "")
+        views = route_info.get("views", [])
+
         # If no views, skip this route
         if not views:
             return tools
-            
+
         # Group views by HTTP method
         views_by_method = {}
         for view in views:
             # Use view's request methods, or fall back to route's request methods
-            methods = view.get('request_methods')
+            methods = view.get("request_methods")
             if not methods:
                 # Fall back to route's request methods
-                route_methods = route_info.get('request_methods')
+                route_methods = route_info.get("request_methods")
                 if route_methods:
                     methods = list(route_methods)
                 else:
-                    methods = ['GET']  # Final fallback
-                    
+                    methods = ["GET"]  # Final fallback
+
             for method in methods:
                 if method not in views_by_method:
                     views_by_method[method] = []
                 views_by_method[method].append(view)
-        
+
         # Create MCP tool for each HTTP method
         for method, method_views in views_by_method.items():
             # Use the first view for this method (most specific)
             view = method_views[0]
-            view_callable = view.get('callable')
-            
+            view_callable = view.get("callable")
+
             if not view_callable:
                 continue
-                
+
             # Generate tool name
             tool_name = self._generate_tool_name(route_name, method, route_pattern)
-            
+
             # Generate tool description
             description = self._generate_tool_description(
                 route_name, method, route_pattern, view_callable
             )
-            
+
             # Generate input schema from route pattern and view signature
             input_schema = self._generate_input_schema(
                 route_pattern, view_callable, method
             )
-            
+
             # Create MCP tool
             tool = MCPTool(
                 name=tool_name,
                 description=description,
                 input_schema=input_schema,
-                handler=self._create_route_handler(route_info, view, method)
+                handler=self._create_route_handler(route_info, view, method),
             )
-            
+
             tools.append(tool)
-        
+
         return tools
 
     def _generate_tool_name(self, route_name: str, method: str, pattern: str) -> str:
@@ -330,31 +346,31 @@ class PyramidIntrospector:
             base_name = route_name
         else:
             # Generate from pattern
-            base_name = pattern.replace('/', '_').replace('{', '').replace('}', '')
-            base_name = re.sub(r'[^a-zA-Z0-9_]', '', base_name)
-        
+            base_name = pattern.replace("/", "_").replace("{", "").replace("}", "")
+            base_name = re.sub(r"[^a-zA-Z0-9_]", "", base_name)
+
         # Add HTTP method context
         method_lower = method.lower()
-        if method_lower == 'get':
-            if 'list' in base_name or base_name.endswith('s'):
-                prefix = 'list'
+        if method_lower == "get":
+            if "list" in base_name or base_name.endswith("s"):
+                prefix = "list"
             else:
-                prefix = 'get'
-        elif method_lower == 'post':
-            prefix = 'create'
-        elif method_lower == 'put':
-            prefix = 'update'
-        elif method_lower == 'patch':
-            prefix = 'modify'
-        elif method_lower == 'delete':
-            prefix = 'delete'
+                prefix = "get"
+        elif method_lower == "post":
+            prefix = "create"
+        elif method_lower == "put":
+            prefix = "update"
+        elif method_lower == "patch":
+            prefix = "modify"
+        elif method_lower == "delete":
+            prefix = "delete"
         else:
             prefix = method_lower
-        
+
         # Combine prefix with base name intelligently
         if base_name.startswith(prefix):
             return base_name
-        elif base_name.endswith('_' + prefix):
+        elif base_name.endswith("_" + prefix):
             return base_name
         else:
             return f"{prefix}_{base_name}"
@@ -374,23 +390,27 @@ class PyramidIntrospector:
             Generated description
         """
         # Try to get description from view docstring
-        if view_callable and hasattr(view_callable, '__doc__') and view_callable.__doc__:
+        if (
+            view_callable
+            and hasattr(view_callable, "__doc__")
+            and view_callable.__doc__
+        ):
             doc = view_callable.__doc__.strip()
             if doc:
                 return doc
-        
+
         # Generate description from route information
         action_map = {
-            'GET': 'Retrieve',
-            'POST': 'Create',
-            'PUT': 'Update',
-            'PATCH': 'Modify',
-            'DELETE': 'Delete'
+            "GET": "Retrieve",
+            "POST": "Create",
+            "PUT": "Update",
+            "PATCH": "Modify",
+            "DELETE": "Delete",
         }
-        
+
         action = action_map.get(method.upper(), method.upper())
-        resource = route_name.replace('_', ' ').title()
-        
+        resource = route_name.replace("_", " ").title()
+
         return f"{action} {resource} via {method} {pattern}"
 
     def _generate_input_schema(
@@ -408,33 +428,65 @@ class PyramidIntrospector:
         """
         properties = {}
         required = []
-        
+
         # Extract path parameters from route pattern
-        path_params = re.findall(r'\{([^}]+)\}', pattern)
+        path_params = re.findall(r"\{([^}]+)\}", pattern)
         for param in path_params:
             # Remove any regex constraints (e.g., {id:\d+} -> id)
-            clean_param = param.split(':')[0]
+            clean_param = param.split(":")[0]
             properties[clean_param] = {
                 "type": "string",
-                "description": f"Path parameter: {clean_param}"
+                "description": f"Path parameter: {clean_param}",
             }
             required.append(clean_param)
-        
+
+        # Add common query parameters for known patterns
+        if method.upper() == "GET":
+            # For GET endpoints, add common parameters based on docstring analysis
+            if (
+                view_callable
+                and hasattr(view_callable, "__doc__")
+                and view_callable.__doc__
+            ):
+                doc = view_callable.__doc__.lower()
+
+                # Check for name parameter in hello endpoints
+                if "hello" in doc or "name" in doc:
+                    properties["name"] = {
+                        "type": "string",
+                        "description": "Name to greet",
+                        "default": "World",
+                    }
+
+                # For user endpoints, look for common parameters
+                if "user" in doc:
+                    if "id" not in properties:  # Don't override path params
+                        properties["limit"] = {
+                            "type": "integer",
+                            "description": "Maximum number of items to return",
+                            "default": 10,
+                        }
+                        properties["offset"] = {
+                            "type": "integer",
+                            "description": "Number of items to skip",
+                            "default": 0,
+                        }
+
         # Try to extract parameters from view function signature
         if view_callable:
             try:
                 sig = inspect.signature(view_callable)
                 for param_name, param in sig.parameters.items():
                     # Skip 'request' parameter
-                    if param_name == 'request':
+                    if param_name == "request":
                         continue
-                        
+
                     # Skip path parameters (already handled)
-                    if param_name in [p.split(':')[0] for p in path_params]:
+                    if param_name in [p.split(":")[0] for p in path_params]:
                         continue
-                    
+
                     param_schema = {"type": "string"}
-                    
+
                     # Try to infer type from annotation
                     if param.annotation != inspect.Parameter.empty:
                         if param.annotation == int:
@@ -447,33 +499,35 @@ class PyramidIntrospector:
                             param_schema["type"] = "array"
                         elif param.annotation == dict:
                             param_schema["type"] = "object"
-                    
+
                     # Add description based on context
-                    if method.upper() in ['POST', 'PUT', 'PATCH']:
-                        param_schema["description"] = f"Request body parameter: {param_name}"
+                    if method.upper() in ["POST", "PUT", "PATCH"]:
+                        param_schema[
+                            "description"
+                        ] = f"Request body parameter: {param_name}"
                     else:
                         param_schema["description"] = f"Query parameter: {param_name}"
-                    
+
                     properties[param_name] = param_schema
-                    
+
                     # Required if no default value
                     if param.default == inspect.Parameter.empty:
                         required.append(param_name)
-                        
+
             except Exception:
                 # If signature inspection fails, continue with path params only
                 pass
-        
+
         # Return schema if we have properties
         if properties:
             schema = {
                 "type": "object",
                 "properties": properties,
                 "required": required,
-                "additionalProperties": False
+                "additionalProperties": False,
             }
             return schema
-        
+
         return None
 
     def _create_route_handler(
@@ -489,101 +543,104 @@ class PyramidIntrospector:
         Returns:
             Handler function for MCP tool
         """
-        view_callable = view_info.get('callable')
-        route_pattern = route_info.get('pattern', '')
-        route_name = route_info.get('name', '')
-        
+        view_callable = view_info.get("callable")
+        route_pattern = route_info.get("pattern", "")
+        route_name = route_info.get("name", "")
+
         def handler(**kwargs):
             """MCP tool handler that delegates to Pyramid view."""
             try:
                 # Create a minimal request object for the view
                 request = self._create_request_for_view(kwargs, route_pattern, method)
-                
+
                 # Call the view callable
                 if view_callable:
                     response = view_callable(request)
-                    
+
                     # Convert response to MCP format
                     return self._convert_response_to_mcp(response)
                 else:
                     return {
                         "error": f"No view callable found for route {route_name}",
                         "route": route_name,
-                        "method": method
+                        "method": method,
                     }
-                    
+
             except Exception as e:
                 # Return error in MCP format
                 return {
                     "error": f"Error calling view: {str(e)}",
                     "route": route_name,
                     "method": method,
-                    "parameters": kwargs
+                    "parameters": kwargs,
                 }
-        
+
         return handler
-    
-    def _create_request_for_view(self, kwargs: Dict[str, Any], route_pattern: str, method: str):
+
+    def _create_request_for_view(
+        self, kwargs: Dict[str, Any], route_pattern: str, method: str
+    ):
         """Create a minimal request object for calling Pyramid views.
-        
+
         Args:
             kwargs: MCP tool arguments
             route_pattern: Route pattern (e.g., '/api/hello')
             method: HTTP method
-            
+
         Returns:
             Request-like object with necessary attributes
         """
         import re
         from pyramid.testing import DummyRequest
-        
+
         # Extract path parameters from route pattern
-        path_params = re.findall(r'\{([^}]+)\}', route_pattern)
-        path_param_names = [param.split(':')[0] for param in path_params]
-        
+        path_params = re.findall(r"\{([^}]+)\}", route_pattern)
+        path_param_names = [param.split(":")[0] for param in path_params]
+
         # Separate path parameters from other parameters
         matchdict = {}
         query_params = {}
         json_body = {}
-        
+
         for key, value in kwargs.items():
             if key in path_param_names:
                 matchdict[key] = value
             else:
-                if method.upper() in ['POST', 'PUT', 'PATCH']:
+                if method.upper() in ["POST", "PUT", "PATCH"]:
                     json_body[key] = value
                 else:
                     query_params[key] = value
-        
+
         # Create a dummy request with the appropriate data
-        if method.upper() in ['POST', 'PUT', 'PATCH'] and json_body:
+        if method.upper() in ["POST", "PUT", "PATCH"] and json_body:
             import json
+
             # For POST requests with JSON body, create request with JSON data
             request = DummyRequest(json_body=json_body)
-            request.body = json.dumps(json_body).encode('utf-8')
-            request.content_type = 'application/json'
+            request.body = json.dumps(json_body).encode("utf-8")
+            request.content_type = "application/json"
         else:
             # For GET requests or requests without body
             request = DummyRequest()
-        
+
         request.method = method.upper()
         request.matchdict = matchdict
         request.params = query_params
-        
+
         return request
-    
+
     def _convert_response_to_mcp(self, response):
         """Convert Pyramid view response to MCP tool response format.
-        
+
         Args:
             response: Pyramid view response (dict, string, or Response object)
-            
+
         Returns:
             MCP-compatible response
         """
         import json
         from pyramid.response import Response
-        
+
         # Handle different response types
         if isinstance(response, dict):
             # Direct dictionary response (most common for JSON APIs)
@@ -595,41 +652,41 @@ class PyramidIntrospector:
             # Pyramid Response object
             try:
                 # Get the body content
-                if hasattr(response, 'text'):
+                if hasattr(response, "text"):
                     content = response.text
-                elif hasattr(response, 'body'):
+                elif hasattr(response, "body"):
                     body = response.body
                     if isinstance(body, bytes):
-                        content = body.decode('utf-8')
+                        content = body.decode("utf-8")
                     else:
                         content = str(body)
                 else:
                     content = str(response)
-                
+
                 # Try to parse as JSON for pretty formatting
                 try:
                     parsed = json.loads(content)
                     return json.dumps(parsed, indent=2)
                 except json.JSONDecodeError:
                     return content
-                    
+
             except Exception:
                 return str(response)
-        elif hasattr(response, 'json') and callable(response.json):
+        elif hasattr(response, "json") and callable(response.json):
             # Response object with json() method
             try:
                 return json.dumps(response.json(), indent=2)
             except Exception:
                 return str(response)
-        elif hasattr(response, 'text'):
+        elif hasattr(response, "text"):
             # Response object with text attribute
             return str(response.text)
-        elif hasattr(response, 'body'):
+        elif hasattr(response, "body"):
             # Response object with body attribute
             try:
                 body = response.body
                 if isinstance(body, bytes):
-                    body = body.decode('utf-8')
+                    body = body.decode("utf-8")
                 # Try to parse as JSON for pretty formatting
                 try:
                     parsed = json.loads(body)

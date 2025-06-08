@@ -127,11 +127,15 @@ class PyramidMCP:
                 # Create a configuration object for route discovery
                 class RouteDiscoveryConfig:
                     def __init__(self, mcp_config):
-                        self.include_patterns = mcp_config.route_discovery_include_patterns or []
-                        self.exclude_patterns = mcp_config.route_discovery_exclude_patterns or []
-                
+                        self.include_patterns = (
+                            mcp_config.route_discovery_include_patterns or []
+                        )
+                        self.exclude_patterns = (
+                            mcp_config.route_discovery_exclude_patterns or []
+                        )
+
                 discovery_config = RouteDiscoveryConfig(self.config)
-                
+
                 # Discover routes and convert to MCP tools
                 tools = self.introspector.discover_tools(discovery_config)
 
@@ -180,7 +184,7 @@ class PyramidMCP:
             >>> @mcp.tool(description="Add two numbers")
             >>> def add(a: int, b: int) -> int:
             ...     return a + b
-            
+
             >>> @mcp.tool(description="Get user info", permission="authenticated")
             >>> def get_user(id: int) -> dict:
             ...     return {"id": id, "name": "User"}
@@ -288,23 +292,29 @@ class PyramidMCP:
 
             # Get the context from the context factory (if any)
             # This integrates MCP with Pyramid's security system
-            context = getattr(request, 'context', None)
+            context = getattr(request, "context", None)
 
             # Create authentication context for MCP protocol handler
             # Include both request and context for proper security integration
-            auth_context = {
-                'request': request,
-                'context': context
-            }
+            auth_context = {"request": request, "context": context}
 
             # Handle the message through protocol handler
             response = self.protocol_handler.handle_message(message_data, auth_context)
             return response
 
         except Exception as e:
+            # Try to extract request ID if possible
+            request_id = None
+            try:
+                if message_data and "id" in message_data:
+                    request_id = message_data["id"]
+            except:
+                pass
+
             # Return error response
             return {
                 "jsonrpc": "2.0",
+                "id": request_id,
                 "error": {"code": -32603, "message": f"Internal error: {str(e)}"},
             }
 
@@ -332,8 +342,17 @@ class PyramidMCP:
                     yield sse_data.encode("utf-8")
 
                 except Exception as e:
+                    # Try to extract request ID if possible
+                    request_id = None
+                    try:
+                        if message_data and "id" in message_data:
+                            request_id = message_data["id"]
+                    except:
+                        pass
+
                     error_response = {
                         "jsonrpc": "2.0",
+                        "id": request_id,
                         "error": {
                             "code": -32603,
                             "message": f"Internal error: {str(e)}",

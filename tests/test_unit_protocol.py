@@ -18,10 +18,11 @@ from pyramid_mcp.protocol import MCPError, MCPErrorCode, MCPProtocolHandler, MCP
 # 🔧 MCP PROTOCOL HANDLER TESTS
 # =============================================================================
 
+
 def test_protocol_handler_creation(protocol_handler):
     """Test creating a protocol handler using fixture."""
     handler = protocol_handler
-    
+
     assert handler.server_name == "test-protocol"
     assert handler.server_version == "1.0.0"
     assert len(handler.tools) == 0
@@ -31,7 +32,7 @@ def test_protocol_handler_creation(protocol_handler):
 def test_protocol_handler_creation_custom():
     """Test creating a protocol handler with custom parameters."""
     handler = MCPProtocolHandler("custom-server", "2.1.0")
-    
+
     assert handler.server_name == "custom-server"
     assert handler.server_version == "2.1.0"
     assert len(handler.tools) == 0
@@ -41,6 +42,7 @@ def test_protocol_handler_creation_custom():
 # =============================================================================
 # 🛠️ MCP TOOL REGISTRATION TESTS
 # =============================================================================
+
 
 def test_tool_registration_basic(protocol_handler):
     """Test registering an MCP tool using fixture."""
@@ -69,8 +71,10 @@ def test_tool_registration_multiple(protocol_handler):
 
     # Register multiple tools
     add_tool = MCPTool(name="add", description="Add numbers", handler=add_func)
-    multiply_tool = MCPTool(name="multiply", description="Multiply numbers", handler=multiply_func)
-    
+    multiply_tool = MCPTool(
+        name="multiply", description="Multiply numbers", handler=multiply_func
+    )
+
     handler.register_tool(add_tool)
     handler.register_tool(multiply_tool)
 
@@ -84,32 +88,37 @@ def test_tool_registration_multiple(protocol_handler):
 def test_tool_registration_from_sample_tools(protocol_handler, sample_tools):
     """Test registering tools from sample_tools fixture."""
     handler = protocol_handler
-    
+
     # Register tools from fixture using the tool decorator info
     for tool_func in sample_tools:
         # The sample_tools are already decorated with @tool, so we can extract info
         # from the function attributes set by the decorator
-        tool_name = getattr(tool_func, '_mcp_name', getattr(tool_func, '__name__', 'unknown'))
-        tool_desc = getattr(tool_func, '_mcp_description', 'A sample tool')
+        tool_name = getattr(
+            tool_func, "_mcp_name", getattr(tool_func, "__name__", "unknown")
+        )
+        tool_desc = getattr(tool_func, "_mcp_description", "A sample tool")
         tool = MCPTool(name=tool_name, description=tool_desc, handler=tool_func)
         handler.register_tool(tool)
-    
+
     # Should have registered the sample tools (add_tool and multiply_tool)
     assert len(handler.tools) == 2  # Exactly 2 tools from sample_tools
     # Check that both tools are registered with their function names
     tool_names = set(handler.tools.keys())
     expected_names = {"add_tool", "multiply_tool"}
-    assert any(name in tool_names for name in expected_names), f"Expected one of {expected_names}, got {tool_names}"
+    assert any(
+        name in tool_names for name in expected_names
+    ), f"Expected one of {expected_names}, got {tool_names}"
 
 
 # =============================================================================
 # 📡 MCP REQUEST/RESPONSE HANDLING TESTS
 # =============================================================================
 
+
 def test_initialize_request(protocol_handler):
     """Test MCP initialize request using fixture."""
     handler = protocol_handler
-    
+
     request = {"jsonrpc": "2.0", "method": "initialize", "id": 1}
     response = handler.handle_message(request)
 
@@ -124,7 +133,7 @@ def test_initialize_request(protocol_handler):
 def test_list_tools_request_empty(protocol_handler):
     """Test MCP tools/list request with no tools registered."""
     handler = protocol_handler
-    
+
     request = {"jsonrpc": "2.0", "method": "tools/list", "id": 2}
     response = handler.handle_message(request)
 
@@ -161,7 +170,9 @@ def test_call_tool_request(protocol_handler):
     def multiply(x: int, y: int) -> int:
         return x * y
 
-    tool = MCPTool(name="multiply", description="Multiply two numbers", handler=multiply)
+    tool = MCPTool(
+        name="multiply", description="Multiply two numbers", handler=multiply
+    )
     handler.register_tool(tool)
 
     request = {
@@ -206,6 +217,7 @@ def test_call_tool_with_string_result(protocol_handler):
 # ❌ MCP ERROR HANDLING TESTS
 # =============================================================================
 
+
 def test_unknown_method_error(protocol_handler):
     """Test error handling for unknown methods."""
     handler = protocol_handler
@@ -247,13 +259,17 @@ def test_malformed_request_error(protocol_handler):
 
     # For some malformed requests, the handler may still respond with valid structure
     # Let's test a truly malformed request that should cause an error
-    invalid_json_rpc_request = {"method": "nonexistent/method", "id": 1}  # missing jsonrpc
+    invalid_json_rpc_request = {
+        "method": "nonexistent/method",
+        "id": 1,
+    }  # missing jsonrpc
 
     response2 = handler.handle_message(invalid_json_rpc_request)
-    
+
     # At least one of these should be an error or the original should be valid but limited
-    assert ("error" in response or "error" in response2 or 
-            response.get("jsonrpc") == "2.0")  # Valid response structure is also acceptable
+    assert (
+        "error" in response or "error" in response2 or response.get("jsonrpc") == "2.0"
+    )  # Valid response structure is also acceptable
 
 
 def test_tool_execution_error(protocol_handler):
@@ -263,7 +279,9 @@ def test_tool_execution_error(protocol_handler):
     def failing_tool():
         raise ValueError("This tool always fails")
 
-    tool = MCPTool(name="fail_tool", description="A tool that fails", handler=failing_tool)
+    tool = MCPTool(
+        name="fail_tool", description="A tool that fails", handler=failing_tool
+    )
     handler.register_tool(tool)
 
     request = {
@@ -276,19 +294,22 @@ def test_tool_execution_error(protocol_handler):
     response = handler.handle_message(request)
 
     # Should return an error response when tool execution fails
-    assert "error" in response or ("result" in response and "error" in str(response["result"]))
+    assert "error" in response or (
+        "result" in response and "error" in str(response["result"])
+    )
 
 
 # =============================================================================
 # 📋 MCP CAPABILITIES TESTS
 # =============================================================================
 
+
 def test_protocol_handler_capabilities(protocol_handler):
     """Test that protocol handler exposes correct capabilities."""
     handler = protocol_handler
-    
+
     capabilities = handler.capabilities
-    
+
     # Should have tools capability
     assert "tools" in capabilities
     assert isinstance(capabilities, dict)
@@ -297,9 +318,9 @@ def test_protocol_handler_capabilities(protocol_handler):
 def test_protocol_handler_server_info(protocol_handler):
     """Test protocol handler server information."""
     handler = protocol_handler
-    
+
     # Test server info attributes
-    assert hasattr(handler, 'server_name')
-    assert hasattr(handler, 'server_version')
+    assert hasattr(handler, "server_name")
+    assert hasattr(handler, "server_version")
     assert handler.server_name == "test-protocol"
-    assert handler.server_version == "1.0.0" 
+    assert handler.server_version == "1.0.0"

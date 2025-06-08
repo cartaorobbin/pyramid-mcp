@@ -27,10 +27,14 @@ classifiers = [
 ]
 packages = [{include = "pyramid_mcp"}]
 
+[tool.poetry.scripts]
+pstdio = "pyramid_mcp.cli:pstdio"
+
 [tool.poetry.dependencies]
 python = "^3.9"
 pyramid = "^2.0"
 marshmallow = "^3.22.0"
+click = "^8.1.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"

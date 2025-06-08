@@ -89,8 +89,17 @@ class MCPWSGIApp:
             return [response_bytes]
 
         except Exception as e:
+            # Try to extract request ID if possible
+            request_id = None
+            try:
+                if request_data and "id" in request_data:
+                    request_id = request_data["id"]
+            except:
+                pass
+
             error_response = {
                 "jsonrpc": "2.0",
+                "id": request_id,
                 "error": {"code": -32603, "message": f"Internal error: {str(e)}"},
             }
             response_json = json.dumps(error_response)

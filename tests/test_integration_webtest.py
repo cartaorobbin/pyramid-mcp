@@ -23,6 +23,7 @@ from pyramid_mcp import tool
 # 🌐 MCP HTTP ENDPOINT INTEGRATION TESTS
 # =============================================================================
 
+
 def test_mcp_endpoint_exists(testapp_with_mcp):
     """Test that the MCP HTTP endpoint is mounted and responds."""
     # Test that the MCP endpoint exists (should accept POST)
@@ -81,10 +82,10 @@ def test_mcp_call_tool_calculation(testapp_with_mcp):
     # First check what tools are available
     list_request = {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
     list_response = testapp_with_mcp.post_json("/mcp", list_request)
-    
+
     tools = list_response.json["result"]["tools"]
     tool_names = [tool["name"] for tool in tools]
-    
+
     # If we have a calculate tool, test it
     if "calculate" in tool_names:
         request_data = {
@@ -124,7 +125,9 @@ def test_mcp_error_handling_via_http(testapp_with_mcp):
 
     response = testapp_with_mcp.post_json("/mcp", request_data)
 
-    assert response.status_code == 200  # MCP errors are returned as 200 with error object
+    assert (
+        response.status_code == 200
+    )  # MCP errors are returned as 200 with error object
     data = response.json
 
     assert "error" in data
@@ -167,10 +170,10 @@ def test_mcp_tool_validation_error(testapp_with_mcp):
     # First check for available tools
     list_request = {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
     list_response = testapp_with_mcp.post_json("/mcp", list_request)
-    
+
     tools = list_response.json["result"]["tools"]
     tool_names = [tool["name"] for tool in tools]
-    
+
     # If we have a calculate tool, test validation error
     if "calculate" in tool_names:
         request_data = {
@@ -198,16 +201,17 @@ def test_mcp_tool_validation_error(testapp_with_mcp):
 # 🔗 PYRAMID + MCP INTEGRATION TESTS
 # =============================================================================
 
+
 def test_pyramid_endpoints_still_work(testapp_with_mcp):
     """Test that regular Pyramid endpoints work alongside MCP."""
     # The fixture should include user endpoints
-    
+
     # Test creating a user
     user_data = {"name": "Alice", "email": "alice@example.com", "age": 30}
-    
+
     response = testapp_with_mcp.post_json("/users", user_data)
     assert response.status_code == 200
-    
+
     created_user = response.json["user"]
     assert created_user["name"] == "Alice"
     assert created_user["email"] == "alice@example.com"
@@ -221,11 +225,11 @@ def test_get_user_endpoint(testapp_with_mcp):
     user_data = {"name": "Bob", "email": "bob@example.com"}
     create_response = testapp_with_mcp.post_json("/users", user_data)
     user_id = create_response.json["user"]["id"]
-    
+
     # Now get the user
     response = testapp_with_mcp.get(f"/users/{user_id}")
     assert response.status_code == 200
-    
+
     user = response.json["user"]
     assert user["name"] == "Bob"
     assert user["email"] == "bob@example.com"
@@ -237,14 +241,14 @@ def test_list_users_endpoint(testapp_with_mcp):
     # Create a couple of users first
     user1_data = {"name": "User1", "email": "user1@example.com"}
     user2_data = {"name": "User2", "email": "user2@example.com"}
-    
+
     testapp_with_mcp.post_json("/users", user1_data)
     testapp_with_mcp.post_json("/users", user2_data)
-    
+
     # Now list users
     response = testapp_with_mcp.get("/users")
     assert response.status_code == 200
-    
+
     users = response.json["users"]
     assert len(users) >= 2
     assert any(user["name"] == "User1" for user in users)
@@ -257,12 +261,12 @@ def test_update_user_endpoint(testapp_with_mcp):
     user_data = {"name": "Original", "email": "original@example.com"}
     create_response = testapp_with_mcp.post_json("/users", user_data)
     user_id = create_response.json["user"]["id"]
-    
+
     # Update the user
     update_data = {"name": "Updated", "age": 25}
     response = testapp_with_mcp.put_json(f"/users/{user_id}", update_data)
     assert response.status_code == 200
-    
+
     updated_user = response.json["user"]
     assert updated_user["name"] == "Updated"
     assert updated_user["age"] == 25
@@ -275,40 +279,43 @@ def test_delete_user_endpoint(testapp_with_mcp):
     user_data = {"name": "ToDelete", "email": "delete@example.com"}
     create_response = testapp_with_mcp.post_json("/users", user_data)
     user_id = create_response.json["user"]["id"]
-    
+
     # Delete the user
     response = testapp_with_mcp.delete(f"/users/{user_id}")
     assert response.status_code == 200
-    
+
     # Check the actual response structure (the implementation returns {"message": "User deleted"})
     response_data = response.json
-    assert (response_data.get("deleted") is True or 
-            response_data.get("success") is True or 
-            "deleted" in response_data.get("message", "").lower())
-    
+    assert (
+        response_data.get("deleted") is True
+        or response_data.get("success") is True
+        or "deleted" in response_data.get("message", "").lower()
+    )
+
     # Verify user is gone
     get_response = testapp_with_mcp.get(f"/users/{user_id}", expect_errors=True)
     assert get_response.status_code == 404
 
 
 # =============================================================================
-# ⚙️ MCP CONFIGURATION INTEGRATION TESTS  
+# ⚙️ MCP CONFIGURATION INTEGRATION TESTS
 # =============================================================================
+
 
 def test_custom_mount_path(pyramid_config_with_routes, mcp_settings_factory):
     """Test MCP with custom mount path."""
     # Create custom settings with different mount path
-    settings = mcp_settings_factory(mount_path='/api/mcp')
+    settings = mcp_settings_factory(mount_path="/api/mcp")
     pyramid_config_with_routes.registry.settings.update(settings)
     pyramid_config_with_routes.include("pyramid_mcp")
-    
+
     app = pyramid_config_with_routes.make_wsgi_app()
     testapp = TestApp(app)
-    
+
     # Test MCP at custom path
     request_data = {"jsonrpc": "2.0", "method": "initialize", "id": 1}
     response = testapp.post_json("/api/mcp", request_data)
-    
+
     assert response.status_code == 200
     data = response.json
     # The server name comes from the settings we created, not the default
@@ -318,20 +325,17 @@ def test_custom_mount_path(pyramid_config_with_routes, mcp_settings_factory):
 def test_server_info_configuration(pyramid_config_with_routes, mcp_settings_factory):
     """Test server info configuration via settings."""
     # Create custom settings with server info
-    settings = mcp_settings_factory(
-        server_name='custom-server',
-        server_version='2.1.0'
-    )
+    settings = mcp_settings_factory(server_name="custom-server", server_version="2.1.0")
     pyramid_config_with_routes.registry.settings.update(settings)
     pyramid_config_with_routes.include("pyramid_mcp")
-    
+
     app = pyramid_config_with_routes.make_wsgi_app()
     testapp = TestApp(app)
-    
+
     # Test server info
     request_data = {"jsonrpc": "2.0", "method": "initialize", "id": 1}
     response = testapp.post_json("/mcp", request_data)
-    
+
     assert response.status_code == 200
     data = response.json
     assert data["result"]["serverInfo"]["name"] == "custom-server"
@@ -342,11 +346,12 @@ def test_server_info_configuration(pyramid_config_with_routes, mcp_settings_fact
 # 🔀 SSE ENDPOINT INTEGRATION TESTS
 # =============================================================================
 
+
 def test_sse_endpoint_exists(testapp_with_mcp):
     """Test that SSE endpoint exists and is accessible."""
     # Test SSE endpoint exists (GET request)
     response = testapp_with_mcp.get("/mcp/sse", expect_errors=True)
-    
+
     # Should either work (200) or be not implemented (405/501)
     assert response.status_code in [200, 405, 501]
 
@@ -355,20 +360,27 @@ def test_sse_endpoint_handles_get(testapp_with_mcp):
     """Test SSE endpoint handles GET requests appropriately."""
     # Test SSE endpoint with GET
     response = testapp_with_mcp.get("/mcp/sse", expect_errors=True)
-    
+
     # Should handle GET request (may return 200 or error depending on implementation)
     assert response.status_code in [200, 405, 501]
-    
+
     if response.status_code == 200:
         # If SSE is implemented, check content type
-        assert "text/plain" in response.content_type or "text/event-stream" in response.content_type
+        assert (
+            "text/plain" in response.content_type
+            or "text/event-stream" in response.content_type
+        )
 
 
 # =============================================================================
 # 🧭 ROUTE DISCOVERY INTEGRATION TESTS
 # =============================================================================
 
-@tool(name="manual_integration_tool", description="A manually registered tool for integration testing")
+
+@tool(
+    name="manual_integration_tool",
+    description="A manually registered tool for integration testing",
+)
 def manual_integration_tool(text: str) -> str:
     """Echo text with integration prefix."""
     return f"Integration: {text}"
@@ -377,139 +389,132 @@ def manual_integration_tool(text: str) -> str:
 def test_route_discovery_end_to_end():
     """Test that route discovery works end-to-end via webtest."""
     settings = {
-        'mcp.server_name': 'route-discovery-test',
-        'mcp.server_version': '1.0.0', 
-        'mcp.mount_path': '/mcp',
+        "mcp.server_name": "route-discovery-test",
+        "mcp.server_version": "1.0.0",
+        "mcp.mount_path": "/mcp",
     }
-    
+
     config = Configurator(settings=settings)
-    
-    @view_config(route_name='integration_api_test', renderer='json')
+
+    @view_config(route_name="integration_api_test", renderer="json")
     def integration_test_api_view(request):
         """A simple test API endpoint for integration testing."""
         return {"message": "Hello from integration test API", "id": 456}
-    
+
     # Add a test route
-    config.add_route('integration_api_test', '/api/integration/test', request_method='GET')
-    config.add_view(integration_test_api_view, route_name='integration_api_test', request_method='GET', renderer='json')
-    
+    config.add_route(
+        "integration_api_test", "/api/integration/test", request_method="GET"
+    )
+    config.add_view(
+        integration_test_api_view,
+        route_name="integration_api_test",
+        request_method="GET",
+        renderer="json",
+    )
+
     # Include pyramid_mcp after adding routes/views
-    config.include('pyramid_mcp')
-    
+    config.include("pyramid_mcp")
+
     app = TestApp(config.make_wsgi_app())
-    
+
     # First, verify the original API endpoint works
-    response = app.get('/api/integration/test')
+    response = app.get("/api/integration/test")
     assert response.status_code == 200
     data = response.json
-    assert data['message'] == "Hello from integration test API"
-    assert data['id'] == 456
-    
+    assert data["message"] == "Hello from integration test API"
+    assert data["id"] == 456
+
     # Test MCP initialize
     mcp_init_request = {
         "jsonrpc": "2.0",
         "id": 1,
         "method": "initialize",
-        "params": {
-            "protocolVersion": "2024-11-05",
-            "capabilities": {}
-        }
+        "params": {"protocolVersion": "2024-11-05", "capabilities": {}},
     }
-    
-    response = app.post_json('/mcp', mcp_init_request)
+
+    response = app.post_json("/mcp", mcp_init_request)
     assert response.status_code == 200
     data = response.json
-    assert data['result']['serverInfo']['name'] == 'route-discovery-test'
-    
+    assert data["result"]["serverInfo"]["name"] == "route-discovery-test"
+
     # Test MCP tools/list to see available tools
-    mcp_list_request = {
-        "jsonrpc": "2.0",
-        "id": 2,
-        "method": "tools/list",
-        "params": {}
-    }
-    
-    response = app.post_json('/mcp', mcp_list_request)
+    mcp_list_request = {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
+
+    response = app.post_json("/mcp", mcp_list_request)
     assert response.status_code == 200
     data = response.json
-    
-    tools = data['result']['tools']
-    tool_names = [tool['name'] for tool in tools]
-    
+
+    tools = data["result"]["tools"]
+    tool_names = [tool["name"] for tool in tools]
+
     # Should have the manual tool and potentially auto-discovered tools
-    assert 'manual_integration_tool' in tool_names, f"Manual tool should be registered, found: {tool_names}"
-    
+    assert (
+        "manual_integration_tool" in tool_names
+    ), f"Manual tool should be registered, found: {tool_names}"
+
     # Test calling the manual tool
     mcp_call_request = {
         "jsonrpc": "2.0",
         "id": 3,
         "method": "tools/call",
-        "params": {
-            "name": "manual_integration_tool",
-            "arguments": {"text": "test"}
-        }
+        "params": {"name": "manual_integration_tool", "arguments": {"text": "test"}},
     }
-    
-    response = app.post_json('/mcp', mcp_call_request)
+
+    response = app.post_json("/mcp", mcp_call_request)
     assert response.status_code == 200
     data = response.json
-    assert data['result']['content'][0]['text'] == "Integration: test"
+    assert data["result"]["content"][0]["text"] == "Integration: test"
 
 
 def test_route_discovery_with_filtering():
     """Test route discovery with include/exclude patterns."""
     settings = {
-        'mcp.server_name': 'filter-integration-test',
-        'mcp.include_patterns': 'api/*',
-        'mcp.exclude_patterns': 'admin/*',
+        "mcp.server_name": "filter-integration-test",
+        "mcp.include_patterns": "api/*",
+        "mcp.exclude_patterns": "admin/*",
     }
-    
+
     config = Configurator(settings=settings)
-    
+
     # Add routes - some should be included, some excluded
-    config.add_route('api_users_filtered', '/api/users', request_method='GET')
-    config.add_route('admin_users_filtered', '/admin/users', request_method='GET')
-    config.add_route('home_filtered', '/', request_method='GET')
-    
-    @view_config(route_name='api_users_filtered', renderer='json')
+    config.add_route("api_users_filtered", "/api/users", request_method="GET")
+    config.add_route("admin_users_filtered", "/admin/users", request_method="GET")
+    config.add_route("home_filtered", "/", request_method="GET")
+
+    @view_config(route_name="api_users_filtered", renderer="json")
     def api_users_filtered_view(request):
         return {"users": []}
-    
-    @view_config(route_name='admin_users_filtered', renderer='json') 
+
+    @view_config(route_name="admin_users_filtered", renderer="json")
     def admin_users_filtered_view(request):
         return {"admin": "secret"}
-    
-    @view_config(route_name='home_filtered', renderer='json')
+
+    @view_config(route_name="home_filtered", renderer="json")
     def home_filtered_view(request):
         return {"message": "home"}
-    
-    config.add_view(api_users_filtered_view, route_name='api_users_filtered')
-    config.add_view(admin_users_filtered_view, route_name='admin_users_filtered')
-    config.add_view(home_filtered_view, route_name='home_filtered')
-    
-    config.include('pyramid_mcp')
-    
+
+    config.add_view(api_users_filtered_view, route_name="api_users_filtered")
+    config.add_view(admin_users_filtered_view, route_name="admin_users_filtered")
+    config.add_view(home_filtered_view, route_name="home_filtered")
+
+    config.include("pyramid_mcp")
+
     app = TestApp(config.make_wsgi_app())
-    
+
     # Get list of tools
-    mcp_list_request = {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "method": "tools/list",
-        "params": {}
-    }
-    
-    response = app.post_json('/mcp', mcp_list_request)
+    mcp_list_request = {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
+
+    response = app.post_json("/mcp", mcp_list_request)
     assert response.status_code == 200
-    
-    tools = response.json['result']['tools']
-    tool_names = [tool['name'] for tool in tools]
-    
+
+    tools = response.json["result"]["tools"]
+    tool_names = [tool["name"] for tool in tools]
+
     # Should exclude admin routes if pattern filtering is working
-    admin_tools = [name for name in tool_names if 'admin' in name.lower()]
+    admin_tools = [name for name in tool_names if "admin" in name.lower()]
     # The filtering logic may or may not be active, but admin tools should not be present
     # if filtering is properly working
-    
+
     # Verify the endpoint responds correctly
     assert isinstance(tools, list)
     assert all("name" in tool for tool in tools)
@@ -519,36 +524,37 @@ def test_route_discovery_with_filtering():
 # 🚀 END-TO-END INTEGRATION SCENARIOS
 # =============================================================================
 
+
 def test_full_integration_scenario(testapp_with_mcp):
     """Test a complete integration scenario combining Pyramid and MCP functionality."""
     # 1. Create some users via Pyramid API
     user1_data = {"name": "Integration User 1", "email": "int1@example.com"}
     user2_data = {"name": "Integration User 2", "email": "int2@example.com"}
-    
+
     create_response1 = testapp_with_mcp.post_json("/users", user1_data)
     create_response2 = testapp_with_mcp.post_json("/users", user2_data)
-    
+
     assert create_response1.status_code == 200
     assert create_response2.status_code == 200
-    
+
     # 2. Verify users exist via Pyramid API
     list_response = testapp_with_mcp.get("/users")
     users = list_response.json["users"]
     assert len(users) >= 2
-    
+
     # 3. Test MCP functionality
     init_request = {"jsonrpc": "2.0", "method": "initialize", "id": 1}
     init_response = testapp_with_mcp.post_json("/mcp", init_request)
     assert init_response.status_code == 200
-    
+
     # 4. Check MCP tools
     tools_request = {"jsonrpc": "2.0", "method": "tools/list", "id": 2}
     tools_response = testapp_with_mcp.post_json("/mcp", tools_request)
     assert tools_response.status_code == 200
-    
+
     tools = tools_response.json["result"]["tools"]
     assert isinstance(tools, list)
-    
+
     # 5. If tools are available, test calling one
     if len(tools) > 0:
         # Try to call the first available tool with empty arguments
@@ -557,10 +563,10 @@ def test_full_integration_scenario(testapp_with_mcp):
             "jsonrpc": "2.0",
             "method": "tools/call",
             "params": {"name": tool_name, "arguments": {}},
-            "id": 3
+            "id": 3,
         }
-        
+
         call_response = testapp_with_mcp.post_json("/mcp", call_request)
         assert call_response.status_code == 200
-        
-        # Should get either a result or an error, both are valid 
+
+        # Should get either a result or an error, both are valid

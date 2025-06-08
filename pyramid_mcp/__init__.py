@@ -88,10 +88,10 @@ def includeme(config: Configurator) -> None:
     # Register a post-configure hook to discover routes and register tools
     # Use order=999999 to ensure this runs after all other configuration including scans
     config.action(
-        "pyramid_mcp.setup_complete", 
-        _setup_mcp_complete, 
+        "pyramid_mcp.setup_complete",
+        _setup_mcp_complete,
         args=(config, pyramid_mcp),
-        order=999999  # Run this very late in the configuration process
+        order=999999,  # Run this very late in the configuration process
     )
 
 
@@ -120,7 +120,7 @@ def tool(
         @tool(description="Add two numbers")
         def add(a: int, b: int) -> int:
             return a + b
-            
+
         @tool(description="Get user info", permission="authenticated")
         def get_user(id: int) -> dict:
             return {"id": id, "name": "User"}
@@ -177,9 +177,15 @@ def _extract_mcp_config_from_settings(settings: dict) -> MCPConfiguration:
         enable_sse=_parse_bool_setting(settings.get("mcp.enable_sse", "true")),
         enable_http=_parse_bool_setting(settings.get("mcp.enable_http", "true")),
         # Route discovery settings
-        route_discovery_enabled=_parse_bool_setting(settings.get("mcp.route_discovery.enabled", "false")),
-        route_discovery_include_patterns=_parse_list_setting(settings.get("mcp.route_discovery.include_patterns")),
-        route_discovery_exclude_patterns=_parse_list_setting(settings.get("mcp.route_discovery.exclude_patterns")),
+        route_discovery_enabled=_parse_bool_setting(
+            settings.get("mcp.route_discovery.enabled", "false")
+        ),
+        route_discovery_include_patterns=_parse_list_setting(
+            settings.get("mcp.route_discovery.include_patterns")
+        ),
+        route_discovery_exclude_patterns=_parse_list_setting(
+            settings.get("mcp.route_discovery.exclude_patterns")
+        ),
     )
 
 
@@ -213,10 +219,10 @@ def _setup_mcp_complete(config: Configurator, pyramid_mcp: PyramidMCP) -> None:
     """Complete MCP setup after all configuration is done."""
     # This is called after all configuration is done via Pyramid's action system
     # At this point, all routes and views have been added and committed
-    
+
     # Discover and register tools from routes (routes were already added in includeme)
     pyramid_mcp.discover_tools()
-    
+
     # Register any pending manual tools that weren't caught earlier
     _register_pending_tools(pyramid_mcp)
 
@@ -235,8 +241,10 @@ def _register_pending_tools(pyramid_mcp: PyramidMCP) -> None:
         ):
             tool_config = obj._mcp_tool_config
             pyramid_mcp.tool(
-                tool_config["name"], 
-                tool_config["description"], 
+                tool_config["name"],
+                tool_config["description"],
                 tool_config["schema"],
-                tool_config.get("permission", None)  # Default to None for backward compatibility
+                tool_config.get(
+                    "permission", None
+                ),  # Default to None for backward compatibility
             )(obj)

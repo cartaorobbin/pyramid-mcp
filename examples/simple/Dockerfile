@@ -1,4 +1,4 @@
-# Pyramid MCP Secure Example Docker Image
+# Pyramid MCP Simple Example Docker Image
 # Multi-stage build for optimized size and security
 
 # =============================================================================
@@ -31,8 +31,8 @@ RUN poetry build
 # Install pyramid-mcp from wheel
 RUN pip install dist/*.whl
 
-# Install additional dependencies needed for secure example
-RUN pip install pyramid waitress PyJWT
+# Install additional dependencies needed for simple example
+RUN pip install pyramid waitress
 
 # Copy examples source code
 COPY examples/ ./examples/
@@ -58,9 +58,6 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy examples code (pyramid-mcp is already installed in site-packages)
 COPY --from=builder /build/examples /app/examples
 
-# Copy development.ini for pstdio
-COPY examples/secure/development.ini /app/examples/secure/development.ini
-
 # Set working directory
 WORKDIR /app
 
@@ -70,20 +67,15 @@ ENV PYTHONPATH=/app
 # Create non-root user and switch to it for security
 USER mcp
 
-# Expose port 8080 for MCP server
-EXPOSE 8080
+# Default command - run simple example with stdio transport for Claude Desktop
+CMD ["pstdio", "--app", "examples.simple.simple_app:create_app"]
 
-# Health check - disabled for stdio mode since there's no HTTP server
-# HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-#     CMD curl -f http://localhost:8080/auth/login || exit 1
-
-# Default command - run secure example with stdio transport for Claude Desktop
-# For HTTP mode: python examples/secure/secure_app.py
-# For stdio mode (default): pstdio examples/secure/development.ini
-CMD ["pstdio", "examples/secure/development.ini"]
+# Alternative commands:
+# For HTTP mode: CMD ["python", "examples/simple/simple_app.py"]  
+# For debug mode: CMD ["pstdio", "--app", "examples.simple.simple_app:create_app", "--debug"]
 
 # Metadata labels
 LABEL maintainer="pyramid-mcp"
-LABEL description="Pyramid MCP Secure Example with authentication and context factories"
+LABEL description="Pyramid MCP Simple Example with basic MCP tools"
 LABEL version="1.0.0"
 LABEL org.opencontainers.image.source="https://github.com/your-org/pyramid-mcp" 

@@ -26,24 +26,19 @@ from pyramid_mcp.core import MCPConfiguration, PyramidMCP
 from pyramid_mcp.protocol import MCPProtocolHandler
 
 # Permission constants
-PERMISSIONS = {
-    'VIEW': 'view',
-    'EDIT': 'edit', 
-    'ADMIN': 'admin',
-    'DELETE': 'delete'
-}
+PERMISSIONS = {"VIEW": "view", "EDIT": "edit", "ADMIN": "admin", "DELETE": "delete"}
 
 # User roles and permissions
 USER_ROLES = {
-    'anonymous': [],
-    'viewer': ['view'],
-    'editor': ['view', 'edit'],
-    'admin': ['view', 'edit', 'admin', 'delete']
+    "anonymous": [],
+    "viewer": ["view"],
+    "editor": ["view", "edit"],
+    "admin": ["view", "edit", "admin", "delete"],
 }
 
 # JWT configuration
-JWT_SECRET = 'test-secret-key-for-jwt-tokens'
-JWT_ALGORITHM = 'HS256'
+JWT_SECRET = "test-secret-key-for-jwt-tokens"
+JWT_ALGORITHM = "HS256"
 
 
 # Test schemas
@@ -67,7 +62,8 @@ class UserUpdateSchema(Schema):
 # 🏗️ CORE PYRAMID FIXTURES
 # =============================================================================
 
-@pytest.fixture  
+
+@pytest.fixture
 def minimal_pyramid_config():
     """Basic Pyramid Configurator without routes or MCP."""
     return Configurator()
@@ -77,25 +73,25 @@ def minimal_pyramid_config():
 def pyramid_config_with_routes(users_db, user_id_counter):
     """Pyramid configuration with standard test routes but no MCP."""
     config = Configurator()
-    
+
     # Add test routes
     config.add_route("create_user", "/users", request_method="POST")
-    config.add_route("get_user", "/users/{id}", request_method="GET") 
+    config.add_route("get_user", "/users/{id}", request_method="GET")
     config.add_route("update_user", "/users/{id}", request_method="PUT")
     config.add_route("delete_user", "/users/{id}", request_method="DELETE")
     config.add_route("list_users", "/users", request_method="GET")
-    
+
     # Add view configurations
     config.add_view(create_user_view, route_name="create_user", renderer="json")
     config.add_view(get_user_view, route_name="get_user", renderer="json")
-    config.add_view(update_user_view, route_name="update_user", renderer="json") 
+    config.add_view(update_user_view, route_name="update_user", renderer="json")
     config.add_view(delete_user_view, route_name="delete_user", renderer="json")
     config.add_view(list_users_view, route_name="list_users", renderer="json")
-    
+
     # Store test data in registry
     config.registry.users_db = users_db
     config.registry.user_id_counter = user_id_counter
-    
+
     return config
 
 
@@ -109,14 +105,17 @@ def pyramid_config_committed(pyramid_config_with_routes):
 @pytest.fixture
 def pyramid_app_factory():
     """Factory for creating Pyramid WSGI apps with different configurations."""
+
     def _create_app(config):
         return config.make_wsgi_app()
+
     return _create_app
 
 
 # =============================================================================
-# ⚙️ MCP CONFIGURATION FIXTURES  
+# ⚙️ MCP CONFIGURATION FIXTURES
 # =============================================================================
+
 
 @pytest.fixture
 def minimal_mcp_config():
@@ -124,25 +123,23 @@ def minimal_mcp_config():
     return MCPConfiguration()
 
 
-@pytest.fixture  
+@pytest.fixture
 def custom_mcp_config(request):
     """Parameterized MCP configuration fixture.
-    
+
     Use with pytest.mark.parametrize or direct calls.
     """
     # Get parameters from pytest.mark.parametrize or use defaults
-    params = getattr(request, 'param', {})
+    params = getattr(request, "param", {})
     if not isinstance(params, dict):
         params = {}
-        
-    server_name = params.get('server_name', 'test-server')
-    server_version = params.get('server_version', '1.0.0')
-    mount_path = params.get('mount_path', '/mcp')
-    
+
+    server_name = params.get("server_name", "test-server")
+    server_version = params.get("server_version", "1.0.0")
+    mount_path = params.get("mount_path", "/mcp")
+
     return MCPConfiguration(
-        server_name=server_name,
-        server_version=server_version, 
-        mount_path=mount_path
+        server_name=server_name, server_version=server_version, mount_path=mount_path
     )
 
 
@@ -152,29 +149,32 @@ def mcp_config_with_patterns():
     return MCPConfiguration(
         server_name="pattern-test",
         include_patterns=["api/*", "users/*"],
-        exclude_patterns=["admin/*", "internal/*"]
+        exclude_patterns=["admin/*", "internal/*"],
     )
 
 
 @pytest.fixture
 def mcp_settings_factory():
     """Factory for creating MCP settings dictionaries."""
+
     def _create_settings(**kwargs):
         defaults = {
-            'mcp.server_name': 'test-server',
-            'mcp.server_version': '1.0.0', 
-            'mcp.mount_path': '/mcp',
-            'mcp.enable_sse': 'true',
-            'mcp.enable_http': 'true'
+            "mcp.server_name": "test-server",
+            "mcp.server_version": "1.0.0",
+            "mcp.mount_path": "/mcp",
+            "mcp.enable_sse": "true",
+            "mcp.enable_http": "true",
         }
-        defaults.update({f'mcp.{k}': v for k, v in kwargs.items()})
+        defaults.update({f"mcp.{k}": v for k, v in kwargs.items()})
         return defaults
+
     return _create_settings
 
 
 # =============================================================================
 # 🔧 MCP INTEGRATION FIXTURES
 # =============================================================================
+
 
 @pytest.fixture
 def protocol_handler():
@@ -198,7 +198,8 @@ def pyramid_mcp_configured(pyramid_config_with_routes, custom_mcp_config):
 # 🌐 WEBTEST APPLICATION FIXTURES
 # =============================================================================
 
-@pytest.fixture  
+
+@pytest.fixture
 def testapp_basic(pyramid_config_with_routes):
     """Basic TestApp without MCP integration."""
     app = pyramid_config_with_routes.make_wsgi_app()
@@ -216,7 +217,7 @@ def testapp_with_mcp(pyramid_config_with_routes):
 @pytest.fixture
 def testapp_custom_mount(pyramid_config_with_routes, mcp_settings_factory):
     """TestApp with MCP mounted at custom path."""
-    settings = mcp_settings_factory(mount_path='/api/mcp')
+    settings = mcp_settings_factory(mount_path="/api/mcp")
     pyramid_config_with_routes.registry.settings.update(settings)
     pyramid_config_with_routes.include("pyramid_mcp")
     app = pyramid_config_with_routes.make_wsgi_app()
@@ -226,9 +227,11 @@ def testapp_custom_mount(pyramid_config_with_routes, mcp_settings_factory):
 @pytest.fixture
 def testapp_factory(pyramid_app_factory):
     """Factory for creating TestApp instances."""
+
     def _create_testapp(config):
         app = pyramid_app_factory(config)
         return TestApp(app)
+
     return _create_testapp
 
 
@@ -236,15 +239,16 @@ def testapp_factory(pyramid_app_factory):
 # 🔒 JWT AUTHENTICATION FIXTURES
 # =============================================================================
 
+
 @pytest.fixture
 def valid_jwt_token():
     """Generate a valid JWT token for testing."""
     payload = {
-        'user_id': 'test_user',
-        'username': 'testuser',
-        'roles': ['authenticated'],
-        'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1),
-        'iat': datetime.datetime.utcnow()
+        "user_id": "test_user",
+        "username": "testuser",
+        "roles": ["authenticated"],
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=1),
+        "iat": datetime.datetime.utcnow(),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
@@ -253,24 +257,25 @@ def valid_jwt_token():
 def expired_jwt_token():
     """Generate an expired JWT token for testing."""
     payload = {
-        'user_id': 'test_user',
-        'username': 'testuser', 
-        'roles': ['authenticated'],
-        'exp': datetime.datetime.utcnow() - datetime.timedelta(hours=1),  # Expired 1 hour ago
-        'iat': datetime.datetime.utcnow() - datetime.timedelta(hours=2)
+        "user_id": "test_user",
+        "username": "testuser",
+        "roles": ["authenticated"],
+        "exp": datetime.datetime.utcnow()
+        - datetime.timedelta(hours=1),  # Expired 1 hour ago
+        "iat": datetime.datetime.utcnow() - datetime.timedelta(hours=2),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
 class JWTSecurityPolicy:
     """Simple JWT security policy for testing."""
-    
+
     def identity(self, request):
         """Extract identity from JWT token in Authorization header."""
-        auth_header = request.headers.get('Authorization', '')
-        if not auth_header.startswith('Bearer '):
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
             return None
-            
+
         token = auth_header[7:]  # Remove 'Bearer ' prefix
         try:
             payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
@@ -279,37 +284,37 @@ class JWTSecurityPolicy:
             return None
         except jwt.InvalidTokenError:
             return None
-    
+
     def authenticated_userid(self, request):
         """Get the authenticated user ID."""
         identity = self.identity(request)
-        return identity.get('user_id') if identity else None
-    
+        return identity.get("user_id") if identity else None
+
     def permits(self, request, context, permission):
         """Check if current user has the given permission."""
         identity = self.identity(request)
         if not identity:
             return False
-            
+
         # For testing, we'll use simple role-based permissions
-        if permission == 'authenticated':
+        if permission == "authenticated":
             return True  # Any valid JWT token grants authenticated permission
-        
+
         # Add other permission logic here as needed
         return True
-    
+
     def effective_principals(self, request):
         """Get all effective principals for the current request."""
         identity = self.identity(request)
         if not identity:
-            return ['system.Everyone']
-            
-        principals = ['system.Everyone', 'system.Authenticated']
+            return ["system.Everyone"]
+
+        principals = ["system.Everyone", "system.Authenticated"]
         principals.append(f"userid:{identity.get('user_id')}")
-        
-        for role in identity.get('roles', []):
+
+        for role in identity.get("roles", []):
             principals.append(f"role:{role}")
-            
+
         return principals
 
 
@@ -317,37 +322,43 @@ class JWTSecurityPolicy:
 def pyramid_config_with_jwt_auth(users_db, user_id_counter):
     """Pyramid configuration with JWT authentication enabled."""
     config = Configurator()
-    
+
     # Set up JWT authentication
     config.set_security_policy(JWTSecurityPolicy())
-    
+
     # Add test routes (both protected and public)
     config.add_route("create_user", "/users", request_method="POST")
-    config.add_route("get_user", "/users/{id}", request_method="GET") 
+    config.add_route("get_user", "/users/{id}", request_method="GET")
     config.add_route("update_user", "/users/{id}", request_method="PUT")
     config.add_route("delete_user", "/users/{id}", request_method="DELETE")
     config.add_route("list_users", "/users", request_method="GET")
-    
+
     # Add protected routes that require authentication
-    config.add_route("get_protected_user", "/protected/users/{id}", request_method="GET")
+    config.add_route(
+        "get_protected_user", "/protected/users/{id}", request_method="GET"
+    )
     config.add_route("get_public_info", "/public/info", request_method="GET")
-    
+
     # Add view configurations
     config.add_view(create_user_view, route_name="create_user", renderer="json")
     config.add_view(get_user_view, route_name="get_user", renderer="json")
-    config.add_view(update_user_view, route_name="update_user", renderer="json") 
+    config.add_view(update_user_view, route_name="update_user", renderer="json")
     config.add_view(delete_user_view, route_name="delete_user", renderer="json")
     config.add_view(list_users_view, route_name="list_users", renderer="json")
-    
+
     # Add protected and public views
-    config.add_view(get_protected_user_view, route_name="get_protected_user", 
-                   permission="authenticated", renderer="json")
+    config.add_view(
+        get_protected_user_view,
+        route_name="get_protected_user",
+        permission="authenticated",
+        renderer="json",
+    )
     config.add_view(get_public_info_view, route_name="get_public_info", renderer="json")
-    
+
     # Store test data in registry
     config.registry.users_db = users_db
     config.registry.user_id_counter = user_id_counter
-    
+
     return config
 
 
@@ -355,21 +366,21 @@ def pyramid_config_with_jwt_auth(users_db, user_id_counter):
 def testapp_with_jwt_auth(pyramid_config_with_jwt_auth, users_db):
     """TestApp with JWT authentication and MCP integration."""
     pyramid_config_with_jwt_auth.include("pyramid_mcp")
-    
+
     # Add test user for protected route testing
     users_db[1] = {"id": 1, "name": "Test User", "email": "test@example.com"}
-    
+
     # First make the WSGI app to ensure PyramidMCP is properly initialized
     app = pyramid_config_with_jwt_auth.make_wsgi_app()
-    
+
     # Now access the PyramidMCP instance for decorator registration
     pyramid_mcp = pyramid_config_with_jwt_auth.registry.pyramid_mcp
-    
+
     # Use the new decorator syntax with permission support
     @pyramid_mcp.tool(
         name="get_protected_user",
         description="Get user info (requires authentication)",
-        permission="authenticated"
+        permission="authenticated",
     )
     def get_protected_user_tool(id: int):
         """MCP tool for protected user access."""
@@ -377,21 +388,21 @@ def testapp_with_jwt_auth(pyramid_config_with_jwt_auth, users_db):
         user = users_db.get(id)
         if not user:
             raise ValueError("User not found")
-        
+
         return {"user": user, "protected": True, "authenticated": True}
-    
+
     @pyramid_mcp.tool(
         name="get_public_info",
-        description="Get public information (no authentication required)"
+        description="Get public information (no authentication required)",
     )
     def get_public_info_tool():
         """MCP tool for public information access."""
         return {
             "message": "This is public information",
             "timestamp": datetime.datetime.utcnow().isoformat(),
-            "public": True
+            "public": True,
         }
-    
+
     return TestApp(app)
 
 
@@ -399,19 +410,20 @@ def testapp_with_jwt_auth(pyramid_config_with_jwt_auth, users_db):
 # 📊 TEST DATA FIXTURES
 # =============================================================================
 
+
 @pytest.fixture
 def sample_tools():
     """Collection of sample MCP tools for testing."""
     tools = []
-    
+
     @tool(name="add", description="Add two numbers")
     def add_tool(a: int, b: int) -> int:
         return a + b
-    
-    @tool(name="multiply", description="Multiply two numbers") 
+
+    @tool(name="multiply", description="Multiply two numbers")
     def multiply_tool(x: int, y: int) -> int:
         return x * y
-        
+
     tools.extend([add_tool, multiply_tool])
     return tools
 
@@ -420,28 +432,29 @@ def sample_tools():
 def test_route_scenarios():
     """Various route configuration scenarios for testing."""
     return {
-        'basic_crud': [
+        "basic_crud": [
             ("create_item", "/items", "POST"),
             ("get_item", "/items/{id}", "GET"),
-            ("update_item", "/items/{id}", "PUT"), 
+            ("update_item", "/items/{id}", "PUT"),
             ("delete_item", "/items/{id}", "DELETE"),
-            ("list_items", "/items", "GET")
+            ("list_items", "/items", "GET"),
         ],
-        'api_routes': [
+        "api_routes": [
             ("api_users", "/api/users", "GET"),
             ("api_user_detail", "/api/users/{id}", "GET"),
-            ("api_posts", "/api/posts", "GET")
+            ("api_posts", "/api/posts", "GET"),
         ],
-        'admin_routes': [
+        "admin_routes": [
             ("admin_dashboard", "/admin", "GET"),
-            ("admin_users", "/admin/users", "GET") 
-        ]
+            ("admin_users", "/admin/users", "GET"),
+        ],
     }
 
 
 # =============================================================================
 # 📁 LEGACY FIXTURES (for backward compatibility during migration)
 # =============================================================================
+
 
 # Sample data and utilities
 @pytest.fixture
@@ -663,13 +676,13 @@ def get_protected_user_view(request):
     """Protected view that requires authentication."""
     user_id = int(request.matchdict["id"])
     users_db = request.registry.users_db
-    
+
     # This view requires authentication - it should only be callable with valid JWT
     user = users_db.get(user_id)
     if not user:
         request.response.status = 404
         return {"error": "User not found"}
-    
+
     return {"user": user, "protected": True, "authenticated": True}
 
 
@@ -678,5 +691,5 @@ def get_public_info_view(request):
     return {
         "message": "This is public information",
         "timestamp": datetime.datetime.utcnow().isoformat(),
-        "public": True
+        "public": True,
     }

@@ -163,7 +163,11 @@ class MCPProtocolHandler:
         self.server_name = server_name
         self.server_version = server_version
         self.tools: Dict[str, MCPTool] = {}
-        self.capabilities: Dict[str, Any] = {"tools": {}, "resources": {}, "prompts": {}}
+        self.capabilities: Dict[str, Any] = {
+            "tools": {"listChanged": True},
+            "resources": {"subscribe": False, "listChanged": True},
+            "prompts": {"listChanged": True},
+        }
 
     def register_tool(self, tool: MCPTool) -> None:
         """Register an MCP tool.
@@ -175,7 +179,11 @@ class MCPProtocolHandler:
         # Update capabilities to indicate we have tools
         self.capabilities["tools"] = {}
 
-    def handle_message(self, message_data: Dict[str, Any], auth_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def handle_message(
+        self,
+        message_data: Dict[str, Any],
+        auth_context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """Handle an incoming MCP message.
 
         Args:
@@ -195,6 +203,16 @@ class MCPProtocolHandler:
                 return self._handle_list_tools(request)
             elif request.method == "tools/call":
                 return self._handle_call_tool(request, auth_context)
+            elif request.method == "resources/list":
+                return self._handle_list_resources(request)
+            elif request.method == "prompts/list":
+                return self._handle_list_prompts(request)
+            elif request.method == "notifications/initialized":
+                # Notifications don't expect responses, so we handle this specially
+                self._handle_notifications_initialized(request)
+                # Return empty dict to indicate no response should be sent
+                # In a real stdio implementation, this would not send anything
+                return {}
             else:
                 error = MCPError(
                     code=MCPErrorCode.METHOD_NOT_FOUND.value,
@@ -204,8 +222,16 @@ class MCPProtocolHandler:
                 return response.to_dict()
 
         except Exception as e:
+            # Try to extract request ID if possible
+            request_id = None
+            try:
+                if message_data and "id" in message_data:
+                    request_id = message_data["id"]
+            except:
+                pass
+
             error = MCPError(code=MCPErrorCode.INTERNAL_ERROR.value, message=str(e))
-            response = MCPResponse(error=error)
+            response = MCPResponse(id=request_id, error=error)
             return response.to_dict()
 
     def _handle_initialize(self, request: MCPRequest) -> Dict[str, Any]:
@@ -225,7 +251,9 @@ class MCPProtocolHandler:
         response = MCPResponse(id=request.id, result=result)
         return response.to_dict()
 
-    def _handle_call_tool(self, request: MCPRequest, auth_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _handle_call_tool(
+        self, request: MCPRequest, auth_context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """Handle MCP tools/call request."""
         params = request.params or {}
         tool_name = params.get("name")
@@ -258,27 +286,34 @@ class MCPProtocolHandler:
         # Check permissions if tool requires them
         if tool.permission:
             if auth_context:
-                pyramid_request = auth_context.get('request')
-                context = auth_context.get('context')
-                
+                pyramid_request = auth_context.get("request")
+                context = auth_context.get("context")
+
                 if pyramid_request:
                     try:
                         # Get the security policy from the registry
                         from pyramid.interfaces import ISecurityPolicy
-                        registry = getattr(pyramid_request, 'registry', None)
-                        
+
+                        registry = getattr(pyramid_request, "registry", None)
+
                         if registry:
                             policy = registry.queryUtility(ISecurityPolicy)
                             if policy and context is not None:
                                 # Use policy.permits with context factory - proper integration!
-                                has_perms = policy.permits(pyramid_request, context, tool.permission)
+                                has_perms = policy.permits(
+                                    pyramid_request, context, tool.permission
+                                )
                             else:
                                 # Fallback to request.has_permission if no context factory
-                                has_perms = pyramid_request.has_permission(tool.permission, context)
+                                has_perms = pyramid_request.has_permission(
+                                    tool.permission, context
+                                )
                         else:
                             # No registry available, use basic permission check
-                            has_perms = pyramid_request.has_permission(tool.permission, context)
-                        
+                            has_perms = pyramid_request.has_permission(
+                                tool.permission, context
+                            )
+
                         # has_permission/permits returns Allowed/Denied objects that evaluate to True/False
                         if not has_perms:
                             error = MCPError(
@@ -327,6 +362,29 @@ class MCPProtocolHandler:
             )
             response = MCPResponse(id=request.id, error=error)
             return response.to_dict()
+
+    def _handle_list_resources(self, request: MCPRequest) -> Dict[str, Any]:
+        """Handle MCP resources/list request."""
+        # For now, return empty resources list
+        # This can be extended to support MCP resources in the future
+        result = {"resources": []}
+        response = MCPResponse(id=request.id, result=result)
+        return response.to_dict()
+
+    def _handle_list_prompts(self, request: MCPRequest) -> Dict[str, Any]:
+        """Handle MCP prompts/list request."""
+        # For now, return empty prompts list
+        # This can be extended to support MCP prompts in the future
+        result = {"prompts": []}
+        response = MCPResponse(id=request.id, result=result)
+        return response.to_dict()
+
+    def _handle_notifications_initialized(self, request: MCPRequest) -> Dict[str, Any]:
+        """Handle MCP notifications/initialized request."""
+        # This is a notification - no response should be sent for notifications
+        # But since our current architecture expects a response, we'll return None
+        # and handle this special case in the main handler
+        return None
 
 
 def create_json_schema_from_marshmallow(schema_class: type) -> Dict[str, Any]:
