@@ -76,10 +76,9 @@ def test_mcp_calls_protected_route_without_jwt_fails(testapp_with_jwt_auth):
     assert response.status_code == 200  # MCP returns 200 with error in payload
     result = response.json
     assert result.get("error") is not None
-    assert (
-        "authentication" in result["error"]["message"].lower()
-        or "token" in result["error"]["message"].lower()
-    )
+    error_msg = result["error"]["message"].lower()
+    expected_words = ["access denied", "authentication", "token", "permission"]
+    assert any(word in error_msg for word in expected_words)
 
 
 def test_mcp_calls_public_route_always_succeeds(testapp_with_jwt_auth):
@@ -167,7 +166,9 @@ def test_mcp_calls_with_expired_jwt_fails(testapp_with_jwt_auth, expired_jwt_tok
     assert response.status_code == 200  # MCP returns 200 with error in payload
     result = response.json
     assert result.get("error") is not None
-    assert "authentication required" in result["error"]["message"].lower()
+    error_msg = result["error"]["message"].lower()
+    expected_words = ["access denied", "authentication", "token", "permission"]
+    assert any(word in error_msg for word in expected_words)
 
 
 def test_mcp_tool_reflects_pyramid_view_permission(

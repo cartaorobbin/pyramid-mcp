@@ -555,7 +555,7 @@ def test_multi_step_integration_scenario():
 # =============================================================================
 
 
-def test_dynamic_tool_registration_workflow(pyramid_mcp_basic):
+def test_dynamic_tool_registration_workflow(pyramid_mcp_basic, dummy_request):
     """Test dynamic tool registration and execution workflow."""
     pyramid_mcp = pyramid_mcp_basic
 
@@ -632,7 +632,9 @@ def test_dynamic_tool_registration_workflow(pyramid_mcp_basic):
 
     # 7. Test via MCP protocol
     list_request = {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
-    list_response = pyramid_mcp.protocol_handler.handle_message(list_request)
+    list_response = pyramid_mcp.protocol_handler.handle_message(
+        list_request, dummy_request
+    )
 
     tools = list_response["result"]["tools"]
     tool_names = [tool["name"] for tool in tools]
@@ -647,7 +649,9 @@ def test_dynamic_tool_registration_workflow(pyramid_mcp_basic):
         "id": 2,
     }
 
-    call_response = pyramid_mcp.protocol_handler.handle_message(call_request)
+    call_response = pyramid_mcp.protocol_handler.handle_message(
+        call_request, dummy_request
+    )
     result = call_response["result"]["content"][0]["text"]
     assert "Counter is at 6" in result
 
@@ -690,7 +694,7 @@ def test_error_handling_across_components(testapp_with_mcp):
     assert "does_not_exist" in nonexistent_tool_response.json["error"]["message"]
 
 
-def test_performance_and_concurrency_simulation(pyramid_mcp_configured):
+def test_performance_and_concurrency_simulation(pyramid_mcp_configured, dummy_request):
     """Simulate performance testing with multiple tool calls."""
     pyramid_mcp = pyramid_mcp_configured
 
@@ -720,7 +724,7 @@ def test_performance_and_concurrency_simulation(pyramid_mcp_configured):
             "id": i + 1,
         }
 
-        response = pyramid_mcp.protocol_handler.handle_message(request)
+        response = pyramid_mcp.protocol_handler.handle_message(request, dummy_request)
         assert "result" in response
         results.append(response["result"]["content"][0]["text"])
 

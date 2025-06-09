@@ -176,6 +176,21 @@ def mcp_settings_factory():
 
 
 @pytest.fixture
+def dummy_request():
+    """Create a dummy pyramid request for protocol handler calls."""
+    from pyramid.config import Configurator
+    from pyramid.scripting import prepare
+
+    # Create minimal configuration
+    config = Configurator()
+    config.commit()
+
+    # Use pyramid.scripting.prepare to get a proper request
+    env = prepare(registry=config.registry)
+    return env["request"]
+
+
+@pytest.fixture
 def protocol_handler():
     """Standalone MCP protocol handler for unit testing."""
     return MCPProtocolHandler("test-protocol", "1.0.0")

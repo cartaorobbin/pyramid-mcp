@@ -10,7 +10,6 @@ This module tests:
 Uses enhanced fixtures from conftest.py for clean, non-duplicated test setup.
 """
 
-
 from pyramid_mcp.protocol import MCPErrorCode, MCPProtocolHandler, MCPTool
 
 # =============================================================================
@@ -114,12 +113,12 @@ def test_tool_registration_from_sample_tools(protocol_handler, sample_tools):
 # =============================================================================
 
 
-def test_initialize_request(protocol_handler):
+def test_initialize_request(protocol_handler, dummy_request):
     """Test MCP initialize request using fixture."""
     handler = protocol_handler
 
     request = {"jsonrpc": "2.0", "method": "initialize", "id": 1}
-    response = handler.handle_message(request)
+    response = handler.handle_message(request, dummy_request)
 
     assert response["jsonrpc"] == "2.0"
     assert response["id"] == 1
@@ -129,19 +128,19 @@ def test_initialize_request(protocol_handler):
     assert "capabilities" in response["result"]
 
 
-def test_list_tools_request_empty(protocol_handler):
+def test_list_tools_request_empty(protocol_handler, dummy_request):
     """Test MCP tools/list request with no tools registered."""
     handler = protocol_handler
 
     request = {"jsonrpc": "2.0", "method": "tools/list", "id": 2}
-    response = handler.handle_message(request)
+    response = handler.handle_message(request, dummy_request)
 
     assert "result" in response
     assert "tools" in response["result"]
     assert len(response["result"]["tools"]) == 0
 
 
-def test_list_tools_request_with_tool(protocol_handler):
+def test_list_tools_request_with_tool(protocol_handler, dummy_request):
     """Test MCP tools/list request with a registered tool."""
     handler = protocol_handler
 
@@ -153,7 +152,7 @@ def test_list_tools_request_with_tool(protocol_handler):
     handler.register_tool(tool)
 
     request = {"jsonrpc": "2.0", "method": "tools/list", "id": 2}
-    response = handler.handle_message(request)
+    response = handler.handle_message(request, dummy_request)
 
     assert "result" in response
     assert "tools" in response["result"]
@@ -162,7 +161,7 @@ def test_list_tools_request_with_tool(protocol_handler):
     assert response["result"]["tools"][0]["description"] == "A test tool"
 
 
-def test_call_tool_request(protocol_handler):
+def test_call_tool_request(protocol_handler, dummy_request):
     """Test MCP tools/call request."""
     handler = protocol_handler
 
@@ -181,14 +180,14 @@ def test_call_tool_request(protocol_handler):
         "id": 3,
     }
 
-    response = handler.handle_message(request)
+    response = handler.handle_message(request, dummy_request)
 
     assert "result" in response
     assert "content" in response["result"]
     assert response["result"]["content"][0]["text"] == "15"
 
 
-def test_call_tool_with_string_result(protocol_handler):
+def test_call_tool_with_string_result(protocol_handler, dummy_request):
     """Test MCP tools/call request with string result."""
     handler = protocol_handler
 
@@ -205,7 +204,7 @@ def test_call_tool_with_string_result(protocol_handler):
         "id": 4,
     }
 
-    response = handler.handle_message(request)
+    response = handler.handle_message(request, dummy_request)
 
     assert "result" in response
     assert "content" in response["result"]
@@ -217,19 +216,19 @@ def test_call_tool_with_string_result(protocol_handler):
 # =============================================================================
 
 
-def test_unknown_method_error(protocol_handler):
+def test_unknown_method_error(protocol_handler, dummy_request):
     """Test error handling for unknown methods."""
     handler = protocol_handler
 
     request = {"jsonrpc": "2.0", "method": "unknown/method", "id": 1}
-    response = handler.handle_message(request)
+    response = handler.handle_message(request, dummy_request)
 
     assert "error" in response
     assert response["error"]["code"] == MCPErrorCode.METHOD_NOT_FOUND.value
     assert "unknown/method" in response["error"]["message"]
 
 
-def test_tool_not_found_error(protocol_handler):
+def test_tool_not_found_error(protocol_handler, dummy_request):
     """Test error when calling non-existent tool."""
     handler = protocol_handler
 
@@ -240,21 +239,21 @@ def test_tool_not_found_error(protocol_handler):
         "id": 1,
     }
 
-    response = handler.handle_message(request)
+    response = handler.handle_message(request, dummy_request)
 
     assert "error" in response
     assert response["error"]["code"] == MCPErrorCode.METHOD_NOT_FOUND.value
     assert "nonexistent" in response["error"]["message"]
 
 
-def test_malformed_request_error(protocol_handler):
+def test_malformed_request_error(protocol_handler, dummy_request):
     """Test error handling for malformed requests."""
     handler = protocol_handler
 
     # Request with invalid/missing ID (None instead of string/number)
     malformed_request = {"jsonrpc": "2.0", "method": "initialize", "id": None}
 
-    response = handler.handle_message(malformed_request)
+    response = handler.handle_message(malformed_request, dummy_request)
 
     # For some malformed requests, the handler may still respond with valid structure
     # Let's test a truly malformed request that should cause an error
@@ -263,7 +262,7 @@ def test_malformed_request_error(protocol_handler):
         "id": 1,
     }  # missing jsonrpc
 
-    response2 = handler.handle_message(invalid_json_rpc_request)
+    response2 = handler.handle_message(invalid_json_rpc_request, dummy_request)
 
     # At least one of these should be an error or the original should be
     # valid but limited
@@ -272,7 +271,7 @@ def test_malformed_request_error(protocol_handler):
     )  # Valid response structure is also acceptable
 
 
-def test_tool_execution_error(protocol_handler):
+def test_tool_execution_error(protocol_handler, dummy_request):
     """Test error handling when tool execution fails."""
     handler = protocol_handler
 
@@ -291,7 +290,7 @@ def test_tool_execution_error(protocol_handler):
         "id": 5,
     }
 
-    response = handler.handle_message(request)
+    response = handler.handle_message(request, dummy_request)
 
     # Should return an error response when tool execution fails
     assert "error" in response or (
