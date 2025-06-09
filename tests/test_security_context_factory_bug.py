@@ -143,23 +143,31 @@ def admin_view(request):
 
 
 def setup_mcp_tools(pyramid_mcp):
-    """Set up MCP tools for testing."""
+    """Set up test MCP tools."""
 
     @pyramid_mcp.tool(name="public_tool", description="Public MCP tool")
     def public_tool(message: str = "hello") -> str:
-        """Public tool that should be accessible to everyone."""
+        """A public tool that anyone can access."""
         return f"Public tool response: {message}"
 
-    @pyramid_mcp.tool(name="auth_tool", description="Auth MCP tool", permission="view")
+    @pyramid_mcp.tool(
+        name="auth_tool",
+        description="Auth MCP tool",
+        permission="view",
+        context=AuthenticatedContext,
+    )
     def auth_tool(message: str = "secure") -> str:
-        """Tool that should require authentication."""
-        return f"Auth tool response: {message}"
+        """A tool that requires authentication."""
+        return f"Authenticated tool response: {message}"
 
     @pyramid_mcp.tool(
-        name="admin_tool", description="Admin MCP tool", permission="admin"
+        name="admin_tool",
+        description="Admin MCP tool",
+        permission="admin",
+        context=AdminContext,
     )
     def admin_tool(action: str = "status") -> str:
-        """Tool that should require admin role."""
+        """A tool that requires admin permissions."""
         return f"Admin tool response: {action}"
 
 

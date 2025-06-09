@@ -11,6 +11,8 @@ from enum import Enum
 from typing import Any, Callable, Dict, Optional, Union
 
 from marshmallow import Schema, fields
+from pyramid.request import Request
+from pyramid.interfaces import ISecurityPolicy
 
 
 class MCPErrorCode(Enum):
@@ -139,6 +141,7 @@ class MCPTool:
     input_schema: Optional[Dict[str, Any]] = None
     handler: Optional[Callable] = None
     permission: Optional[str] = None  # Pyramid permission requirement
+    context: Optional[Any] = None  # Context for permission checking
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to MCP tool format."""
@@ -182,14 +185,13 @@ class MCPProtocolHandler:
     def handle_message(
         self,
         message_data: Dict[str, Any],
-        auth_context: Optional[Dict[str, Any]] = None,
+        pyramid_request: Request,
     ) -> Dict[str, Any]:
         """Handle an incoming MCP message.
 
         Args:
             message_data: The parsed JSON message
-            auth_context: Optional authentication context with request and
-                         security policy
+            pyramid_request: The pyramid request
 
         Returns:
             The response message as a dictionary
@@ -203,7 +205,7 @@ class MCPProtocolHandler:
             elif request.method == "tools/list":
                 return self._handle_list_tools(request)
             elif request.method == "tools/call":
-                return self._handle_call_tool(request, auth_context)
+                return self._handle_call_tool(request, pyramid_request)
             elif request.method == "resources/list":
                 return self._handle_list_resources(request)
             elif request.method == "prompts/list":
@@ -253,7 +255,7 @@ class MCPProtocolHandler:
         return response.to_dict()
 
     def _handle_call_tool(
-        self, request: MCPRequest, auth_context: Optional[Dict[str, Any]] = None
+        self, request: MCPRequest, pyramid_request: Request
     ) -> Dict[str, Any]:
         """Handle MCP tools/call request."""
         params = request.params or {}
@@ -268,6 +270,7 @@ class MCPProtocolHandler:
             return response.to_dict()
 
         tool = self.tools.get(tool_name)
+        
         if not tool:
             error = MCPError(
                 code=MCPErrorCode.METHOD_NOT_FOUND.value,
@@ -284,83 +287,29 @@ class MCPProtocolHandler:
             response = MCPResponse(id=request.id, error=error)
             return response.to_dict()
 
-        # Check permissions if tool requires them
-        if tool.permission:
-            if auth_context:
-                pyramid_request = auth_context.get("request")
-                context = auth_context.get("context")
-
-                if pyramid_request:
-                    try:
-                        # Get the security policy from the registry
-                        from pyramid.interfaces import ISecurityPolicy
-
-                        registry = getattr(pyramid_request, "registry", None)
-
-                        if registry:
-                            policy = registry.queryUtility(ISecurityPolicy)
-                            if policy and context is not None:
-                                # Use policy.permits with context factory
-                                # - proper integration!
-                                has_perms = policy.permits(
-                                    pyramid_request, context, tool.permission
-                                )
-                            else:
-                                # Fallback to request.has_permission
-                                # if no context factory
-                                has_perms = pyramid_request.has_permission(
-                                    tool.permission, context
-                                )
-                        else:
-                            # No registry available, use basic permission check
-                            has_perms = pyramid_request.has_permission(
-                                tool.permission, context
-                            )
-
-                        # has_permission/permits returns Allowed/Denied objects
-                        # that evaluate to True/False
-                        if not has_perms:
-                            error = MCPError(
-                                code=MCPErrorCode.INVALID_PARAMS.value,
-                                message=(
-                                    f"Authentication required for tool '{tool_name}'"
-                                ),
-                            )
-                            response = MCPResponse(id=request.id, error=error)
-                            return response.to_dict()
-                    except Exception:
-                        error = MCPError(
-                            code=MCPErrorCode.INVALID_PARAMS.value,
-                            message=f"Authentication required for tool '{tool_name}'",
-                        )
-                        response = MCPResponse(id=request.id, error=error)
-                        return response.to_dict()
-                else:
-                    error = MCPError(
-                        code=MCPErrorCode.INVALID_PARAMS.value,
-                        message=f"Authentication required for tool '{tool_name}'",
-                    )
-                    response = MCPResponse(id=request.id, error=error)
-                    return response.to_dict()
-            else:
-                error = MCPError(
-                    code=MCPErrorCode.INVALID_PARAMS.value,
-                    message=f"Authentication required for tool '{tool_name}'",
-                )
-                response = MCPResponse(id=request.id, error=error)
-                return response.to_dict()
+        policy = pyramid_request.registry.queryUtility(ISecurityPolicy)
 
         try:
-            # Call the tool handler with arguments
-            tool_args = params.get("arguments", {})
-            result = tool.handler(**tool_args)
+            context = tool.context or pyramid_request.context
+            if not tool.permission or policy.permits(
+                pyramid_request, context, tool.permission
+            ):
+                tool_args = params.get("arguments", {})
+                result = tool.handler(**tool_args)
 
-            # Wrap result in MCP format
-            mcp_result = {"content": [{"type": "text", "text": str(result)}]}
+                # Wrap result in MCP format
+                mcp_result = {"content": [{"type": "text", "text": str(result)}]}
 
-            response = MCPResponse(id=request.id, result=mcp_result)
+                response = MCPResponse(id=request.id, result=mcp_result)
+                return response.to_dict()
+
+            error_msg = f"Access denied for tool '{tool_name}'"
+            error = MCPError(
+                code=MCPErrorCode.INVALID_PARAMS.value,
+                message=error_msg,
+            )
+            response = MCPResponse(id=request.id, error=error)
             return response.to_dict()
-
         except Exception as e:
             error = MCPError(
                 code=MCPErrorCode.INTERNAL_ERROR.value,

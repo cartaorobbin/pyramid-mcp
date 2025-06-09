@@ -168,6 +168,7 @@ class PyramidMCP:
         description: Optional[str] = None,
         schema: Optional[Type[Schema]] = None,
         permission: Optional[str] = None,
+        context: Optional[Any] = None,
     ) -> Callable:
         """Decorator to register a function as an MCP tool.
 
@@ -176,6 +177,7 @@ class PyramidMCP:
             description: Tool description (defaults to function docstring)
             schema: Marshmallow schema for input validation
             permission: Pyramid permission requirement for this tool
+            context: Context or context factory to use for permission checking
 
         Returns:
             Decorated function
@@ -188,6 +190,11 @@ class PyramidMCP:
             >>> @mcp.tool(description="Get user info", permission="authenticated")
             >>> def get_user(id: int) -> dict:
             ...     return {"id": id, "name": "User"}
+
+            >>> # With custom context
+            >>> @mcp.tool(permission="view", context=AuthenticatedContext)
+            >>> def secure_operation() -> str:
+            ...     return "Secure data"
         """
 
         def decorator(func: Callable) -> Callable:
@@ -209,6 +216,7 @@ class PyramidMCP:
                 input_schema=input_schema,
                 handler=func,
                 permission=permission,
+                context=context,
             )
 
             self.manual_tools[tool_name] = tool
@@ -293,14 +301,12 @@ class PyramidMCP:
 
             # Get the context from the context factory (if any)
             # This integrates MCP with Pyramid's security system
-            context = getattr(request, "context", None)
 
             # Create authentication context for MCP protocol handler
             # Include both request and context for proper security integration
-            auth_context = {"request": request, "context": context}
 
             # Handle the message through protocol handler
-            response = self.protocol_handler.handle_message(message_data, auth_context)
+            response = self.protocol_handler.handle_message(message_data, request)
             return response
 
         except Exception as e:
@@ -337,7 +343,9 @@ class PyramidMCP:
                 message_data = None
                 try:
                     message_data = request.json_body
-                    response_data = self.protocol_handler.handle_message(message_data)
+                    response_data = self.protocol_handler.handle_message(
+                        message_data, request
+                    )
 
                     # Format as SSE
                     sse_data = f"data: {json.dumps(response_data)}\n\n"

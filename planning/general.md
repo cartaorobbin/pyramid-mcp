@@ -61,4 +61,18 @@ The core infrastructure is solid and code quality is excellent. Current focus is
 
 *No active tasks at the moment. Ready to pull next priority tasks from `planning/backlog.md`.*
 
- 
+## Next Steps
+
+**Immediate Focus:**
+1. ✅ **COMPLETE**: Simple Docker testing - Docker works! (Phase 2.5)
+2. ✅ **COMPLETE**: Docker integration for Claude Desktop (Phase 2)
+3. ✅ **COMPLETE**: Code Quality improvements (make check fixes)
+4. **NEXT UP**: Extend pyramid_mcp with stdio transport (Phase 2.6)
+5. Finish Claude integration documentation (Phase 3)
+
+**Planned from Backlog:**
+1. Route Discovery feature completion (Phases 2-5)
+2. Open Source & PyPI Publishing setup
+3. Enhanced route discovery implementation
+
+The core infrastructure is solid and code quality is excellent. Current focus is on Claude Desktop integration, then moving to route discovery feature completion from the backlog.
