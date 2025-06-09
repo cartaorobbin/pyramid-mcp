@@ -169,10 +169,11 @@ def pstdio(ini: str, app: str, debug: bool) -> None:
                     processing_time = (time.time() - start_time) * 1000
 
                     # Log the response we're sending back to Claude
-                    click.echo(
-                        f"📤 [{timestamp}] Response to Claude (took {processing_time:.1f}ms):",
-                        err=True,
+                    response_msg = (
+                        f"📤 [{timestamp}] Response to Claude "
+                        f"(took {processing_time:.1f}ms):"
                     )
+                    click.echo(response_msg, err=True)
 
                     if "error" in response:
                         error = response["error"]

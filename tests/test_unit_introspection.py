@@ -11,14 +11,13 @@ This module tests:
 Uses enhanced fixtures from conftest.py for clean, non-duplicated test setup.
 """
 
-import pytest
+
 from pyramid.config import Configurator
 from pyramid.response import Response
 from pyramid.view import view_config
 
-from pyramid_mcp.introspection import PyramidIntrospector
 from pyramid_mcp.core import MCPConfiguration
-
+from pyramid_mcp.introspection import PyramidIntrospector
 
 # =============================================================================
 # 🔍 ROUTE DISCOVERY TESTS
@@ -393,12 +392,14 @@ def test_tool_handler_creation():
     # Test handler creation with correct signature
     handler1 = introspector._create_route_handler(route_info, view_info, "GET")
     result1 = handler1()
-    assert isinstance(result1, str)  # Should return a string response
+    assert isinstance(result1, dict)  # Should return MCP response format
+    assert "content" in result1  # Should have content key
+    assert isinstance(result1["content"], list)  # Content should be a list
 
     # Test JSON handler creation
     handler2 = introspector._create_route_handler(route_info2, view_info2, "POST")
     result2 = handler2()
-    assert isinstance(result2, str)  # JSON response as string
+    assert isinstance(result2, dict)  # MCP response format
 
 
 def test_tool_handler_with_parameters():
@@ -417,8 +418,11 @@ def test_tool_handler_with_parameters():
 
     # Test handler with parameters
     result = handler(id="123")
-    assert isinstance(result, str)
-    assert "123" in result  # Should contain the parameter value
+    assert isinstance(result, dict)  # Should return MCP response format
+    assert "content" in result  # Should have content key
+    # Check that the parameter value is in the response content
+    content_text = result["content"][0]["text"]
+    assert "123" in content_text  # Should contain the parameter value
 
 
 # =============================================================================
@@ -469,12 +473,14 @@ def test_integration_with_complex_routes():
     tools = introspector.discover_tools_from_pyramid(None, mcp_config)
     tool_names = [tool.name for tool in tools]
 
-    # Should generate appropriate tool names (may be 0 if no views are properly registered)
+    # Should generate appropriate tool names
+    # (may be 0 if no views are properly registered)
     assert isinstance(tools, list)
     if len(tools) > 0:
         assert any("user" in name.lower() for name in tool_names)
     else:
-        # This is acceptable for this test - the configuration may not have views properly registered
+        # This is acceptable for this test - the configuration may not
+        # have views properly registered
         pass
 
 

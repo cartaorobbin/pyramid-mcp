@@ -13,13 +13,12 @@ Uses enhanced fixtures from conftest.py for clean, non-duplicated test setup.
 """
 
 import json
-import pytest
+
 from pyramid.config import Configurator
 from pyramid.view import view_config
 from webtest import TestApp
 
 from pyramid_mcp import tool
-
 
 # =============================================================================
 # 🎯 REAL ROUTE CALLING INTEGRATION TESTS
@@ -580,7 +579,10 @@ def test_dynamic_tool_registration_workflow(pyramid_mcp_basic):
         elif operation == "reset":
             dynamic_counter.state = {"count": 0, "operations": ["reset"]}
 
-        return f"Count: {dynamic_counter.state['count']}, Operations: {len(dynamic_counter.state['operations'])}"
+        return (
+            f"Count: {dynamic_counter.state['count']}, "
+            f"Operations: {len(dynamic_counter.state['operations'])}"
+        )
 
     # 3. Verify tool was registered
     assert len(pyramid_mcp.protocol_handler.tools) == initial_count + 1
@@ -606,9 +608,15 @@ def test_dynamic_tool_registration_workflow(pyramid_mcp_basic):
         if hasattr(dynamic_counter, "state"):
             state = dynamic_counter.state
             if report_type == "summary":
-                return f"Counter is at {state['count']} after {len(state['operations'])} operations"
+                return (
+                    f"Counter is at {state['count']} after "
+                    f"{len(state['operations'])} operations"
+                )
             elif report_type == "detailed":
-                return f"Counter: {state['count']}, Operations: {', '.join(state['operations'])}"
+                return (
+                    f"Counter: {state['count']}, "
+                    f"Operations: {', '.join(state['operations'])}"
+                )
         else:
             return "Counter not initialized"
 

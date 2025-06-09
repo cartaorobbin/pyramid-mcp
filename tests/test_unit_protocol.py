@@ -10,9 +10,8 @@ This module tests:
 Uses enhanced fixtures from conftest.py for clean, non-duplicated test setup.
 """
 
-import pytest
-from pyramid_mcp.protocol import MCPError, MCPErrorCode, MCPProtocolHandler, MCPTool
 
+from pyramid_mcp.protocol import MCPErrorCode, MCPProtocolHandler, MCPTool
 
 # =============================================================================
 # 🔧 MCP PROTOCOL HANDLER TESTS
@@ -266,7 +265,8 @@ def test_malformed_request_error(protocol_handler):
 
     response2 = handler.handle_message(invalid_json_rpc_request)
 
-    # At least one of these should be an error or the original should be valid but limited
+    # At least one of these should be an error or the original should be
+    # valid but limited
     assert (
         "error" in response or "error" in response2 or response.get("jsonrpc") == "2.0"
     )  # Valid response structure is also acceptable

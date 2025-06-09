@@ -8,7 +8,7 @@ between MCP clients and servers.
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, Optional, Union
 
 from marshmallow import Schema, fields
 
@@ -60,7 +60,7 @@ class MCPRequest:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        response_dict = {"jsonrpc": self.jsonrpc, "method": self.method}
+        response_dict: Dict[str, Any] = {"jsonrpc": self.jsonrpc, "method": self.method}
         if self.params is not None:
             response_dict["params"] = self.params
         if self.id is not None:
@@ -79,7 +79,7 @@ class MCPResponse:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
-        response_dict = {"jsonrpc": self.jsonrpc}
+        response_dict: Dict[str, Any] = {"jsonrpc": self.jsonrpc}
         if self.id is not None:
             response_dict["id"] = self.id
         if self.error:
@@ -142,7 +142,7 @@ class MCPTool:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to MCP tool format."""
-        tool_dict = {"name": self.name}
+        tool_dict: Dict[str, Any] = {"name": self.name}
         if self.description:
             tool_dict["description"] = self.description
         if self.input_schema:
@@ -188,7 +188,8 @@ class MCPProtocolHandler:
 
         Args:
             message_data: The parsed JSON message
-            auth_context: Optional authentication context with request and security policy
+            auth_context: Optional authentication context with request and
+                         security policy
 
         Returns:
             The response message as a dictionary
@@ -299,12 +300,14 @@ class MCPProtocolHandler:
                         if registry:
                             policy = registry.queryUtility(ISecurityPolicy)
                             if policy and context is not None:
-                                # Use policy.permits with context factory - proper integration!
+                                # Use policy.permits with context factory
+                                # - proper integration!
                                 has_perms = policy.permits(
                                     pyramid_request, context, tool.permission
                                 )
                             else:
-                                # Fallback to request.has_permission if no context factory
+                                # Fallback to request.has_permission
+                                # if no context factory
                                 has_perms = pyramid_request.has_permission(
                                     tool.permission, context
                                 )
@@ -314,11 +317,14 @@ class MCPProtocolHandler:
                                 tool.permission, context
                             )
 
-                        # has_permission/permits returns Allowed/Denied objects that evaluate to True/False
+                        # has_permission/permits returns Allowed/Denied objects
+                        # that evaluate to True/False
                         if not has_perms:
                             error = MCPError(
                                 code=MCPErrorCode.INVALID_PARAMS.value,
-                                message=f"Authentication required for tool '{tool_name}'",
+                                message=(
+                                    f"Authentication required for tool '{tool_name}'"
+                                ),
                             )
                             response = MCPResponse(id=request.id, error=error)
                             return response.to_dict()

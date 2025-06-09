@@ -3,20 +3,19 @@ Unit tests for pyramid_mcp core functionality.
 
 This module tests:
 - Package imports and availability
-- MCPConfiguration class functionality  
+- MCPConfiguration class functionality
 - PyramidMCP class creation and basic functionality
 - Core module integration
 
 Uses enhanced fixtures from conftest.py for clean, non-duplicated test setup.
 """
 
-import pytest
+
 from pyramid_mcp import PyramidMCP, __version__
 from pyramid_mcp.core import MCPConfiguration
 from pyramid_mcp.introspection import PyramidIntrospector
 from pyramid_mcp.protocol import MCPError, MCPErrorCode, MCPProtocolHandler, MCPTool
 from pyramid_mcp.wsgi import MCPWSGIApp
-
 
 # =============================================================================
 # 📦 PACKAGE IMPORT TESTS

@@ -3,28 +3,20 @@
 Test Security Context Factory Bug with MCP Tools
 
 This test suite demonstrates that MCP tools don't respect Pyramid's context factory
-security system. The context factory security works perfectly for regular HTTP endpoints,
-but MCP tools use pyramid-mcp's built-in security system which is separate.
+security system. The context factory security works perfectly for regular HTTP
+endpoints, but MCP tools use pyramid-mcp's built-in security system which is separate.
 
 Bug Summary:
 1. Pyramid context factories work for regular views ✅
-2. MCP tools ignore context factory ACLs ❌ 
+2. MCP tools ignore context factory ACLs ❌
 3. MCP tools only check the permission parameter, not context ACLs ❌
 4. No integration between context factory system and MCP security ❌
 """
 
 import pytest
+from pyramid.authorization import ALL_PERMISSIONS, Allow, Authenticated, Deny, Everyone
 from pyramid.config import Configurator
-from pyramid.authorization import Allow, Deny, Everyone, Authenticated, ALL_PERMISSIONS
-from pyramid.view import view_config
-from pyramid.request import Request
-from pyramid.testing import DummyRequest
 from webtest import TestApp
-import json
-
-from pyramid_mcp import PyramidMCP, tool
-from pyramid_mcp.protocol import MCPTool
-
 
 # =============================================================================
 # 🏗️ CONTEXT FACTORY FIXTURES
@@ -446,12 +438,15 @@ def test_mcp_tools_metadata_missing_security_info(
 # =============================================================================
 
 
+@pytest.mark.xfail(
+    reason="Security integration bug: MCP tools don't respect context factory ACLs yet"
+)
 def test_what_mcp_security_should_look_like_EXPECTED():
     """
     This test shows what the expected behavior should be when the bug is fixed.
 
     NOTE: This test currently FAILS because the bug exists.
-    When the bug is fixed, this test should PASS.
+    When the bug is fixed, this test should PASS and show as XPASS.
     """
     # This is a specification test - it shows what we want to achieve
     # Currently all these assertions would fail due to the bug
@@ -461,7 +456,10 @@ def test_what_mcp_security_should_look_like_EXPECTED():
     # Expected: MCP tools should have access to security context
     # Expected: Tool metadata should show security requirements
 
-    pytest.skip("This test represents expected behavior after bug fix")
+    # When implemented, this should work:
+    assert (
+        False
+    ), "This test needs actual implementation when security integration is added"
 
 
 # =============================================================================

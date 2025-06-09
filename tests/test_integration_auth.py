@@ -3,14 +3,12 @@ Integration tests for JWT authentication between MCP server and Pyramid security
 
 This module tests the integration between:
 - MCP server tool calls
-- Pyramid view permissions  
+- Pyramid view permissions
 - JWT token authentication
 
 Following TDD approach: These tests are written FIRST to define expected behavior,
 then fixtures and implementation will be created to make them pass.
 """
-
-import pytest
 
 
 def test_mcp_calls_protected_route_with_jwt_succeeds(
@@ -179,7 +177,8 @@ def test_mcp_tool_reflects_pyramid_view_permission(
     Test: MCP tools respect the permission requirements of underlying Pyramid views.
 
     Expected behavior:
-    - Pyramid view has permission requirement (e.g., @view_config(permission='authenticated'))
+    - Pyramid view has permission requirement
+      (e.g., @view_config(permission='authenticated'))
     - MCP tool for that route inherits the same permission requirement
     - Tool calls are validated against user's permissions
     """

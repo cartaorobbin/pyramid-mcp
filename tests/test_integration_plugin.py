@@ -12,11 +12,10 @@ This module tests:
 Uses enhanced fixtures from conftest.py for clean, non-duplicated test setup.
 """
 
-import pytest
+
 from pyramid.config import Configurator
 
 from pyramid_mcp import includeme, tool
-
 
 # =============================================================================
 # 🔌 PLUGIN INCLUDEME FUNCTIONALITY TESTS

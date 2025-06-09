@@ -94,7 +94,7 @@ class MCPWSGIApp:
             try:
                 if request_data and "id" in request_data:
                     request_id = request_data["id"]
-            except:
+            except (TypeError, KeyError, AttributeError):
                 pass
 
             error_response = {

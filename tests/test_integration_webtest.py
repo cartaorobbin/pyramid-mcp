@@ -18,7 +18,6 @@ from webtest import TestApp
 
 from pyramid_mcp import tool
 
-
 # =============================================================================
 # 🌐 MCP HTTP ENDPOINT INTEGRATION TESTS
 # =============================================================================
@@ -67,7 +66,6 @@ def test_mcp_list_tools_via_http(testapp_with_mcp):
 
     # Should have our test tools from conftest.py
     tools = data["result"]["tools"]
-    tool_names = [tool["name"] for tool in tools]
 
     # Check for our sample tools (may be present depending on fixture setup)
     assert isinstance(tools, list)
@@ -284,7 +282,8 @@ def test_delete_user_endpoint(testapp_with_mcp):
     response = testapp_with_mcp.delete(f"/users/{user_id}")
     assert response.status_code == 200
 
-    # Check the actual response structure (the implementation returns {"message": "User deleted"})
+    # Check the actual response structure
+    # (the implementation returns {"message": "User deleted"})
     response_data = response.json
     assert (
         response_data.get("deleted") is True
@@ -508,11 +507,10 @@ def test_route_discovery_with_filtering():
     assert response.status_code == 200
 
     tools = response.json["result"]["tools"]
-    tool_names = [tool["name"] for tool in tools]
 
     # Should exclude admin routes if pattern filtering is working
-    admin_tools = [name for name in tool_names if "admin" in name.lower()]
-    # The filtering logic may or may not be active, but admin tools should not be present
+    # The filtering logic may or may not be active, but admin tools
+    # should not be present
     # if filtering is properly working
 
     # Verify the endpoint responds correctly

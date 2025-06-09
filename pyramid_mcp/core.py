@@ -125,8 +125,8 @@ class PyramidMCP:
             # Route discovery - only if enabled
             if self.config.route_discovery_enabled:
                 # Create a configuration object for route discovery
-                class RouteDiscoveryConfig:  # type: ignore
-                    def __init__(self, mcp_config):
+                class RouteDiscoveryConfig:
+                    def __init__(self, mcp_config: Any) -> None:
                         self.include_patterns = (
                             mcp_config.route_discovery_include_patterns or []
                         )
@@ -286,6 +286,7 @@ class PyramidMCP:
         Returns:
             MCP response as dictionary
         """
+        message_data = None
         try:
             # Parse JSON request body
             message_data = request.json_body
@@ -308,7 +309,7 @@ class PyramidMCP:
             try:
                 if message_data and "id" in message_data:
                     request_id = message_data["id"]
-            except:
+            except (TypeError, KeyError, AttributeError):
                 pass
 
             # Return error response
@@ -333,6 +334,7 @@ class PyramidMCP:
         def generate_sse() -> Any:
             """Generate SSE events."""
             if request.method == "POST":
+                message_data = None
                 try:
                     message_data = request.json_body
                     response_data = self.protocol_handler.handle_message(message_data)
@@ -347,7 +349,7 @@ class PyramidMCP:
                     try:
                         if message_data and "id" in message_data:
                             request_id = message_data["id"]
-                    except:
+                    except (TypeError, KeyError, AttributeError):
                         pass
 
                     error_response = {
@@ -447,23 +449,23 @@ class PyramidMCP:
 class MCPDescriptionPredicate:
     """
     View predicate class for mcp_description parameter.
-    
+
     This is a non-filtering predicate that allows mcp_description
     to be used as a view configuration parameter without affecting
     view matching logic.
     """
-    
-    def __init__(self, val, config):
+
+    def __init__(self, val: Any, config: Any) -> None:
         """Initialize the predicate with the mcp_description value."""
         self.val = val
         self.config = config
-    
-    def text(self):
+
+    def text(self) -> str:
         """Return text representation for introspection."""
-        return f'mcp_description = {self.val!r}'
-    
+        return f"mcp_description = {self.val!r}"
+
     phash = text  # For compatibility with Pyramid's predicate system
-    
-    def __call__(self, context, request):
+
+    def __call__(self, context: Any, request: Any) -> bool:
         """Always return True - this is a non-filtering predicate."""
         return True

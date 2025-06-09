@@ -4,19 +4,18 @@ Pytest configuration and fixtures for pyramid_mcp tests.
 This file provides comprehensive fixtures for testing pyramid_mcp functionality.
 Fixtures are organized by category:
 - Core Pyramid fixtures: Basic pyramid setup and configuration
-- MCP Configuration fixtures: MCP-specific configuration and settings  
+- MCP Configuration fixtures: MCP-specific configuration and settings
 - MCP Integration fixtures: PyramidMCP instances and protocol handlers
 - WebTest Application fixtures: TestApp instances for HTTP testing
 - Test Data fixtures: Sample data and utilities for testing
 """
 
-import pytest
-import jwt
 import datetime
+
+import jwt
+import pytest
 from marshmallow import Schema, ValidationError, fields
 from pyramid.config import Configurator
-from pyramid.authentication import AuthTktAuthenticationPolicy
-from pyramid.authorization import ACLAuthorizationPolicy
 
 # Removed unused imports
 from webtest import TestApp

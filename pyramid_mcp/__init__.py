@@ -24,18 +24,18 @@ Registering tools:
         pass
 """
 
-from typing import Any, Callable, List, Optional, Type
+from typing import Any, Callable, List, Optional, Type, cast
 
 from marshmallow import Schema
 from pyramid.config import Configurator
 from pyramid.threadlocal import get_current_registry
 
-from pyramid_mcp.core import MCPConfiguration, PyramidMCP, MCPDescriptionPredicate
+from pyramid_mcp.core import MCPConfiguration, MCPDescriptionPredicate, PyramidMCP
 from pyramid_mcp.version import __version__
 
 __all__ = [
     "PyramidMCP",
-    "MCPConfiguration", 
+    "MCPConfiguration",
     "__version__",
     "includeme",
     "tool",
@@ -90,7 +90,7 @@ def includeme(config: Configurator) -> None:
 
     # Add request method to access MCP tools
     config.add_request_method(_get_mcp_from_request, "mcp", reify=True)
-    
+
     # Register the MCP description view predicate
     config.add_view_predicate("mcp_description", MCPDescriptionPredicate)
 
@@ -140,12 +140,16 @@ def tool(
         tool_description = description or func.__doc__
 
         # Store the tool configuration on the function for later registration
-        func._mcp_tool_config = {
-            "name": tool_name,
-            "description": tool_description,
-            "schema": schema,
-            "permission": permission,
-        }
+        setattr(
+            func,
+            "_mcp_tool_config",
+            {
+                "name": tool_name,
+                "description": tool_description,
+                "schema": schema,
+                "permission": permission,
+            },
+        )
 
         # Try to register immediately if registry is available
         registry = get_current_registry()
@@ -164,9 +168,6 @@ def tool(
         return func
 
     return decorator
-
-
-
 
 
 class _ToolRegistryStorage:
@@ -207,7 +208,7 @@ def _parse_list_setting(value: Any) -> Optional[List[str]]:
         return None
     if isinstance(value, str):
         return [item.strip() for item in value.split(",") if item.strip()]
-    return value
+    return list(value) if value else None
 
 
 def _parse_bool_setting(value: Any) -> bool:
@@ -219,12 +220,12 @@ def _parse_bool_setting(value: Any) -> bool:
 
 def _get_mcp_directive(config: Configurator) -> PyramidMCP:
     """Directive to get PyramidMCP instance from configurator."""
-    return config.registry.pyramid_mcp
+    return cast(PyramidMCP, config.registry.pyramid_mcp)
 
 
 def _get_mcp_from_request(request: Any) -> PyramidMCP:
     """Request method to get PyramidMCP instance."""
-    return request.registry.pyramid_mcp
+    return cast(PyramidMCP, request.registry.pyramid_mcp)
 
 
 def _setup_mcp_complete(config: Configurator, pyramid_mcp: PyramidMCP) -> None:

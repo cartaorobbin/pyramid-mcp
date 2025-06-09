@@ -7,7 +7,7 @@ and convert them into MCP tools.
 
 import inspect
 import re
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Callable, Dict, List, Optional
 
 from pyramid_mcp.protocol import MCPTool
 
@@ -102,7 +102,6 @@ class PyramidIntrospector:
                             "renderer": None,
                             "context": view_intr.get("context"),
                             "mcp_description": view_intr.get("mcp_description"),
-
                             "predicates": {
                                 "xhr": view_intr.get("xhr"),
                                 "accept": view_intr.get("accept"),
@@ -161,7 +160,8 @@ class PyramidIntrospector:
         """Discover MCP tools from Pyramid routes.
 
         Args:
-            introspector: Pyramid introspector instance (legacy parameter, we use self.configurator now)
+            introspector: Pyramid introspector instance (legacy parameter,
+                         we use self.configurator now)
             config: MCP configuration
 
         Returns:
@@ -251,7 +251,8 @@ class PyramidIntrospector:
                 or re.match(pattern_regex, route_name)
             )
         else:
-            # Exact pattern - should match as prefix for routes and exact/prefix for names
+            # Exact pattern - should match as prefix for routes and
+            # exact/prefix for names
             route_match = normalized_route == pattern or normalized_route.startswith(
                 pattern + "/"
             )
@@ -403,23 +404,23 @@ class PyramidIntrospector:
         Returns:
             Generated description with priority order:
             1. mcp_description from view_config parameter
-            2. View function docstring  
+            2. View function docstring
             3. Auto-generated description from route info
         """
-        # 1. First check for explicit MCP description from view_config parameter  
+        # 1. First check for explicit MCP description from view_config parameter
         mcp_desc = view_info.get("mcp_description") if view_info else None
         if mcp_desc and isinstance(mcp_desc, str) and mcp_desc.strip():
-            return mcp_desc.strip()
-            
+            return str(mcp_desc.strip())
+
         # 2. Fallback to function attribute (for backward compatibility)
-        if view_callable and hasattr(view_callable, "mcp_description"):
+        if view_callable is not None and hasattr(view_callable, "mcp_description"):
             mcp_desc = getattr(view_callable, "mcp_description")
             if isinstance(mcp_desc, str) and mcp_desc.strip():
                 return mcp_desc.strip()
 
         # 2. Try to get description from view docstring (existing behavior)
         if (
-            view_callable
+            view_callable is not None
             and hasattr(view_callable, "__doc__")
             and view_callable.__doc__
         ):
@@ -454,8 +455,8 @@ class PyramidIntrospector:
         Returns:
             JSON schema dictionary or None
         """
-        properties = {}
-        required = []
+        properties: Dict[str, Any] = {}
+        required: List[str] = []
 
         # Extract path parameters from route pattern
         path_params = re.findall(r"\{([^}]+)\}", pattern)
@@ -472,7 +473,7 @@ class PyramidIntrospector:
         if method.upper() == "GET":
             # For GET endpoints, add common parameters based on docstring analysis
             if (
-                view_callable
+                view_callable is not None
                 and hasattr(view_callable, "__doc__")
                 and view_callable.__doc__
             ):
@@ -501,7 +502,7 @@ class PyramidIntrospector:
                         }
 
         # Try to extract parameters from view function signature
-        if view_callable:
+        if view_callable is not None:
             try:
                 sig = inspect.signature(view_callable)
                 for param_name, param in sig.parameters.items():
@@ -575,7 +576,7 @@ class PyramidIntrospector:
         route_pattern = route_info.get("pattern", "")
         route_name = route_info.get("name", "")
 
-        def handler(**kwargs):
+        def handler(**kwargs: Any) -> Dict[str, Any]:
             """MCP tool handler that delegates to Pyramid view."""
             try:
                 # Create a minimal request object for the view
@@ -588,11 +589,12 @@ class PyramidIntrospector:
                     # Convert response to MCP format
                     return self._convert_response_to_mcp(response)
                 else:
-                    return {
+                    error_response = {
                         "error": f"No view callable found for route {route_name}",
                         "route": route_name,
                         "method": method,
                     }
+                    return self._convert_response_to_mcp(error_response)
 
             except Exception as e:
                 # Return error in MCP format
@@ -607,7 +609,7 @@ class PyramidIntrospector:
 
     def _create_request_for_view(
         self, kwargs: Dict[str, Any], route_pattern: str, method: str
-    ):
+    ) -> Any:
         """Create a minimal request object for calling Pyramid views.
 
         Args:
@@ -619,6 +621,7 @@ class PyramidIntrospector:
             Request-like object with necessary attributes
         """
         import re
+
         from pyramid.testing import DummyRequest
 
         # Extract path parameters from route pattern
@@ -657,7 +660,7 @@ class PyramidIntrospector:
 
         return request
 
-    def _convert_response_to_mcp(self, response):
+    def _convert_response_to_mcp(self, response: Any) -> Dict[str, Any]:
         """Convert Pyramid view response to MCP tool response format.
 
         Args:
@@ -667,15 +670,18 @@ class PyramidIntrospector:
             MCP-compatible response
         """
         import json
+
         from pyramid.response import Response
 
         # Handle different response types
         if isinstance(response, dict):
             # Direct dictionary response (most common for JSON APIs)
-            return json.dumps(response, indent=2)
+            return {
+                "content": [{"type": "text", "text": json.dumps(response, indent=2)}]
+            }
         elif isinstance(response, str):
             # String response
-            return response
+            return {"content": [{"type": "text", "text": response}]}
         elif isinstance(response, Response):
             # Pyramid Response object
             try:
@@ -694,21 +700,26 @@ class PyramidIntrospector:
                 # Try to parse as JSON for pretty formatting
                 try:
                     parsed = json.loads(content)
-                    return json.dumps(parsed, indent=2)
+                    return {
+                        "content": [
+                            {"type": "text", "text": json.dumps(parsed, indent=2)}
+                        ]
+                    }
                 except json.JSONDecodeError:
-                    return content
+                    return {"content": [{"type": "text", "text": str(content)}]}
 
             except Exception:
-                return str(response)
+                return {"content": [{"type": "text", "text": str(response)}]}
         elif hasattr(response, "json") and callable(response.json):
             # Response object with json() method
             try:
-                return json.dumps(response.json(), indent=2)
+                json_data = json.dumps(response.json(), indent=2)
+                return {"content": [{"type": "text", "text": json_data}]}
             except Exception:
-                return str(response)
+                return {"content": [{"type": "text", "text": str(response)}]}
         elif hasattr(response, "text"):
             # Response object with text attribute
-            return str(response.text)
+            return {"content": [{"type": "text", "text": str(response.text)}]}
         elif hasattr(response, "body"):
             # Response object with body attribute
             try:
@@ -718,11 +729,12 @@ class PyramidIntrospector:
                 # Try to parse as JSON for pretty formatting
                 try:
                     parsed = json.loads(body)
-                    return json.dumps(parsed, indent=2)
+                    json_data = json.dumps(parsed, indent=2)
+                    return {"content": [{"type": "text", "text": json_data}]}
                 except json.JSONDecodeError:
-                    return body
+                    return {"content": [{"type": "text", "text": str(body)}]}
             except Exception:
-                return str(response)
+                return {"content": [{"type": "text", "text": str(response)}]}
         else:
             # Fallback to string representation
-            return str(response)
+            return {"content": [{"type": "text", "text": str(response)}]}
