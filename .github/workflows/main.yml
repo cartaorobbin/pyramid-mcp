@@ -6,8 +6,7 @@ on:
       - main
   pull_request:
     types: [opened, synchronize, reopened]
-  release:
-    types: [published]
+
 
 jobs:
   quality:
@@ -75,22 +74,3 @@ jobs:
       - name: Check if documentation can be built
         run: poetry run mkdocs build -s
 
-  publish:
-    needs: [quality, tox, check-docs]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'published'
-    
-    steps:
-      - name: Check out
-        uses: actions/checkout@v4
-
-      - name: Set up the environment
-        uses: ./.github/actions/setup-poetry-env
-
-      - name: Build package
-        run: poetry build
-
-      - name: Publish to PyPI
-        env:
-          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_API_TOKEN }}
-        run: poetry publish
