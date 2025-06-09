@@ -7,7 +7,7 @@ and convert them into MCP tools.
 
 import inspect
 import re
-from typing import Any, Dict, List, Optional, Callable, Union
+from typing import Any, Dict, List, Optional, Callable
 
 from pyramid_mcp.protocol import MCPTool
 
@@ -98,9 +98,11 @@ class PyramidIntrospector:
                             "callable": view_callable,
                             "name": view_intr.get("name", ""),
                             "request_methods": view_intr.get("request_methods", []),
-                            "permission": None,  # Will be populated from permissions introspectables
+                            "permission": None,  # Populated from permissions
                             "renderer": None,
                             "context": view_intr.get("context"),
+                            "mcp_description": view_intr.get("mcp_description"),
+
                             "predicates": {
                                 "xhr": view_intr.get("xhr"),
                                 "accept": view_intr.get("accept"),
@@ -290,6 +292,12 @@ class PyramidIntrospector:
                     methods = list(route_methods)
                 else:
                     methods = ["GET"]  # Final fallback
+            elif isinstance(methods, str):
+                # If methods is a string, convert to list
+                methods = [methods]
+            elif not isinstance(methods, list):
+                # If methods is some other iterable, convert to list
+                methods = list(methods)
 
             for method in methods:
                 if method not in views_by_method:
@@ -310,7 +318,7 @@ class PyramidIntrospector:
 
             # Generate tool description
             description = self._generate_tool_description(
-                route_name, method, route_pattern, view_callable
+                route_name, method, route_pattern, view_callable, view
             )
 
             # Generate input schema from route pattern and view signature
@@ -376,7 +384,12 @@ class PyramidIntrospector:
             return f"{prefix}_{base_name}"
 
     def _generate_tool_description(
-        self, route_name: str, method: str, pattern: str, view_callable: Callable
+        self,
+        route_name: str,
+        method: str,
+        pattern: str,
+        view_callable: Callable,
+        view_info: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Generate a descriptive tool description.
 
@@ -385,11 +398,26 @@ class PyramidIntrospector:
             method: HTTP method
             pattern: Route pattern
             view_callable: View callable function
+            view_info: View introspectable information (optional)
 
         Returns:
-            Generated description
+            Generated description with priority order:
+            1. mcp_description from view_config parameter
+            2. View function docstring  
+            3. Auto-generated description from route info
         """
-        # Try to get description from view docstring
+        # 1. First check for explicit MCP description from view_config parameter  
+        mcp_desc = view_info.get("mcp_description") if view_info else None
+        if mcp_desc and isinstance(mcp_desc, str) and mcp_desc.strip():
+            return mcp_desc.strip()
+            
+        # 2. Fallback to function attribute (for backward compatibility)
+        if view_callable and hasattr(view_callable, "mcp_description"):
+            mcp_desc = getattr(view_callable, "mcp_description")
+            if isinstance(mcp_desc, str) and mcp_desc.strip():
+                return mcp_desc.strip()
+
+        # 2. Try to get description from view docstring (existing behavior)
         if (
             view_callable
             and hasattr(view_callable, "__doc__")
@@ -399,7 +427,7 @@ class PyramidIntrospector:
             if doc:
                 return doc
 
-        # Generate description from route information
+        # 3. Generate description from route information (existing behavior)
         action_map = {
             "GET": "Retrieve",
             "POST": "Create",

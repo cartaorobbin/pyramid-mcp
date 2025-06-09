@@ -30,10 +30,16 @@ from marshmallow import Schema
 from pyramid.config import Configurator
 from pyramid.threadlocal import get_current_registry
 
-from pyramid_mcp.core import MCPConfiguration, PyramidMCP
+from pyramid_mcp.core import MCPConfiguration, PyramidMCP, MCPDescriptionPredicate
 from pyramid_mcp.version import __version__
 
-__all__ = ["PyramidMCP", "MCPConfiguration", "__version__", "includeme", "tool"]
+__all__ = [
+    "PyramidMCP",
+    "MCPConfiguration", 
+    "__version__",
+    "includeme",
+    "tool",
+]
 
 
 def includeme(config: Configurator) -> None:
@@ -84,6 +90,9 @@ def includeme(config: Configurator) -> None:
 
     # Add request method to access MCP tools
     config.add_request_method(_get_mcp_from_request, "mcp", reify=True)
+    
+    # Register the MCP description view predicate
+    config.add_view_predicate("mcp_description", MCPDescriptionPredicate)
 
     # Register a post-configure hook to discover routes and register tools
     # Use order=999999 to ensure this runs after all other configuration including scans
@@ -155,6 +164,9 @@ def tool(
         return func
 
     return decorator
+
+
+
 
 
 class _ToolRegistryStorage:

@@ -63,6 +63,9 @@ Before starting any development work:
    - Ensure existing tests pass: `make test`
    - Run full test suite: `tox`
    - Aim for high test coverage
+   - never use class base testcase
+   - avoid mocking, only use mock as a last resource
+   - we can use pytest responses fixture.
 
 4. **Code Quality Checks**
    ```bash

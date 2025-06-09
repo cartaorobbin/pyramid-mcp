@@ -442,3 +442,28 @@ class PyramidMCP:
             PyramidMCP instance
         """
         return cls(wsgi_app=wsgi_app, config=config)
+
+
+class MCPDescriptionPredicate:
+    """
+    View predicate class for mcp_description parameter.
+    
+    This is a non-filtering predicate that allows mcp_description
+    to be used as a view configuration parameter without affecting
+    view matching logic.
+    """
+    
+    def __init__(self, val, config):
+        """Initialize the predicate with the mcp_description value."""
+        self.val = val
+        self.config = config
+    
+    def text(self):
+        """Return text representation for introspection."""
+        return f'mcp_description = {self.val!r}'
+    
+    phash = text  # For compatibility with Pyramid's predicate system
+    
+    def __call__(self, context, request):
+        """Always return True - this is a non-filtering predicate."""
+        return True
