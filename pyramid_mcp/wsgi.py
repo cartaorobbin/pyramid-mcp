@@ -7,6 +7,8 @@ This module provides a WSGI application that serves the MCP protocol.
 import json
 from typing import Any, Callable, Dict, Iterable
 
+from pyramid.request import Request
+
 from pyramid_mcp.protocol import MCPProtocolHandler
 
 
@@ -72,7 +74,11 @@ class MCPWSGIApp:
             request_data = json.loads(request_body.decode("utf-8"))
 
             # Handle through protocol handler
-            response_data = self.protocol_handler.handle_message(request_data)
+            # Create a dummy request for WSGI context (no Pyramid request available)
+            dummy_request = Request.blank("/")
+            response_data = self.protocol_handler.handle_message(
+                request_data, dummy_request
+            )
 
             # Return JSON response
             response_json = json.dumps(response_data)

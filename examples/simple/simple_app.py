@@ -14,9 +14,10 @@ Run this example:
 Then connect with an MCP client on http://localhost:8080/mcp
 """
 
+from wsgiref.simple_server import make_server
+
 from pyramid.config import Configurator
 from pyramid.view import view_config
-from wsgiref.simple_server import make_server
 
 from pyramid_mcp import tool
 

@@ -12,30 +12,29 @@ This example demonstrates:
 Run this example:
     python examples/secure/secure_app.py
 
-Then connect with an MCP client on http://localhost:8080/mcp using proper authentication.
+Then connect with an MCP client on http://localhost:8080/mcp using proper
+authentication.
 """
 
-import json
-import jwt
 import secrets
 from datetime import datetime, timedelta
-from pyramid.config import Configurator
-from pyramid.view import view_config
-from pyramid.authorization import (
-    Authenticated,
-    Everyone,
-    Allow,
-    Deny,
-    ALL_PERMISSIONS,
-    ACLHelper,
-)
-from pyramid.httpexceptions import HTTPUnauthorized, HTTPForbidden, HTTPNotFound
-from pyramid.request import Request
-from pyramid.response import Response
 from wsgiref.simple_server import make_server
 
-from pyramid_mcp import tool
+import jwt
+from pyramid.authorization import (
+    ALL_PERMISSIONS,
+    ACLHelper,
+    Allow,
+    Authenticated,
+    Deny,
+    Everyone,
+)
+from pyramid.config import Configurator
+from pyramid.httpexceptions import HTTPNotFound, HTTPUnauthorized
+from pyramid.request import Request
+from pyramid.view import view_config
 
+from pyramid_mcp import tool
 
 # Configuration
 JWT_SECRET = secrets.token_urlsafe(32)  # In production, use environment variable
@@ -81,8 +80,15 @@ class CustomSecurityPolicy:
         self.acl_helper = ACLHelper()
 
     def identity(self, request):
-        """Return the authenticated user object."""
-        return getattr(request, "_authenticated_user", None)
+        """Return the authenticated user object by extracting from request."""
+        # Check if already extracted
+        if hasattr(request, "_authenticated_user"):
+            return request._authenticated_user
+
+        # Extract user from request (JWT or API key)
+        user = get_user_from_request(request)
+        request._authenticated_user = user
+        return user
 
     def authenticated_userid(self, request):
         """Return the authenticated user ID."""
@@ -277,18 +283,6 @@ def get_user_from_request(request: Request) -> dict:
         }
 
     return None
-
-
-# Authentication middleware
-def auth_middleware(handler, registry):
-    """Middleware to extract and set authentication context."""
-
-    def middleware(request):
-        user = get_user_from_request(request)
-        request._authenticated_user = user
-        return handler(request)
-
-    return middleware
 
 
 # Views - No permission decorators needed! Security handled by context factories
@@ -563,7 +557,9 @@ def manage_users(action: str, username: str = None, **kwargs) -> dict:
     return {
         "error": "Invalid action or missing parameters",
         "supported_actions": ["list", "get", "create"],
-        "example": "action=create, username=newuser, name=New User, email=new@example.com",
+        "example": (
+            "action=create, username=newuser, name=New User, " "email=new@example.com"
+        ),
     }
 
 

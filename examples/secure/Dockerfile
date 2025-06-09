@@ -79,8 +79,8 @@ EXPOSE 8080
 
 # Default command - run secure example with stdio transport for Claude Desktop
 # For HTTP mode: python examples/secure/secure_app.py
-# For stdio mode (default): pstdio examples/secure/development.ini
-CMD ["pstdio", "examples/secure/development.ini"]
+# For stdio mode (default): pstdio --ini examples/secure/development.ini
+CMD ["pstdio", "--ini", "examples/secure/development.ini"]
 
 # Metadata labels
 LABEL maintainer="pyramid-mcp"

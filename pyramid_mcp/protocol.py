@@ -11,8 +11,8 @@ from enum import Enum
 from typing import Any, Callable, Dict, Optional, Union
 
 from marshmallow import Schema, fields
-from pyramid.request import Request
 from pyramid.interfaces import ISecurityPolicy
+from pyramid.request import Request
 
 
 class MCPErrorCode(Enum):
@@ -270,7 +270,7 @@ class MCPProtocolHandler:
             return response.to_dict()
 
         tool = self.tools.get(tool_name)
-        
+
         if not tool:
             error = MCPError(
                 code=MCPErrorCode.METHOD_NOT_FOUND.value,

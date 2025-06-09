@@ -164,8 +164,14 @@ def pstdio(ini: str, app: str, debug: bool) -> None:
                                 click.echo(f"   Params: {json.dumps(params)}", err=True)
 
                     # Handle request using protocol handler
+                    # Create a proper request for stdio transport
+                    from pyramid.scripting import prepare
+
+                    env = prepare(registry=app_instance.registry)
+                    request = env["request"]
+
                     start_time = time.time()
-                    response = protocol_handler.handle_message(request_data)
+                    response = protocol_handler.handle_message(request_data, request)
                     processing_time = (time.time() - start_time) * 1000
 
                     # Log the response we're sending back to Claude

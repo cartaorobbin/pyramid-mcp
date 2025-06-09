@@ -28,17 +28,17 @@ test-coverage: ## Run tests and generate HTML coverage report
 	@echo "Coverage report generated in htmlcov/index.html"
 
 check: ## Run all code quality checks
-	poetry run black --check pyramid_mcp tests
-	poetry run isort --check-only pyramid_mcp tests
-	poetry run flake8 pyramid_mcp tests
+	poetry run black --check pyramid_mcp tests examples
+	poetry run isort --check-only pyramid_mcp tests examples
+	poetry run flake8 pyramid_mcp tests examples
 	poetry run mypy pyramid_mcp
 
 format: ## Format code with black and isort
-	poetry run black pyramid_mcp tests
-	poetry run isort pyramid_mcp tests
+	poetry run black pyramid_mcp tests examples
+	poetry run isort pyramid_mcp tests examples
 
 lint: ## Run linting checks
-	poetry run flake8 pyramid_mcp tests
+	poetry run flake8 pyramid_mcp tests examples
 	poetry run mypy pyramid_mcp
 
 clean: ## Clean up build artifacts and cache
