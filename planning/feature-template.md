@@ -71,6 +71,23 @@ When feature is complete, verify:
 - [ ] Feature is deployed/released
 - [ ] planning/general.md is updated with completion (then moved to planning/done.md)
 
+
+## 📝 Task Management Notes
+
+**Active vs Backlog:**
+- **This file (`general.md`)**: Only tasks currently being worked on
+- **`planning/backlog.md`**: All planned future tasks (prioritized)
+- **`planning/done.md`**: All completed tasks (historical archive)
+
+**Workflow:**
+1. Work on tasks in this file until completion
+2. Move completed tasks to `done.md`
+3. Pull next priority tasks from `backlog.md` into this file
+4. Keep this file focused and manageable (max 1-3 active task groups)
+
+**Current Status:** All major infrastructure work is complete. Ready to pull next priority tasks from `planning/backlog.md` for Phase 3 development.
+
+
 ## Archive
 
 Move completed tasks here to keep the active section clean.
