@@ -1,0 +1,204 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Development Environment Setup Rules
+
+This document outlines the development environment setup rules for the pyramid-mcp project. We support two primary development environments: **local development with direnv + pyenv** and **devcontainer development**.
+
+## Environment Options
+
+### Option 1: Local Development (Recommended for most developers)
+- **Use when**: You want full control over your environment and faster iteration
+- **Requirements**: pyenv, direnv, poetry
+- **Pros**: Fast, flexible, native performance
+- **Cons**: Requires local tool installation and configuration
+
+### Option 2: Devcontainer Development
+- **Use when**: You want consistent environments across team members or have limited local setup options
+- **Requirements**: Docker, VS Code with devcontainer extension
+- **Pros**: Consistent, isolated, minimal local setup
+- **Cons**: Slightly slower, requires Docker knowledge
+
+## Local Development Setup with direnv + pyenv
+
+### Prerequisites
+Before starting, ensure you have:
+- [pyenv](mdc:https:/github.com/pyenv/pyenv) installed and configured
+- [direnv](mdc:https:/direnv.net) installed and configured
+- [Poetry](mdc:https:/python-poetry.org) installed
+
+### Python Version Detection
+The project uses Python version specified in `pyproject.toml`. Currently requires:
+- **Minimum**: Python 3.9
+- **Supported**: Python 3.9, 3.10, 3.11, 3.12
+
+### Setup Process
+
+#### 1. Create Virtual Environment
+- Detect Python version from pyproject.toml (currently ^3.9)
+- Use pyenv to install and create virtualenv named "pyramid-mcp"
+- Verify creation with pyenv versions
+
+#### 2. Create .envrc File
+**IMPORTANT**: .envrc can be used in both local and devcontainer environments, but virtualenv setup should be conditional.
+
+For .envrc content:
+- **In local development**: Include pyenv virtualenv activation
+- **In devcontainer**: Skip virtualenv setup, use container's Python directly
+- **Both environments**: Include Python version validation against pyproject.toml
+- **Both environments**: Auto-install dependencies if pyproject.toml is newer than poetry.lock
+- **Both environments**: Activate poetry shell
+
+Detection logic:
+- Check for `$DEVCONTAINER` or `$CODESPACES` environment variables
+- If present, skip pyenv virtualenv commands
+- If not present, include pyenv activation
+
+#### 3. Validate Environment
+- Check Python version compatibility
+- Verify virtual environment (local only)
+- Check Poetry installation
+- Install dependencies
+- Run basic tests
+
+### Recreating .envrc Instructions
+
+**When to recreate .envrc:**
+- Switching Python versions
+- Environment corruption
+- New team member setup
+- After major Poetry updates
+
+**Steps to recreate:**
+- Remove existing .envrc
+- Remove existing virtual environment (local dev only)
+- Follow setup process above
+- Reload direnv
+
+## Devcontainer Development Setup
+
+### Prerequisites
+- [Docker](mdc:https:/docs.docker.com/get-docker) installed
+- [VS Code](mdc:https:/code.visualstudio.com) with [Dev Containers extension](mdc:https:/marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+
+### Configuration Files Required
+
+#### .devcontainer/devcontainer.json
+- Use official Microsoft Python devcontainer image (Python 3.11)
+- Install Poetry in postCreateCommand
+- Include essential VS Code extensions for Python development
+- Set remoteUser to "vscode"
+
+### Setup Process
+- Open VS Code in project directory
+- Use Command Palette: "Dev Containers: Reopen in Container"
+- Wait for container build and setup
+- Verify with Poetry and make test
+
+### .envrc in Devcontainer
+- **CAN be used**: .envrc works in devcontainer environments
+- **SHOULD NOT include**: pyenv virtualenv commands
+- **SHOULD include**: Python version validation, dependency installation, Poetry shell activation
+- **Environment detection**: Use `$DEVCONTAINER` or `$CODESPACES` to detect container environment
+
+## Environment Validation
+
+### Python Version Validation
+- Extract required Python version from pyproject.toml
+- Compare with current Python version
+- Fail if current version is below minimum requirement
+- Provide clear success/failure messages
+
+### Full Environment Validation
+- Detect environment type (local vs devcontainer)
+- Validate Python version
+- Check Poetry installation
+- Verify virtual environment (local only)
+- Test dependency installation
+- Run basic test suite
+
+## .gitignore Configuration
+
+### Required .gitignore Entries
+**.envrc MUST be in .gitignore** because:
+- Contains environment-specific paths
+- May contain sensitive information
+- Should be recreated per environment
+
+Add to .gitignore:
+- .envrc
+- .envrc.local
+- .python-version
+
+### Why .envrc Should Be Ignored
+1. **Environment-specific**: Paths and configurations differ between developers
+2. **Security**: May contain sensitive environment variables
+3. **Reproducibility**: Each developer should create their own based on instructions
+4. **Maintenance**: Reduces merge conflicts
+
+## Troubleshooting
+
+### Common Issues and Solutions
+
+#### "pyenv: pyramid-mcp: command not found"
+**Problem**: Virtual environment not created or activated
+**Solution**: Recreate virtual environment with pyenv virtualenv
+
+#### "direnv: error .envrc is blocked"
+**Problem**: .envrc not allowed by direnv
+**Solution**: Run `direnv allow`
+
+#### "Poetry not found"
+**Problem**: Poetry not installed in environment
+**Solution**: Install Poetry via pip or official installer
+
+#### "Python version mismatch"
+**Problem**: Wrong Python version active
+**Solution**: Install correct version and recreate environment
+
+#### "Dependencies out of sync"
+**Problem**: poetry.lock and pyproject.toml mismatch
+**Solution**: Update lock file and reinstall dependencies
+
+### Environment Reset Procedure
+When all else fails, completely reset your environment:
+- Remove virtual environment (local only)
+- Remove .envrc
+- Clear Poetry cache
+- Reinstall Python version (local only)
+- Recreate environment
+- Recreate .envrc
+- Reinstall dependencies
+- Validate setup
+
+## Quick Reference Commands
+
+### Local Development
+- Create environment: pyenv virtualenv + .envrc creation
+- Daily workflow: direnv reload, poetry install, make test/check
+
+### Devcontainer
+- Setup: Open in VS Code, reopen in container
+- Daily workflow: poetry install, make test/check
+
+### Validation
+- Check Python version compatibility
+- Verify Poetry and dependencies
+- Run environment info commands
+
+---
+
+## Decision Matrix
+
+| Factor | Local Dev | Devcontainer |
+|--------|-----------|--------------|
+| Setup Speed | Medium | Slow (first time) |
+| Performance | Fast | Medium |
+| Consistency | Medium | High |
+| Customization | High | Medium |
+| Isolation | Medium | High |
+| Offline Work | Good | Limited |
+
+**Recommendation**: Start with local development for speed and flexibility. Use devcontainer for consistency across team members or when local setup is problematic.

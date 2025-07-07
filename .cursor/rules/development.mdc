@@ -42,6 +42,7 @@ Before starting any development work:
 - [ ] Check existing issues and PRs for related work
 - [ ] Plan your approach and get feedback if needed
 - [ ] Ensure your development environment is set up (`make install`)
+- [ ] **Plan test strategy**: Identify what tests need to be written/updated
 
 ### Development Workflow
 
@@ -67,7 +68,23 @@ Before starting any development work:
    - avoid mocking, only use mock as a last resource
    - we can use pytest responses fixture.
 
-4. **Code Quality Checks**
+4. **Test Validation Before Task Completion ⭐**
+   **NEVER mark a task as DONE without running and verifying tests pass.**
+   
+   - **Always run tests**: Execute relevant test suites before marking tasks complete
+   - **Fix failing tests**: Address any test failures before task completion
+   - **Verify no regressions**: Run existing test suites to ensure no breaking changes
+   - **Update planning files**: Only mark tasks as DONE after successful test validation
+   - **Document test results**: Include test pass/fail status in planning files
+   
+   ```bash
+   # Required before marking any task as DONE
+   python -m pytest tests/test_relevant_module.py -v  # New functionality tests
+   python -m pytest tests/test_existing_module.py -v  # Regression tests
+   make test  # Full test suite (when appropriate)
+   ```
+
+5. **Code Quality Checks**
    ```bash
    make check  # Run formatters and linters
    ```
@@ -102,7 +119,8 @@ Closes #123
 ### Before Creating a PR
 
 - [ ] Update appropriate planning file with completed work
-- [ ] All tests pass locally
+- [ ] **All tests pass locally** (new functionality + regression tests)
+- [ ] **Test results documented** in planning files
 - [ ] Code quality checks pass (`make check`)
 - [ ] Documentation is updated if needed
 - [ ] Commit messages are clear and descriptive
@@ -176,7 +194,8 @@ The `planning/` directory contains all task tracking and planning files:
 
 **Move to `planning/done.md` when:**
 - Tasks are marked as DONE ✅
-- Implementation is complete and tested
+- **Implementation is complete AND all tests pass**
+- **Test results are documented in planning files**
 - Work is ready for archival reference
 
 **Create `planning/[feature-name].md` for:**

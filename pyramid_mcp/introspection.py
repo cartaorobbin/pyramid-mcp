@@ -2,7 +2,8 @@
 Pyramid Introspection Module
 
 This module provides functionality to discover and analyze Pyramid routes
-and convert them into MCP tools.
+and convert them into MCP tools. Includes support for Cornice REST framework
+to extract enhanced metadata and validation information.
 """
 
 import inspect
@@ -29,6 +30,7 @@ class PyramidIntrospector:
         Returns:
             List of route information dictionaries containing route metadata,
             view callables, and other relevant information for MCP tool generation.
+            Enhanced with Cornice service information when available.
         """
         if not self.configurator:
             return []
@@ -59,6 +61,9 @@ class PyramidIntrospector:
                         view_by_route[route_name] = []
                     view_by_route[route_name].append(view_intr)
 
+            # Discover Cornice services for enhanced metadata
+            cornice_services = self._discover_cornice_services(registry)
+
             # Process each route
             for route_intr in route_introspectables:
                 route_name = route_intr.get("name")
@@ -70,6 +75,11 @@ class PyramidIntrospector:
 
                 # Get associated views
                 views = view_by_route.get(route_name, [])
+
+                # Check if this route is managed by a Cornice service
+                cornice_service = self._find_cornice_service_for_route(
+                    route_name, route_intr.get("pattern", ""), cornice_services
+                )
 
                 # Build comprehensive route information
                 route_info = {
@@ -88,9 +98,10 @@ class PyramidIntrospector:
                     },
                     "route_object": route_obj,
                     "views": [],
+                    "cornice_service": cornice_service,  # Enhanced with Cornice info
                 }
 
-                # Process associated views
+                # Process associated views with Cornice enhancement
                 for view_intr in views:
                     view_callable = view_intr.get("callable")
                     if view_callable:
@@ -110,7 +121,15 @@ class PyramidIntrospector:
                                 "match_param": view_intr.get("match_param"),
                                 "csrf_token": view_intr.get("csrf_token"),
                             },
+                            "cornice_metadata": {},  # Enhanced with Cornice data
                         }
+
+                        # Enhanced: Extract Cornice metadata for this view
+                        if cornice_service:
+                            cornice_metadata = self._extract_cornice_view_metadata(
+                                cornice_service, view_callable, view_intr.get("request_methods", [])
+                            )
+                            view_info["cornice_metadata"] = cornice_metadata
 
                         # Try to get renderer information from templates
                         template_category = introspector.get_category("templates") or []
@@ -141,6 +160,156 @@ class PyramidIntrospector:
             print(f"Error discovering routes: {e}")
 
         return routes_info
+
+    def _discover_cornice_services(self, registry: Any) -> List[Dict[str, Any]]:
+        """Discover Cornice services from the Pyramid registry.
+
+        Args:
+            registry: Pyramid registry
+
+        Returns:
+            List of Cornice service information dictionaries
+        """
+        cornice_services = []
+
+        try:
+            # Try to import cornice to check if it's available
+            import cornice  # noqa: F401  # type: ignore
+            from cornice.service import get_services  # noqa: F401  # type: ignore
+
+            # Get all registered Cornice services
+            services = get_services()
+
+            for service in services:
+                service_info = {
+                    "service": service,
+                    "name": getattr(service, "name", ""),
+                    "path": getattr(service, "path", ""),
+                    "description": getattr(service, "description", ""),
+                    "defined_methods": getattr(service, "defined_methods", []),
+                    "definitions": getattr(service, "definitions", []),
+                    "cors_origins": getattr(service, "cors_origins", None),
+                    "cors_credentials": getattr(service, "cors_credentials", None),
+                    "factory": getattr(service, "factory", None),
+                    "acl": getattr(service, "acl", None),
+                    "default_validators": getattr(service, "default_validators", []),
+                    "default_filters": getattr(service, "default_filters", []),
+                    "default_content_type": getattr(service, "default_content_type", None),
+                    "default_accept": getattr(service, "default_accept", None),
+                }
+                cornice_services.append(service_info)
+
+        except ImportError:
+            # Cornice is not installed, return empty list
+            pass
+        except Exception as e:
+            print(f"Error discovering Cornice services: {e}")
+
+        return cornice_services
+
+    def _find_cornice_service_for_route(
+        self, route_name: str, route_pattern: str, cornice_services: List[Dict[str, Any]]
+    ) -> Optional[Dict[str, Any]]:
+        """Find the Cornice service that manages a specific route.
+
+        Args:
+            route_name: Name of the route
+            route_pattern: Pattern of the route
+            cornice_services: List of discovered Cornice services
+
+        Returns:
+            Cornice service info if found, None otherwise
+        """
+        for service_info in cornice_services:
+            # Match by service name (Cornice often uses service name as route name)
+            if service_info["name"] == route_name:
+                return service_info
+
+            # Match by path pattern
+            if service_info["path"] == route_pattern:
+                return service_info
+
+            # Check if route name contains service name (common pattern)
+            if (
+                service_info["name"]
+                and route_name.startswith(service_info["name"])
+            ):
+                return service_info
+
+        return None
+
+    def _extract_cornice_view_metadata(
+        self, 
+        cornice_service: Dict[str, Any], 
+        view_callable: Callable, 
+        request_methods: List[str]
+    ) -> Dict[str, Any]:
+        """Extract Cornice-specific metadata for a view.
+
+        Args:
+            cornice_service: Cornice service information
+            view_callable: View callable function
+            request_methods: HTTP methods for this view
+
+        Returns:
+            Dictionary containing Cornice metadata
+        """
+        metadata = {
+            "service_name": cornice_service.get("name", ""),
+            "service_description": cornice_service.get("description", ""),
+            "validators": [],
+            "filters": [],
+            "content_type": None,
+            "accept": None,
+            "cors_enabled": False,
+            "method_specific": {},
+        }
+
+        # Extract service-level defaults
+        metadata["validators"] = cornice_service.get("default_validators", [])
+        metadata["filters"] = cornice_service.get("default_filters", [])
+        metadata["content_type"] = cornice_service.get("default_content_type")
+        metadata["accept"] = cornice_service.get("default_accept")
+
+        # Check for CORS configuration
+        metadata["cors_enabled"] = (
+            cornice_service.get("cors_origins") is not None or
+            cornice_service.get("cors_credentials") is not None
+        )
+
+        # Extract method-specific configurations from service definitions
+        definitions = cornice_service.get("definitions", [])
+        for method, view, args in definitions:
+            # Match by view callable or method
+            if view == view_callable or (
+                request_methods and method.upper() in [m.upper() for m in request_methods]
+            ):
+                method_metadata = {
+                    "method": method,
+                    "validators": args.get("validators", []),
+                    "filters": args.get("filters", []),
+                    "content_type": args.get("content_type"),
+                    "accept": args.get("accept"),
+                    "permission": args.get("permission"),
+                    "renderer": args.get("renderer"),
+                    "cors_origins": args.get("cors_origins"),
+                    "cors_credentials": args.get("cors_credentials"),
+                    "error_handler": args.get("error_handler"),
+                    "schema": args.get("schema"),
+                    "colander_schema": args.get("colander_schema"),
+                    "deserializer": args.get("deserializer"),
+                    "serializer": args.get("serializer"),
+                }
+
+                # Clean up None values
+                method_metadata = {
+                    k: v for k, v in method_metadata.items() 
+                    if v is not None and v != []
+                }
+
+                metadata["method_specific"][method.upper()] = method_metadata
+
+        return metadata
 
     def discover_tools(self, config: Any) -> List[MCPTool]:
         """Discover routes and convert them to MCP tools.
@@ -648,8 +817,12 @@ class PyramidIntrospector:
 
             # For POST requests with JSON body, create request with JSON data
             request = DummyRequest(json_body=json_body)
-            request.body = json.dumps(json_body).encode("utf-8")
-            request.content_type = "application/json"
+            # Set body as string for DummyRequest (not bytes)
+            request.body = json.dumps(json_body)
+            # Use environ dict to set content type
+            if not hasattr(request, 'environ'):
+                request.environ = {}
+            request.environ['CONTENT_TYPE'] = "application/json"
         else:
             # For GET requests or requests without body
             request = DummyRequest()
@@ -738,3 +911,40 @@ class PyramidIntrospector:
         else:
             # Fallback to string representation
             return {"content": [{"type": "text", "text": str(response)}]}
+
+    def _normalize_path_pattern(self, pattern: str) -> str:
+        """Normalize path pattern for matching.
+
+        Args:
+            pattern: Route pattern to normalize
+
+        Returns:
+            Normalized pattern
+        """
+        # Remove regex constraints from path parameters
+        # e.g., {id:\d+} -> {id}, {filename:.+} -> {filename}
+        import re
+        normalized = re.sub(r'\{([^}:]+):[^}]+\}', r'{\1}', pattern)
+        return normalized
+
+    def _extract_service_level_metadata(self, service: Any) -> Dict[str, Any]:
+        """Extract service-level metadata from Cornice service.
+
+        Args:
+            service: Cornice service object
+
+        Returns:
+            Dictionary of service-level metadata
+        """
+        metadata = {}
+        
+        # Extract with defaults
+        metadata["cors_origins"] = getattr(service, "cors_origins", ["*"])
+        metadata["cors_credentials"] = getattr(service, "cors_credentials", False)
+        metadata["content_type"] = getattr(service, "content_type", "application/json")
+        metadata["accept"] = getattr(service, "accept", "application/json")
+        metadata["validators"] = getattr(service, "validators", [])
+        metadata["filters"] = getattr(service, "filters", [])
+        metadata["description"] = getattr(service, "description", "")
+        
+        return metadata
