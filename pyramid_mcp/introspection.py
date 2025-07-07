@@ -280,10 +280,30 @@ class PyramidIntrospector:
         # Extract method-specific configurations from service definitions
         definitions = cornice_service.get("definitions", [])
         for method, view, args in definitions:
-            # Match by view callable or method
-            if view == view_callable or (
-                request_methods and method.upper() in [m.upper() for m in request_methods]
-            ):
+            # Match by method first, then by view callable name as fallback
+            method_matches = False
+            if request_methods:
+                if isinstance(request_methods, str):
+                    # Single method as string
+                    method_matches = method.upper() == request_methods.upper()
+                elif isinstance(request_methods, list):
+                    # Multiple methods as list
+                    method_matches = method.upper() in [m.upper() for m in request_methods]
+            view_matches = False
+            
+            if view == view_callable:
+                view_matches = True
+            elif hasattr(view, '__name__') and hasattr(view_callable, '__name__'):
+                view_name = view.__name__
+                callable_name = view_callable.__name__
+                # Check exact match or if callable is a method-decorated version
+                view_matches = (
+                    view_name == callable_name or
+                    callable_name.startswith(f"{view_name}__") or
+                    view_name.startswith(f"{callable_name}__")
+                )
+            
+            if method_matches or view_matches:
                 method_metadata = {
                     "method": method,
                     "validators": args.get("validators", []),
@@ -493,7 +513,7 @@ class PyramidIntrospector:
 
             # Generate input schema from route pattern and view signature
             input_schema = self._generate_input_schema(
-                route_pattern, view_callable, method
+                route_pattern, view_callable, method, view
             )
 
             # Create MCP tool
@@ -612,7 +632,7 @@ class PyramidIntrospector:
         return f"{action} {resource} via {method} {pattern}"
 
     def _generate_input_schema(
-        self, pattern: str, view_callable: Callable, method: str
+        self, pattern: str, view_callable: Callable, method: str, view_info: Optional[Dict[str, Any]] = None
     ) -> Optional[Dict[str, Any]]:
         """Generate JSON schema for tool input from route pattern and view signature.
 
@@ -620,12 +640,31 @@ class PyramidIntrospector:
             pattern: Route pattern (e.g., '/users/{id}')
             view_callable: View callable function
             method: HTTP method
+            view_info: View information including Cornice metadata
 
         Returns:
             JSON schema dictionary or None
         """
         properties: Dict[str, Any] = {}
         required: List[str] = []
+
+        # Check for Marshmallow schema in Cornice metadata first
+        if view_info and "cornice_metadata" in view_info:
+            cornice_metadata = view_info["cornice_metadata"]
+            method_specific = cornice_metadata.get("method_specific", {})
+            
+            # Look for schema in method-specific metadata
+            if method.upper() in method_specific:
+                method_info = method_specific[method.upper()]
+                schema = method_info.get("schema")
+                
+                if schema:
+                    # Extract schema information using Marshmallow
+                    schema_info = self._extract_marshmallow_schema_info(schema)
+                    if schema_info and "properties" in schema_info:
+                        # Use schema properties as base
+                        properties.update(schema_info["properties"])
+                        required.extend(schema_info.get("required", []))
 
         # Extract path parameters from route pattern
         path_params = re.findall(r"\{([^}]+)\}", pattern)
@@ -928,23 +967,220 @@ class PyramidIntrospector:
         return normalized
 
     def _extract_service_level_metadata(self, service: Any) -> Dict[str, Any]:
-        """Extract service-level metadata from Cornice service.
+        """Extract service-level metadata from a Cornice service object.
 
         Args:
             service: Cornice service object
 
         Returns:
-            Dictionary of service-level metadata
+            Dictionary containing service-level metadata
         """
         metadata = {}
-        
-        # Extract with defaults
-        metadata["cors_origins"] = getattr(service, "cors_origins", ["*"])
-        metadata["cors_credentials"] = getattr(service, "cors_credentials", False)
-        metadata["content_type"] = getattr(service, "content_type", "application/json")
-        metadata["accept"] = getattr(service, "accept", "application/json")
-        metadata["validators"] = getattr(service, "validators", [])
-        metadata["filters"] = getattr(service, "filters", [])
-        metadata["description"] = getattr(service, "description", "")
-        
+
+        # Extract basic attributes
+        for attr in [
+            "name",
+            "description",
+            "path",
+            "default_validators",
+            "default_filters",
+            "default_content_type",
+            "default_accept",
+            "cors_origins",
+            "cors_credentials",
+        ]:
+            value = getattr(service, attr, None)
+            if value is not None:
+                metadata[attr] = value
+
         return metadata
+
+    def _extract_marshmallow_schema_info(self, schema: Any) -> Dict[str, Any]:
+        """Extract field information from a Marshmallow schema.
+
+        Args:
+            schema: Marshmallow schema instance or class
+
+        Returns:
+            Dictionary containing schema field information for MCP
+        """
+        try:
+            # Try to import marshmallow
+            import marshmallow
+        except ImportError:
+            # If marshmallow is not available, return empty schema info
+            return {}
+
+        # Handle schema class vs instance
+        if isinstance(schema, type):
+            # If it's a class, instantiate it
+            try:
+                schema_instance = schema()
+            except Exception:
+                # If instantiation fails, return empty info
+                return {}
+        else:
+            # It's already an instance
+            schema_instance = schema
+
+        # Check if it's actually a Marshmallow schema
+        if not isinstance(schema_instance, marshmallow.Schema):
+            return {}
+
+        schema_info = {
+            "properties": {},
+            "required": [],
+            "type": "object",
+            "additionalProperties": False,
+        }
+
+        # Extract field information
+        for field_name, field_obj in schema_instance.fields.items():
+            field_info = self._marshmallow_field_to_mcp_type(field_obj)
+            schema_info["properties"][field_name] = field_info
+
+            # Check if field is required
+            if field_obj.required:
+                schema_info["required"].append(field_name)
+
+        return schema_info
+
+    def _marshmallow_field_to_mcp_type(self, field: Any) -> Dict[str, Any]:
+        """Convert a Marshmallow field to MCP parameter type.
+
+        Args:
+            field: Marshmallow field instance
+
+        Returns:
+            Dictionary containing MCP parameter type information
+        """
+        try:
+            # Try to import marshmallow fields
+            import marshmallow.fields as fields
+        except ImportError:
+            # If marshmallow is not available, return generic string type
+            return {"type": "string", "description": "Unknown field type"}
+
+        field_info = {}
+
+        # Map Marshmallow field types to MCP types
+        if isinstance(field, fields.String):
+            field_info["type"] = "string"
+        elif isinstance(field, fields.Integer):
+            field_info["type"] = "integer"
+        elif isinstance(field, fields.Float):
+            field_info["type"] = "number"
+        elif isinstance(field, fields.Boolean):
+            field_info["type"] = "boolean"
+        elif isinstance(field, fields.List):
+            field_info["type"] = "array"
+            # If the list has a container field, get its type
+            if hasattr(field, "inner") and field.inner:
+                inner_field_info = self._marshmallow_field_to_mcp_type(field.inner)
+                field_info["items"] = inner_field_info
+        elif isinstance(field, fields.Nested):
+            field_info["type"] = "object"
+            # For nested fields, try to extract nested schema info
+            if hasattr(field, "schema") and field.schema:
+                nested_info = self._extract_marshmallow_schema_info(field.schema)
+                if nested_info:
+                    field_info.update(nested_info)
+        elif isinstance(field, fields.Dict):
+            field_info["type"] = "object"
+            field_info["additionalProperties"] = True
+        elif isinstance(field, fields.DateTime):
+            field_info["type"] = "string"
+            field_info["format"] = "date-time"
+        elif isinstance(field, fields.Date):
+            field_info["type"] = "string"
+            field_info["format"] = "date"
+        elif isinstance(field, fields.Time):
+            field_info["type"] = "string"
+            field_info["format"] = "time"
+        elif isinstance(field, fields.Email):
+            field_info["type"] = "string"
+            field_info["format"] = "email"
+        elif isinstance(field, fields.Url):
+            field_info["type"] = "string"
+            field_info["format"] = "uri"
+        elif isinstance(field, fields.UUID):
+            field_info["type"] = "string"
+            field_info["format"] = "uuid"
+        else:
+            # Default to string for unknown field types
+            field_info["type"] = "string"
+
+        # Add description if available (from field metadata)
+        if hasattr(field, "metadata") and field.metadata:
+            if "description" in field.metadata:
+                field_info["description"] = field.metadata["description"]
+            elif "doc" in field.metadata:
+                field_info["description"] = field.metadata["doc"]
+
+        # Add validation constraints
+        if hasattr(field, "validate") and field.validate:
+            self._add_validation_constraints(field, field_info)
+
+        # Add default value if available
+        if hasattr(field, "default") and field.default is not None:
+            # Handle marshmallow.missing
+            try:
+                import marshmallow
+                if field.default is not marshmallow.missing:
+                    field_info["default"] = field.default
+            except ImportError:
+                pass
+
+        return field_info
+
+    def _add_validation_constraints(self, field: Any, field_info: Dict[str, Any]) -> None:
+        """Add validation constraints from Marshmallow field to MCP field info.
+
+        Args:
+            field: Marshmallow field instance
+            field_info: MCP field info dictionary to update
+        """
+        try:
+            import marshmallow.validate as validate
+        except ImportError:
+            return
+
+        validators = field.validate
+        if not validators:
+            return
+
+        # Handle single validator or list of validators
+        if not isinstance(validators, list):
+            validators = [validators]
+
+        for validator in validators:
+            # Length validator
+            if isinstance(validator, validate.Length):
+                if hasattr(validator, "min") and validator.min is not None:
+                    if field_info.get("type") == "string":
+                        field_info["minLength"] = validator.min
+                    elif field_info.get("type") == "array":
+                        field_info["minItems"] = validator.min
+                if hasattr(validator, "max") and validator.max is not None:
+                    if field_info.get("type") == "string":
+                        field_info["maxLength"] = validator.max
+                    elif field_info.get("type") == "array":
+                        field_info["maxItems"] = validator.max
+
+            # Range validator
+            elif isinstance(validator, validate.Range):
+                if hasattr(validator, "min") and validator.min is not None:
+                    field_info["minimum"] = validator.min
+                if hasattr(validator, "max") and validator.max is not None:
+                    field_info["maximum"] = validator.max
+
+            # OneOf validator (enum)
+            elif isinstance(validator, validate.OneOf):
+                if hasattr(validator, "choices") and validator.choices:
+                    field_info["enum"] = list(validator.choices)
+
+            # Regexp validator
+            elif isinstance(validator, validate.Regexp):
+                if hasattr(validator, "regex") and validator.regex:
+                    pattern = validator.regex.pattern if hasattr(validator.regex, "pattern") else str(validator.regex)
+                    field_info["pattern"] = pattern

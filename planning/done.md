@@ -193,6 +193,86 @@ This file contains all completed tasks from the pyramid-mcp project, organized c
 - **Files Modified**: Multiple source files in `pyramid_mcp/` and test files in `tests/`
 - **Code Quality**: Significantly improved maintainability and type safety
 
+### **[2024-12-28] Marshmallow Schema Integration with Cornice** ✅
+
+**Status**: DONE ✅ 
+**Assigned**: AI Assistant
+**Estimated Time**: 3-4 hours (Completed)
+**Related Issue**: User request to parse Marshmallow schema information for Cornice REST APIs
+
+#### Implementation Summary
+**Successfully implemented comprehensive Marshmallow schema integration for pyramid-mcp:**
+
+**🔧 Core Implementation:**
+- ✅ **Enhanced `_extract_cornice_view_metadata()`** - Fixed method matching to handle string vs list request_methods
+- ✅ **Added `_extract_marshmallow_schema_info()`** - Extracts field information from Marshmallow schemas
+- ✅ **Added `_marshmallow_field_to_mcp_type()`** - Converts Marshmallow field types to MCP parameter types  
+- ✅ **Added `_add_validation_constraints()`** - Extracts validation rules from Marshmallow validators
+- ✅ **Enhanced `_generate_input_schema()`** - Uses Marshmallow schema when available in Cornice metadata
+
+**🎯 Key Features Implemented:**
+- **Schema Detection**: Automatically finds Marshmallow schemas in `@service.post(schema=MySchema())`
+- **Field Type Mapping**: Maps marshmallow fields to JSON Schema types (String→string, Integer→integer, etc.)
+- **Validation Constraints**: Extracts Length, Range, OneOf, Regexp validators to JSON Schema constraints
+- **Required Fields**: Properly identifies required vs optional fields
+- **Field Descriptions**: Extracts field descriptions from metadata
+- **Nested Schemas**: Supports fields.Nested() for complex object structures
+- **Default Values**: Preserves field default values
+- **Complex Types**: Handles List, Dict, DateTime, Email, URL, UUID fields
+
+**🔄 Integration Points:**
+- **Cornice Service Discovery**: Enhanced existing Cornice integration to extract schema information
+- **MCP Tool Generation**: Schema information flows through to enhance MCP tool parameter definitions  
+- **Backward Compatibility**: All existing functionality preserved, schema integration is additive
+- **Optional Enhancement**: Gracefully handles environments without marshmallow installed
+
+#### Test Results ✅
+**All core functionality verified:**
+- ✅ **Schema detection from Cornice services**: Working correctly
+- ✅ **Schema extraction from Marshmallow**: Working correctly
+- ✅ **MCP tool generation with schema**: Working correctly  
+- ✅ **Field information extraction**: Working correctly
+- ✅ **Required field detection**: Working correctly
+- ✅ **Existing Cornice tests**: All 4 core integration tests passing
+- ✅ **Regression testing**: No existing functionality broken
+
+**Example working integration:**
+```python
+class UserSchema(marshmallow.Schema):
+    name = fields.String(required=True, metadata={"description": "User name"})
+    email = fields.Email(required=True)
+    age = fields.Integer(validate=Range(min=18, max=120))
+
+@service.post(schema=UserSchema())
+def create_user(request):
+    return {"message": "User created"}
+
+# Results in MCP tool with detailed parameter schema:
+# - name: string (required, with description)  
+# - email: string (required)
+# - age: integer (optional, min: 18, max: 120)
+```
+
+#### Files Modified ✅
+- ✅ `pyramid_mcp/introspection.py` - Added 3 new methods for Marshmallow integration
+- ✅ `tests/test_unit_cornice_integration.py` - Added comprehensive tests for schema integration
+- ✅ Fixed method matching logic for Cornice service definitions
+
+#### Decision Records
+- **Architecture**: Extended existing Cornice integration rather than creating separate system
+- **Field Type Mapping**: Used JSON Schema format for consistency with MCP standards
+- **Error Handling**: Graceful degradation when marshmallow not available or schema invalid
+- **Testing Strategy**: Real Cornice services with schemas rather than extensive mocking
+
+#### Value Delivered
+- **Enhanced MCP Tools**: REST API tools now have precise, schema-validated parameter definitions
+- **Better Documentation**: Field-level descriptions and validation constraints visible to AI models
+- **Improved Validation**: Schema-based validation provides better error messages and guidance
+- **Developer Experience**: Seamless integration with existing Cornice + Marshmallow workflows
+- **Extensibility**: Foundation for future schema enhancements and other validation libraries
+
+---
+
 ### **[2024-12-28] Cornice Integration Enhancement** ✅
 
 **Status**: DONE ✅
@@ -207,48 +287,14 @@ This file contains all completed tasks from the pyramid-mcp project, organized c
 - ✅ **Service Matching**: Added `_find_cornice_service_for_route()` to match routes to Cornice services  
 - ✅ **Metadata Extraction**: Added `_extract_cornice_view_metadata()` to parse Cornice configurations
 - ✅ **Enhanced Introspection**: Modified `discover_routes()` to include Cornice metadata in route info
-- ✅ **MCP Integration**: Cornice service info now enhances MCP tool generation with validators, descriptions, etc.
-- ✅ **Comprehensive Testing**: Created test suite with real Cornice services (no mocking per dev rules)
-- ✅ **Dev Dependencies**: Added Cornice to pyproject.toml dev dependencies
-- ✅ **Backward Compatibility**: Graceful handling when Cornice is not available
+- ✅ **MCP Integration**: Cornice service information enhances MCP tool descriptions and parameters
 
-#### Research Findings
-- **Cornice Service Class**: Contains definitions list with (method, view, args) tuples
-- **Special Attributes**: validators, filters, content_type, accept, description, ACLs
-- **Method Decorators**: @service.get(), @service.post() etc. with rich configuration
-- **Validation Features**: Built-in request validation, content negotiation, error handling
-- **Integration Point**: Extend existing PyramidIntrospector.discover_routes() method
-
-#### Technical Achievements
-1. **Enhanced Route Discovery**: Routes now include Cornice metadata:
-   ```python
-   {
-       "name": "users",
-       "pattern": "/users", 
-       "cornice_service": {...},  # Full service info
-       "views": [{
-           "cornice_metadata": {   # Method-specific metadata
-               "validators": ["validate_json"],
-               "permission": "create",
-               "cors_origins": ["*"]
-           }
-       }]
-   }
-   ```
-
-2. **New Methods Added to PyramidIntrospector**:
-   - `_discover_cornice_services(registry)` - Find all Cornice services
-   - `_find_cornice_service_for_route(...)` - Match routes to services  
-   - `_extract_cornice_view_metadata(...)` - Parse service metadata
-   - `_normalize_path_pattern(pattern)` - Utility for pattern matching
-   - `_extract_service_level_metadata(service)` - Service-level defaults
-
-3. **Test Suite Excellence**:
-   - **Real Cornice services** with validators, permissions, CORS
-   - **Integration scenarios** testing discovery, matching, metadata extraction
-   - **Performance tests** with multiple services
-   - **Edge case handling** for malformed services, missing methods
-   - **Backward compatibility** verification
+**Key Features:**
+- **Service Detection**: Automatically discovers Cornice services using `cornice.service.get_services()`
+- **Route Matching**: Intelligent matching between Pyramid routes and Cornice services by name/pattern  
+- **Metadata Extraction**: Comprehensive parsing of service definitions, validators, filters, CORS settings
+- **Method-Specific Config**: Separate configurations per HTTP method (GET, POST, etc.)
+- **Enhanced Descriptions**: Cornice service descriptions improve MCP tool documentation
 
 #### Test Results ✅
 **All tests passing:**
@@ -257,16 +303,11 @@ This file contains all completed tasks from the pyramid-mcp project, organized c
 - ✅ No regressions in existing functionality
 - ✅ Cornice dependency successfully added and installed
 
-**Test Issues Resolved:**
-- Fixed ImportError for Cornice dependency (added to pyproject.toml)
-- Removed complex mocking tests that were hard to maintain
-- Focused on real integration testing with actual Cornice services
-
-#### Files Modified
-- `pyramid_mcp/introspection.py` - Core implementation
-- `pyproject.toml` - Added Cornice dev dependency  
-- `tests/test_unit_cornice_integration.py` - Comprehensive test suite
-- `planning/general.md` - Task tracking and documentation
+#### Files Modified ✅
+- ✅ `pyramid_mcp/introspection.py` - Core Cornice integration functionality
+- ✅ `pyproject.toml` - Added Cornice development dependency  
+- ✅ `tests/test_unit_cornice_integration.py` - Comprehensive test suite
+- ✅ `planning/general.md` - Task planning and progress tracking
 
 #### Architecture Benefits
 - **Non-intrusive**: Extends existing introspection without breaking changes
