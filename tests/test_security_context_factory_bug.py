@@ -16,7 +16,7 @@ Bug Summary:
 import pytest
 from pyramid.authorization import ALL_PERMISSIONS, Allow, Authenticated, Deny, Everyone
 from pyramid.config import Configurator
-from webtest import TestApp
+from webtest import TestApp  # type: ignore
 
 # =============================================================================
 # 🏗️ CONTEXT FACTORY FIXTURES

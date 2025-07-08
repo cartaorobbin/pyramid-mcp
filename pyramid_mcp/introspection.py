@@ -8,7 +8,7 @@ to extract enhanced metadata and validation information.
 
 import inspect
 import re
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from pyramid_mcp.protocol import MCPTool
 
@@ -127,7 +127,9 @@ class PyramidIntrospector:
                         # Enhanced: Extract Cornice metadata for this view
                         if cornice_service:
                             cornice_metadata = self._extract_cornice_view_metadata(
-                                cornice_service, view_callable, view_intr.get("request_methods", [])
+                                cornice_service,
+                                view_callable,
+                                view_intr.get("request_methods", []),
                             )
                             view_info["cornice_metadata"] = cornice_metadata
 
@@ -174,8 +176,8 @@ class PyramidIntrospector:
 
         try:
             # Try to import cornice to check if it's available
-            import cornice  # noqa: F401  # type: ignore
-            from cornice.service import get_services  # noqa: F401  # type: ignore
+            import cornice  # noqa: F401
+            from cornice.service import get_services
 
             # Get all registered Cornice services
             services = get_services()
@@ -194,7 +196,9 @@ class PyramidIntrospector:
                     "acl": getattr(service, "acl", None),
                     "default_validators": getattr(service, "default_validators", []),
                     "default_filters": getattr(service, "default_filters", []),
-                    "default_content_type": getattr(service, "default_content_type", None),
+                    "default_content_type": getattr(
+                        service, "default_content_type", None
+                    ),
                     "default_accept": getattr(service, "default_accept", None),
                 }
                 cornice_services.append(service_info)
@@ -208,7 +212,10 @@ class PyramidIntrospector:
         return cornice_services
 
     def _find_cornice_service_for_route(
-        self, route_name: str, route_pattern: str, cornice_services: List[Dict[str, Any]]
+        self,
+        route_name: str,
+        route_pattern: str,
+        cornice_services: List[Dict[str, Any]],
     ) -> Optional[Dict[str, Any]]:
         """Find the Cornice service that manages a specific route.
 
@@ -230,19 +237,16 @@ class PyramidIntrospector:
                 return service_info
 
             # Check if route name contains service name (common pattern)
-            if (
-                service_info["name"]
-                and route_name.startswith(service_info["name"])
-            ):
+            if service_info["name"] and route_name.startswith(service_info["name"]):
                 return service_info
 
         return None
 
     def _extract_cornice_view_metadata(
-        self, 
-        cornice_service: Dict[str, Any], 
-        view_callable: Callable, 
-        request_methods: List[str]
+        self,
+        cornice_service: Dict[str, Any],
+        view_callable: Callable,
+        request_methods: Union[str, List[str]],
     ) -> Dict[str, Any]:
         """Extract Cornice-specific metadata for a view.
 
@@ -273,8 +277,8 @@ class PyramidIntrospector:
 
         # Check for CORS configuration
         metadata["cors_enabled"] = (
-            cornice_service.get("cors_origins") is not None or
-            cornice_service.get("cors_credentials") is not None
+            cornice_service.get("cors_origins") is not None
+            or cornice_service.get("cors_credentials") is not None
         )
 
         # Extract method-specific configurations from service definitions
@@ -288,21 +292,23 @@ class PyramidIntrospector:
                     method_matches = method.upper() == request_methods.upper()
                 elif isinstance(request_methods, list):
                     # Multiple methods as list
-                    method_matches = method.upper() in [m.upper() for m in request_methods]
+                    method_matches = method.upper() in [
+                        m.upper() for m in request_methods
+                    ]
             view_matches = False
-            
+
             if view == view_callable:
                 view_matches = True
-            elif hasattr(view, '__name__') and hasattr(view_callable, '__name__'):
+            elif hasattr(view, "__name__") and hasattr(view_callable, "__name__"):
                 view_name = view.__name__
                 callable_name = view_callable.__name__
                 # Check exact match or if callable is a method-decorated version
                 view_matches = (
-                    view_name == callable_name or
-                    callable_name.startswith(f"{view_name}__") or
-                    view_name.startswith(f"{callable_name}__")
+                    view_name == callable_name
+                    or callable_name.startswith(f"{view_name}__")
+                    or view_name.startswith(f"{callable_name}__")
                 )
-            
+
             if method_matches or view_matches:
                 method_metadata = {
                     "method": method,
@@ -323,7 +329,8 @@ class PyramidIntrospector:
 
                 # Clean up None values
                 method_metadata = {
-                    k: v for k, v in method_metadata.items() 
+                    k: v
+                    for k, v in method_metadata.items()
                     if v is not None and v != []
                 }
 
@@ -632,7 +639,11 @@ class PyramidIntrospector:
         return f"{action} {resource} via {method} {pattern}"
 
     def _generate_input_schema(
-        self, pattern: str, view_callable: Callable, method: str, view_info: Optional[Dict[str, Any]] = None
+        self,
+        pattern: str,
+        view_callable: Callable,
+        method: str,
+        view_info: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Generate JSON schema for tool input from route pattern and view signature.
 
@@ -652,12 +663,12 @@ class PyramidIntrospector:
         if view_info and "cornice_metadata" in view_info:
             cornice_metadata = view_info["cornice_metadata"]
             method_specific = cornice_metadata.get("method_specific", {})
-            
+
             # Look for schema in method-specific metadata
             if method.upper() in method_specific:
                 method_info = method_specific[method.upper()]
                 schema = method_info.get("schema")
-                
+
                 if schema:
                     # Extract schema information using Marshmallow
                     schema_info = self._extract_marshmallow_schema_info(schema)
@@ -859,9 +870,9 @@ class PyramidIntrospector:
             # Set body as string for DummyRequest (not bytes)
             request.body = json.dumps(json_body)
             # Use environ dict to set content type
-            if not hasattr(request, 'environ'):
+            if not hasattr(request, "environ"):
                 request.environ = {}
-            request.environ['CONTENT_TYPE'] = "application/json"
+            request.environ["CONTENT_TYPE"] = "application/json"
         else:
             # For GET requests or requests without body
             request = DummyRequest()
@@ -963,7 +974,8 @@ class PyramidIntrospector:
         # Remove regex constraints from path parameters
         # e.g., {id:\d+} -> {id}, {filename:.+} -> {filename}
         import re
-        normalized = re.sub(r'\{([^}:]+):[^}]+\}', r'{\1}', pattern)
+
+        normalized = re.sub(r"\{([^}:]+):[^}]+\}", r"{\1}", pattern)
         return normalized
 
     def _extract_service_level_metadata(self, service: Any) -> Dict[str, Any]:
@@ -977,21 +989,18 @@ class PyramidIntrospector:
         """
         metadata = {}
 
-        # Extract basic attributes
-        for attr in [
-            "name",
-            "description",
-            "path",
-            "default_validators",
-            "default_filters",
-            "default_content_type",
-            "default_accept",
-            "cors_origins",
-            "cors_credentials",
-        ]:
-            value = getattr(service, attr, None)
-            if value is not None:
-                metadata[attr] = value
+        # Extract basic attributes with defaults
+        metadata["name"] = getattr(service, "name", "")
+        metadata["description"] = getattr(service, "description", "")
+        metadata["path"] = getattr(service, "path", "")
+        metadata["validators"] = getattr(service, "default_validators", [])
+        metadata["filters"] = getattr(service, "default_filters", [])
+        metadata["content_type"] = getattr(
+            service, "default_content_type", "application/json"
+        )
+        metadata["accept"] = getattr(service, "default_accept", "application/json")
+        metadata["cors_origins"] = getattr(service, "cors_origins", None)
+        metadata["cors_credentials"] = getattr(service, "cors_credentials", False)
 
         return metadata
 
@@ -1027,7 +1036,7 @@ class PyramidIntrospector:
         if not isinstance(schema_instance, marshmallow.Schema):
             return {}
 
-        schema_info = {
+        schema_info: Dict[str, Any] = {
             "properties": {},
             "required": [],
             "type": "object",
@@ -1061,11 +1070,28 @@ class PyramidIntrospector:
             # If marshmallow is not available, return generic string type
             return {"type": "string", "description": "Unknown field type"}
 
-        field_info = {}
+        field_info: Dict[str, Any] = {}
 
         # Map Marshmallow field types to MCP types
-        if isinstance(field, fields.String):
+        # Check more specific types first to avoid inheritance issues
+        if isinstance(field, fields.Email):
             field_info["type"] = "string"
+            field_info["format"] = "email"
+        elif isinstance(field, fields.Url):
+            field_info["type"] = "string"
+            field_info["format"] = "uri"
+        elif isinstance(field, fields.UUID):
+            field_info["type"] = "string"
+            field_info["format"] = "uuid"
+        elif isinstance(field, fields.Date):
+            field_info["type"] = "string"
+            field_info["format"] = "date"
+        elif isinstance(field, fields.Time):
+            field_info["type"] = "string"
+            field_info["format"] = "time"
+        elif isinstance(field, fields.DateTime):
+            field_info["type"] = "string"
+            field_info["format"] = "date-time"
         elif isinstance(field, fields.Integer):
             field_info["type"] = "integer"
         elif isinstance(field, fields.Float):
@@ -1088,24 +1114,8 @@ class PyramidIntrospector:
         elif isinstance(field, fields.Dict):
             field_info["type"] = "object"
             field_info["additionalProperties"] = True
-        elif isinstance(field, fields.DateTime):
+        elif isinstance(field, fields.String):
             field_info["type"] = "string"
-            field_info["format"] = "date-time"
-        elif isinstance(field, fields.Date):
-            field_info["type"] = "string"
-            field_info["format"] = "date"
-        elif isinstance(field, fields.Time):
-            field_info["type"] = "string"
-            field_info["format"] = "time"
-        elif isinstance(field, fields.Email):
-            field_info["type"] = "string"
-            field_info["format"] = "email"
-        elif isinstance(field, fields.Url):
-            field_info["type"] = "string"
-            field_info["format"] = "uri"
-        elif isinstance(field, fields.UUID):
-            field_info["type"] = "string"
-            field_info["format"] = "uuid"
         else:
             # Default to string for unknown field types
             field_info["type"] = "string"
@@ -1126,6 +1136,7 @@ class PyramidIntrospector:
             # Handle marshmallow.missing
             try:
                 import marshmallow
+
                 if field.default is not marshmallow.missing:
                     field_info["default"] = field.default
             except ImportError:
@@ -1133,7 +1144,9 @@ class PyramidIntrospector:
 
         return field_info
 
-    def _add_validation_constraints(self, field: Any, field_info: Dict[str, Any]) -> None:
+    def _add_validation_constraints(
+        self, field: Any, field_info: Dict[str, Any]
+    ) -> None:
         """Add validation constraints from Marshmallow field to MCP field info.
 
         Args:
@@ -1182,5 +1195,9 @@ class PyramidIntrospector:
             # Regexp validator
             elif isinstance(validator, validate.Regexp):
                 if hasattr(validator, "regex") and validator.regex:
-                    pattern = validator.regex.pattern if hasattr(validator.regex, "pattern") else str(validator.regex)
+                    pattern = (
+                        validator.regex.pattern
+                        if hasattr(validator.regex, "pattern")
+                        else str(validator.regex)
+                    )
                     field_info["pattern"] = pattern

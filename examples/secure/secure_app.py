@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# type: ignore
 """
 Secure Pyramid application with MCP integration using Context Factories and ACLs.
 
