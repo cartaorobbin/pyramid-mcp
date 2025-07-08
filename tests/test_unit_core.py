@@ -126,7 +126,7 @@ def test_pyramid_mcp_manual_tool_registration(pyramid_mcp_basic):
     """Test registering tools manually with PyramidMCP."""
     pyramid_mcp = pyramid_mcp_basic
 
-    @pyramid_mcp.tool("calculate", "Simple calculator")
+    @pyramid_mcp.tool("calculate", "Simple calculator")  # type: ignore
     def calculate(operation: str, a: float, b: float) -> float:
         """Perform basic math operations."""
         if operation == "add":

@@ -18,7 +18,7 @@ from marshmallow import Schema, ValidationError, fields
 from pyramid.config import Configurator
 
 # Removed unused imports
-from webtest import TestApp
+from webtest import TestApp  # type: ignore
 
 from pyramid_mcp import tool
 from pyramid_mcp.core import MCPConfiguration, PyramidMCP
@@ -391,12 +391,12 @@ def testapp_with_jwt_auth(pyramid_config_with_jwt_auth, users_db):
     pyramid_mcp = pyramid_config_with_jwt_auth.registry.pyramid_mcp
 
     # Use the new decorator syntax with permission support
-    @pyramid_mcp.tool(
+    @pyramid_mcp.tool(  # type: ignore
         name="get_protected_user",
         description="Get user info (requires authentication)",
         permission="authenticated",
     )
-    def get_protected_user_tool(id: int):
+    def get_protected_user_tool(id: int) -> dict:
         """MCP tool for protected user access."""
         # Access user data from registry
         user = users_db.get(id)
@@ -405,11 +405,11 @@ def testapp_with_jwt_auth(pyramid_config_with_jwt_auth, users_db):
 
         return {"user": user, "protected": True, "authenticated": True}
 
-    @pyramid_mcp.tool(
+    @pyramid_mcp.tool(  # type: ignore
         name="get_public_info",
         description="Get public information (no authentication required)",
     )
-    def get_public_info_tool():
+    def get_public_info_tool() -> dict:
         """MCP tool for public information access."""
         return {
             "message": "This is public information",

@@ -16,7 +16,7 @@ import json
 
 from pyramid.config import Configurator
 from pyramid.view import view_config
-from webtest import TestApp
+from webtest import TestApp  # type: ignore
 
 from pyramid_mcp import tool
 

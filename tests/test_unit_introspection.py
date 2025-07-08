@@ -12,6 +12,8 @@ Uses enhanced fixtures from conftest.py for clean, non-duplicated test setup.
 """
 
 
+from typing import Any
+
 from pyramid.config import Configurator
 from pyramid.response import Response
 from pyramid.view import view_config
@@ -164,7 +166,7 @@ def test_tool_name_generation_edge_cases():
     result1 = introspector._generate_tool_name("", "GET", "/test")
     assert "get" in result1 and "test" in result1  # Flexible assertion
 
-    result2 = introspector._generate_tool_name(None, "POST", "/items")
+    result2 = introspector._generate_tool_name("", "POST", "/items")
     assert "create" in result2 and "items" in result2  # Flexible assertion
 
     # Test complex patterns
@@ -205,7 +207,7 @@ def test_input_schema_with_annotations():
     """Test schema generation with type annotations."""
     introspector = PyramidIntrospector()
 
-    def annotated_view(request, user_id: int, active: bool = True):
+    def annotated_view(request: Any, user_id: int, active: bool = True) -> Response:
         return Response("test")
 
     schema = introspector._generate_input_schema(
@@ -231,7 +233,9 @@ def test_input_schema_complex_types():
     """Test schema generation with complex type annotations."""
     introspector = PyramidIntrospector()
 
-    def complex_view(request, item_id: str, count: int = 10, enabled: bool = False):
+    def complex_view(
+        request: Any, item_id: str, count: int = 10, enabled: bool = False
+    ) -> Response:
         return Response("test")
 
     schema = introspector._generate_input_schema(

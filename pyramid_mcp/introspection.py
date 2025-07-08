@@ -2,12 +2,13 @@
 Pyramid Introspection Module
 
 This module provides functionality to discover and analyze Pyramid routes
-and convert them into MCP tools.
+and convert them into MCP tools. Includes support for Cornice REST framework
+to extract enhanced metadata and validation information.
 """
 
 import inspect
 import re
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
 
 from pyramid_mcp.protocol import MCPTool
 
@@ -29,6 +30,7 @@ class PyramidIntrospector:
         Returns:
             List of route information dictionaries containing route metadata,
             view callables, and other relevant information for MCP tool generation.
+            Enhanced with Cornice service information when available.
         """
         if not self.configurator:
             return []
@@ -59,6 +61,9 @@ class PyramidIntrospector:
                         view_by_route[route_name] = []
                     view_by_route[route_name].append(view_intr)
 
+            # Discover Cornice services for enhanced metadata
+            cornice_services = self._discover_cornice_services(registry)
+
             # Process each route
             for route_intr in route_introspectables:
                 route_name = route_intr.get("name")
@@ -70,6 +75,11 @@ class PyramidIntrospector:
 
                 # Get associated views
                 views = view_by_route.get(route_name, [])
+
+                # Check if this route is managed by a Cornice service
+                cornice_service = self._find_cornice_service_for_route(
+                    route_name, route_intr.get("pattern", ""), cornice_services
+                )
 
                 # Build comprehensive route information
                 route_info = {
@@ -88,9 +98,10 @@ class PyramidIntrospector:
                     },
                     "route_object": route_obj,
                     "views": [],
+                    "cornice_service": cornice_service,  # Enhanced with Cornice info
                 }
 
-                # Process associated views
+                # Process associated views with Cornice enhancement
                 for view_intr in views:
                     view_callable = view_intr.get("callable")
                     if view_callable:
@@ -110,7 +121,17 @@ class PyramidIntrospector:
                                 "match_param": view_intr.get("match_param"),
                                 "csrf_token": view_intr.get("csrf_token"),
                             },
+                            "cornice_metadata": {},  # Enhanced with Cornice data
                         }
+
+                        # Enhanced: Extract Cornice metadata for this view
+                        if cornice_service:
+                            cornice_metadata = self._extract_cornice_view_metadata(
+                                cornice_service,
+                                view_callable,
+                                view_intr.get("request_methods", []),
+                            )
+                            view_info["cornice_metadata"] = cornice_metadata
 
                         # Try to get renderer information from templates
                         template_category = introspector.get_category("templates") or []
@@ -141,6 +162,181 @@ class PyramidIntrospector:
             print(f"Error discovering routes: {e}")
 
         return routes_info
+
+    def _discover_cornice_services(self, registry: Any) -> List[Dict[str, Any]]:
+        """Discover Cornice services from the Pyramid registry.
+
+        Args:
+            registry: Pyramid registry
+
+        Returns:
+            List of Cornice service information dictionaries
+        """
+        cornice_services = []
+
+        try:
+            # Try to import cornice to check if it's available
+            import cornice  # noqa: F401
+            from cornice.service import get_services
+
+            # Get all registered Cornice services
+            services = get_services()
+
+            for service in services:
+                service_info = {
+                    "service": service,
+                    "name": getattr(service, "name", ""),
+                    "path": getattr(service, "path", ""),
+                    "description": getattr(service, "description", ""),
+                    "defined_methods": getattr(service, "defined_methods", []),
+                    "definitions": getattr(service, "definitions", []),
+                    "cors_origins": getattr(service, "cors_origins", None),
+                    "cors_credentials": getattr(service, "cors_credentials", None),
+                    "factory": getattr(service, "factory", None),
+                    "acl": getattr(service, "acl", None),
+                    "default_validators": getattr(service, "default_validators", []),
+                    "default_filters": getattr(service, "default_filters", []),
+                    "default_content_type": getattr(
+                        service, "default_content_type", None
+                    ),
+                    "default_accept": getattr(service, "default_accept", None),
+                }
+                cornice_services.append(service_info)
+
+        except ImportError:
+            # Cornice is not installed, return empty list
+            pass
+        except Exception as e:
+            print(f"Error discovering Cornice services: {e}")
+
+        return cornice_services
+
+    def _find_cornice_service_for_route(
+        self,
+        route_name: str,
+        route_pattern: str,
+        cornice_services: List[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        """Find the Cornice service that manages a specific route.
+
+        Args:
+            route_name: Name of the route
+            route_pattern: Pattern of the route
+            cornice_services: List of discovered Cornice services
+
+        Returns:
+            Cornice service info if found, None otherwise
+        """
+        for service_info in cornice_services:
+            # Match by service name (Cornice often uses service name as route name)
+            if service_info["name"] == route_name:
+                return service_info
+
+            # Match by path pattern
+            if service_info["path"] == route_pattern:
+                return service_info
+
+            # Check if route name contains service name (common pattern)
+            if service_info["name"] and route_name.startswith(service_info["name"]):
+                return service_info
+
+        return None
+
+    def _extract_cornice_view_metadata(
+        self,
+        cornice_service: Dict[str, Any],
+        view_callable: Callable,
+        request_methods: Union[str, List[str]],
+    ) -> Dict[str, Any]:
+        """Extract Cornice-specific metadata for a view.
+
+        Args:
+            cornice_service: Cornice service information
+            view_callable: View callable function
+            request_methods: HTTP methods for this view
+
+        Returns:
+            Dictionary containing Cornice metadata
+        """
+        metadata = {
+            "service_name": cornice_service.get("name", ""),
+            "service_description": cornice_service.get("description", ""),
+            "validators": [],
+            "filters": [],
+            "content_type": None,
+            "accept": None,
+            "cors_enabled": False,
+            "method_specific": {},
+        }
+
+        # Extract service-level defaults
+        metadata["validators"] = cornice_service.get("default_validators", [])
+        metadata["filters"] = cornice_service.get("default_filters", [])
+        metadata["content_type"] = cornice_service.get("default_content_type")
+        metadata["accept"] = cornice_service.get("default_accept")
+
+        # Check for CORS configuration
+        metadata["cors_enabled"] = (
+            cornice_service.get("cors_origins") is not None
+            or cornice_service.get("cors_credentials") is not None
+        )
+
+        # Extract method-specific configurations from service definitions
+        definitions = cornice_service.get("definitions", [])
+        for method, view, args in definitions:
+            # Match by method first, then by view callable name as fallback
+            method_matches = False
+            if request_methods:
+                if isinstance(request_methods, str):
+                    # Single method as string
+                    method_matches = method.upper() == request_methods.upper()
+                elif isinstance(request_methods, list):
+                    # Multiple methods as list
+                    method_matches = method.upper() in [
+                        m.upper() for m in request_methods
+                    ]
+            view_matches = False
+
+            if view == view_callable:
+                view_matches = True
+            elif hasattr(view, "__name__") and hasattr(view_callable, "__name__"):
+                view_name = view.__name__
+                callable_name = view_callable.__name__
+                # Check exact match or if callable is a method-decorated version
+                view_matches = (
+                    view_name == callable_name
+                    or callable_name.startswith(f"{view_name}__")
+                    or view_name.startswith(f"{callable_name}__")
+                )
+
+            if method_matches or view_matches:
+                method_metadata = {
+                    "method": method,
+                    "validators": args.get("validators", []),
+                    "filters": args.get("filters", []),
+                    "content_type": args.get("content_type"),
+                    "accept": args.get("accept"),
+                    "permission": args.get("permission"),
+                    "renderer": args.get("renderer"),
+                    "cors_origins": args.get("cors_origins"),
+                    "cors_credentials": args.get("cors_credentials"),
+                    "error_handler": args.get("error_handler"),
+                    "schema": args.get("schema"),
+                    "colander_schema": args.get("colander_schema"),
+                    "deserializer": args.get("deserializer"),
+                    "serializer": args.get("serializer"),
+                }
+
+                # Clean up None values
+                method_metadata = {
+                    k: v
+                    for k, v in method_metadata.items()
+                    if v is not None and v != []
+                }
+
+                metadata["method_specific"][method.upper()] = method_metadata
+
+        return metadata
 
     def discover_tools(self, config: Any) -> List[MCPTool]:
         """Discover routes and convert them to MCP tools.
@@ -324,7 +520,7 @@ class PyramidIntrospector:
 
             # Generate input schema from route pattern and view signature
             input_schema = self._generate_input_schema(
-                route_pattern, view_callable, method
+                route_pattern, view_callable, method, view
             )
 
             # Create MCP tool
@@ -443,7 +639,11 @@ class PyramidIntrospector:
         return f"{action} {resource} via {method} {pattern}"
 
     def _generate_input_schema(
-        self, pattern: str, view_callable: Callable, method: str
+        self,
+        pattern: str,
+        view_callable: Callable,
+        method: str,
+        view_info: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Generate JSON schema for tool input from route pattern and view signature.
 
@@ -451,12 +651,31 @@ class PyramidIntrospector:
             pattern: Route pattern (e.g., '/users/{id}')
             view_callable: View callable function
             method: HTTP method
+            view_info: View information including Cornice metadata
 
         Returns:
             JSON schema dictionary or None
         """
         properties: Dict[str, Any] = {}
         required: List[str] = []
+
+        # Check for Marshmallow schema in Cornice metadata first
+        if view_info and "cornice_metadata" in view_info:
+            cornice_metadata = view_info["cornice_metadata"]
+            method_specific = cornice_metadata.get("method_specific", {})
+
+            # Look for schema in method-specific metadata
+            if method.upper() in method_specific:
+                method_info = method_specific[method.upper()]
+                schema = method_info.get("schema")
+
+                if schema:
+                    # Extract schema information using Marshmallow
+                    schema_info = self._extract_marshmallow_schema_info(schema)
+                    if schema_info and "properties" in schema_info:
+                        # Use schema properties as base
+                        properties.update(schema_info["properties"])
+                        required.extend(schema_info.get("required", []))
 
         # Extract path parameters from route pattern
         path_params = re.findall(r"\{([^}]+)\}", pattern)
@@ -648,8 +867,12 @@ class PyramidIntrospector:
 
             # For POST requests with JSON body, create request with JSON data
             request = DummyRequest(json_body=json_body)
-            request.body = json.dumps(json_body).encode("utf-8")
-            request.content_type = "application/json"
+            # Set body as string for DummyRequest (not bytes)
+            request.body = json.dumps(json_body)
+            # Use environ dict to set content type
+            if not hasattr(request, "environ"):
+                request.environ = {}
+            request.environ["CONTENT_TYPE"] = "application/json"
         else:
             # For GET requests or requests without body
             request = DummyRequest()
@@ -738,3 +961,243 @@ class PyramidIntrospector:
         else:
             # Fallback to string representation
             return {"content": [{"type": "text", "text": str(response)}]}
+
+    def _normalize_path_pattern(self, pattern: str) -> str:
+        """Normalize path pattern for matching.
+
+        Args:
+            pattern: Route pattern to normalize
+
+        Returns:
+            Normalized pattern
+        """
+        # Remove regex constraints from path parameters
+        # e.g., {id:\d+} -> {id}, {filename:.+} -> {filename}
+        import re
+
+        normalized = re.sub(r"\{([^}:]+):[^}]+\}", r"{\1}", pattern)
+        return normalized
+
+    def _extract_service_level_metadata(self, service: Any) -> Dict[str, Any]:
+        """Extract service-level metadata from a Cornice service object.
+
+        Args:
+            service: Cornice service object
+
+        Returns:
+            Dictionary containing service-level metadata
+        """
+        metadata = {}
+
+        # Extract basic attributes with defaults
+        metadata["name"] = getattr(service, "name", "")
+        metadata["description"] = getattr(service, "description", "")
+        metadata["path"] = getattr(service, "path", "")
+        metadata["validators"] = getattr(service, "default_validators", [])
+        metadata["filters"] = getattr(service, "default_filters", [])
+        metadata["content_type"] = getattr(
+            service, "default_content_type", "application/json"
+        )
+        metadata["accept"] = getattr(service, "default_accept", "application/json")
+        metadata["cors_origins"] = getattr(service, "cors_origins", None)
+        metadata["cors_credentials"] = getattr(service, "cors_credentials", False)
+
+        return metadata
+
+    def _extract_marshmallow_schema_info(self, schema: Any) -> Dict[str, Any]:
+        """Extract field information from a Marshmallow schema.
+
+        Args:
+            schema: Marshmallow schema instance or class
+
+        Returns:
+            Dictionary containing schema field information for MCP
+        """
+        try:
+            # Try to import marshmallow
+            import marshmallow
+        except ImportError:
+            # If marshmallow is not available, return empty schema info
+            return {}
+
+        # Handle schema class vs instance
+        if isinstance(schema, type):
+            # If it's a class, instantiate it
+            try:
+                schema_instance = schema()
+            except Exception:
+                # If instantiation fails, return empty info
+                return {}
+        else:
+            # It's already an instance
+            schema_instance = schema
+
+        # Check if it's actually a Marshmallow schema
+        if not isinstance(schema_instance, marshmallow.Schema):
+            return {}
+
+        schema_info: Dict[str, Any] = {
+            "properties": {},
+            "required": [],
+            "type": "object",
+            "additionalProperties": False,
+        }
+
+        # Extract field information
+        for field_name, field_obj in schema_instance.fields.items():
+            field_info = self._marshmallow_field_to_mcp_type(field_obj)
+            schema_info["properties"][field_name] = field_info
+
+            # Check if field is required
+            if field_obj.required:
+                schema_info["required"].append(field_name)
+
+        return schema_info
+
+    def _marshmallow_field_to_mcp_type(self, field: Any) -> Dict[str, Any]:
+        """Convert a Marshmallow field to MCP parameter type.
+
+        Args:
+            field: Marshmallow field instance
+
+        Returns:
+            Dictionary containing MCP parameter type information
+        """
+        try:
+            # Try to import marshmallow fields
+            import marshmallow.fields as fields
+        except ImportError:
+            # If marshmallow is not available, return generic string type
+            return {"type": "string", "description": "Unknown field type"}
+
+        field_info: Dict[str, Any] = {}
+
+        # Map Marshmallow field types to MCP types
+        # Check more specific types first to avoid inheritance issues
+        if isinstance(field, fields.Email):
+            field_info["type"] = "string"
+            field_info["format"] = "email"
+        elif isinstance(field, fields.Url):
+            field_info["type"] = "string"
+            field_info["format"] = "uri"
+        elif isinstance(field, fields.UUID):
+            field_info["type"] = "string"
+            field_info["format"] = "uuid"
+        elif isinstance(field, fields.Date):
+            field_info["type"] = "string"
+            field_info["format"] = "date"
+        elif isinstance(field, fields.Time):
+            field_info["type"] = "string"
+            field_info["format"] = "time"
+        elif isinstance(field, fields.DateTime):
+            field_info["type"] = "string"
+            field_info["format"] = "date-time"
+        elif isinstance(field, fields.Integer):
+            field_info["type"] = "integer"
+        elif isinstance(field, fields.Float):
+            field_info["type"] = "number"
+        elif isinstance(field, fields.Boolean):
+            field_info["type"] = "boolean"
+        elif isinstance(field, fields.List):
+            field_info["type"] = "array"
+            # If the list has a container field, get its type
+            if hasattr(field, "inner") and field.inner:
+                inner_field_info = self._marshmallow_field_to_mcp_type(field.inner)
+                field_info["items"] = inner_field_info
+        elif isinstance(field, fields.Nested):
+            field_info["type"] = "object"
+            # For nested fields, try to extract nested schema info
+            if hasattr(field, "schema") and field.schema:
+                nested_info = self._extract_marshmallow_schema_info(field.schema)
+                if nested_info:
+                    field_info.update(nested_info)
+        elif isinstance(field, fields.Dict):
+            field_info["type"] = "object"
+            field_info["additionalProperties"] = True
+        elif isinstance(field, fields.String):
+            field_info["type"] = "string"
+        else:
+            # Default to string for unknown field types
+            field_info["type"] = "string"
+
+        # Add description if available (from field metadata)
+        if hasattr(field, "metadata") and field.metadata:
+            if "description" in field.metadata:
+                field_info["description"] = field.metadata["description"]
+            elif "doc" in field.metadata:
+                field_info["description"] = field.metadata["doc"]
+
+        # Add validation constraints
+        if hasattr(field, "validate") and field.validate:
+            self._add_validation_constraints(field, field_info)
+
+        # Add default value if available
+        if hasattr(field, "default") and field.default is not None:
+            # Handle marshmallow.missing
+            try:
+                import marshmallow
+
+                if field.default is not marshmallow.missing:
+                    field_info["default"] = field.default
+            except ImportError:
+                pass
+
+        return field_info
+
+    def _add_validation_constraints(
+        self, field: Any, field_info: Dict[str, Any]
+    ) -> None:
+        """Add validation constraints from Marshmallow field to MCP field info.
+
+        Args:
+            field: Marshmallow field instance
+            field_info: MCP field info dictionary to update
+        """
+        try:
+            import marshmallow.validate as validate
+        except ImportError:
+            return
+
+        validators = field.validate
+        if not validators:
+            return
+
+        # Handle single validator or list of validators
+        if not isinstance(validators, list):
+            validators = [validators]
+
+        for validator in validators:
+            # Length validator
+            if isinstance(validator, validate.Length):
+                if hasattr(validator, "min") and validator.min is not None:
+                    if field_info.get("type") == "string":
+                        field_info["minLength"] = validator.min
+                    elif field_info.get("type") == "array":
+                        field_info["minItems"] = validator.min
+                if hasattr(validator, "max") and validator.max is not None:
+                    if field_info.get("type") == "string":
+                        field_info["maxLength"] = validator.max
+                    elif field_info.get("type") == "array":
+                        field_info["maxItems"] = validator.max
+
+            # Range validator
+            elif isinstance(validator, validate.Range):
+                if hasattr(validator, "min") and validator.min is not None:
+                    field_info["minimum"] = validator.min
+                if hasattr(validator, "max") and validator.max is not None:
+                    field_info["maximum"] = validator.max
+
+            # OneOf validator (enum)
+            elif isinstance(validator, validate.OneOf):
+                if hasattr(validator, "choices") and validator.choices:
+                    field_info["enum"] = list(validator.choices)
+
+            # Regexp validator
+            elif isinstance(validator, validate.Regexp):
+                if hasattr(validator, "regex") and validator.regex:
+                    pattern = (
+                        validator.regex.pattern
+                        if hasattr(validator.regex, "pattern")
+                        else str(validator.regex)
+                    )
+                    field_info["pattern"] = pattern

@@ -14,24 +14,26 @@ Run this example:
 Then connect with an MCP client on http://localhost:8080/mcp
 """
 
+from typing import Any, Optional
 from wsgiref.simple_server import make_server
 
 from pyramid.config import Configurator
+from pyramid.request import Request
 from pyramid.view import view_config
 
 from pyramid_mcp import tool
 
 
 # Define some API endpoints that will be auto-discovered as MCP tools
-@view_config(route_name="api_hello", renderer="json")
-def hello_api(request):
+@view_config(route_name="api_hello", renderer="json")  # type: ignore
+def hello_api(request: Request) -> dict:
     """Say hello to someone."""
     name = request.params.get("name", "World")
     return {"message": f"Hello, {name}!", "timestamp": "2024-12-28"}
 
 
-@view_config(route_name="api_users", renderer="json")
-def list_users(request):
+@view_config(route_name="api_users", renderer="json")  # type: ignore
+def list_users(request: Request) -> dict:
     """Get a list of users."""
     return {
         "users": [
@@ -54,21 +56,18 @@ def calculate(operation: str, a: float, b: float) -> float:
     Returns:
         The result of the calculation
     """
-    operations = {
-        "add": lambda x, y: x + y,
-        "subtract": lambda x, y: x - y,
-        "multiply": lambda x, y: x * y,
-        "divide": lambda x, y: x / y if y != 0 else None,
-    }
-
-    if operation not in operations:
+    if operation == "add":
+        return a + b
+    elif operation == "subtract":
+        return a - b
+    elif operation == "multiply":
+        return a * b
+    elif operation == "divide":
+        if b == 0:
+            raise ValueError("Cannot divide by zero")
+        return a / b
+    else:
         raise ValueError(f"Unknown operation: {operation}")
-
-    result = operations[operation](a, b)
-    if result is None:
-        raise ValueError("Cannot divide by zero")
-
-    return result
 
 
 @tool(name="text_processor", description="Process text in various ways")
@@ -82,24 +81,23 @@ def process_text(text: str, operation: str = "upper") -> str:
     Returns:
         The processed text
     """
-    operations = {
-        "upper": str.upper,
-        "lower": str.lower,
-        "reverse": lambda x: x[::-1],
-        "title": str.title,
-    }
-
-    if operation not in operations:
+    if operation == "upper":
+        return text.upper()
+    elif operation == "lower":
+        return text.lower()
+    elif operation == "reverse":
+        return text[::-1]
+    elif operation == "title":
+        return text.title()
+    else:
         raise ValueError(f"Unknown operation: {operation}")
-
-    return operations[operation](text)
 
 
 # Example with permission requirements
 @tool(
     name="admin_users", description="Administrative user operations", permission="admin"
 )
-def admin_user_operations(action: str, user_id: int = None) -> dict:
+def admin_user_operations(action: str, user_id: Optional[int] = None) -> dict:
     """Perform administrative operations on users (requires admin permission).
 
     Args:
@@ -170,7 +168,7 @@ def get_user_profile(user_id: int) -> dict:
     return profile
 
 
-def create_app():
+def create_app() -> Any:
     """Create and configure the Pyramid application with MCP support."""
 
     # Configure MCP settings
@@ -199,7 +197,7 @@ def create_app():
     return config.make_wsgi_app()
 
 
-def main():
+def main() -> None:
     """Run the example application."""
     print("🚀 Starting Simple Pyramid + MCP Example")
     print("=" * 50)

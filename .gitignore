@@ -132,6 +132,11 @@ ENV/
 env.bak/
 venv.bak/
 
+# Development environment files
+.envrc
+.envrc.local
+.python-version
+
 # Spyder project settings
 .spyderproject
 .spyproject
