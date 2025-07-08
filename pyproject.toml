@@ -14,7 +14,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -31,7 +30,7 @@ packages = [{include = "pyramid_mcp"}]
 pstdio = "pyramid_mcp.cli:pstdio"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.10"
 pyramid = "^2.0"
 marshmallow = "^3.22.0"
 click = "^8.1.0"
@@ -49,6 +48,7 @@ pre-commit = "^3.4.0"
 httpx = "^0.28.1"
 pyjwt = "^2.10.1"
 cornice = "^6.0.0"
+tox = "^4.0.0"
 
 [build-system]
 requires = ["poetry-core"]
@@ -98,7 +98,7 @@ exclude_lines = [
 
 [tool.black]
 line-length = 88
-target-version = ['py39']
+target-version = ['py310']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -121,7 +121,7 @@ line_length = 88
 known_first_party = ["pyramid_mcp"]
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
