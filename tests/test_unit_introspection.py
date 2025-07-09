@@ -376,7 +376,7 @@ def test_combined_include_exclude_patterns():
 # =============================================================================
 
 
-def test_tool_handler_creation():
+def test_tool_handler_creation(test_pyramid_request):
     """Test creation of tool handlers from route views."""
     introspector = PyramidIntrospector()
 
@@ -395,18 +395,18 @@ def test_tool_handler_creation():
 
     # Test handler creation with correct signature
     handler1 = introspector._create_route_handler(route_info, view_info, "GET")
-    result1 = handler1()
+    result1 = handler1(test_pyramid_request)
     assert isinstance(result1, dict)  # Should return MCP response format
     assert "content" in result1  # Should have content key
     assert isinstance(result1["content"], list)  # Content should be a list
 
     # Test JSON handler creation
     handler2 = introspector._create_route_handler(route_info2, view_info2, "POST")
-    result2 = handler2()
+    result2 = handler2(test_pyramid_request)
     assert isinstance(result2, dict)  # MCP response format
 
 
-def test_tool_handler_with_parameters():
+def test_tool_handler_with_parameters(test_pyramid_request):
     """Test tool handler creation with route parameters."""
     introspector = PyramidIntrospector()
 
@@ -419,9 +419,9 @@ def test_tool_handler_with_parameters():
     view_info = {"callable": param_view}
 
     handler = introspector._create_route_handler(route_info, view_info, "GET")
-
+    
     # Test handler with parameters
-    result = handler(id="123")
+    result = handler(test_pyramid_request, id="123")
     assert isinstance(result, dict)  # Should return MCP response format
     assert "content" in result  # Should have content key
     # Check that the parameter value is in the response content

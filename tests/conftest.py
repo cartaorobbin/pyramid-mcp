@@ -191,6 +191,47 @@ def dummy_request():
 
 
 @pytest.fixture
+def test_pyramid_request():
+    """Create a test pyramid request with subrequest capability for testing route handlers."""
+    from pyramid.testing import DummyRequest
+    from pyramid.response import Response
+
+    class TestPyramidRequest(DummyRequest):
+        def invoke_subrequest(self, subrequest):
+            """Simulate subrequest behavior for testing.
+            
+            This test implementation simulates the subrequest execution by:
+            1. Extracting parameters from the subrequest URL
+            2. Returning a test response based on the URL pattern
+            """
+            # Extract basic info from subrequest
+            url = subrequest.url if hasattr(subrequest, 'url') else subrequest.path_url
+            method = subrequest.method
+            
+            # Simple test responses based on URL patterns
+            if '/users/' in url and method == 'GET':
+                # Extract user ID from URL pattern
+                import re
+                match = re.search(r'/users/(\w+)', url)
+                user_id = match.group(1) if match else 'unknown'
+                return Response(f"User {user_id}")
+            elif '/users' in url and method == 'GET':
+                return Response("Users list")
+            elif '/users' in url and method == 'POST':
+                return Response("User created")
+            elif '/test' in url:
+                return Response("test response")
+            elif '/json' in url:
+                # Return a response that will be converted to JSON format
+                return Response('{"message": "json response"}')
+            else:
+                # Default response
+                return Response("test response")
+
+    return TestPyramidRequest()
+
+
+@pytest.fixture
 def protocol_handler():
     """Standalone MCP protocol handler for unit testing."""
     return MCPProtocolHandler("test-protocol", "1.0.0")

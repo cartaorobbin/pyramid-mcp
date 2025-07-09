@@ -295,10 +295,28 @@ class MCPProtocolHandler:
                 pyramid_request, context, tool.permission
             ):
                 tool_args = params.get("arguments", {})
-                result = tool.handler(**tool_args)
+                
+                # Check if this is a route-based tool that needs pyramid_request
+                # (route-based tools have a signature that accepts pyramid_request)
+                import inspect
+                try:
+                    sig = inspect.signature(tool.handler)
+                    # If handler has pyramid_request parameter, pass it
+                    if 'pyramid_request' in sig.parameters:
+                        result = tool.handler(pyramid_request, **tool_args)
+                    else:
+                        result = tool.handler(**tool_args)
+                except (ValueError, TypeError):
+                    # Fallback for handlers without introspectable signature
+                    result = tool.handler(**tool_args)
 
-                # Wrap result in MCP format
-                mcp_result = {"content": [{"type": "text", "text": str(result)}]}
+                # Handle different result formats
+                if isinstance(result, dict) and "content" in result:
+                    # Result is already in MCP format
+                    mcp_result = result
+                else:
+                    # Wrap result in MCP format
+                    mcp_result = {"content": [{"type": "text", "text": str(result)}]}
 
                 response = MCPResponse(id=request.id, result=mcp_result)
                 return response.to_dict()

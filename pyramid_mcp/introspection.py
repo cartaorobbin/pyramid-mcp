@@ -781,7 +781,7 @@ class PyramidIntrospector:
     def _create_route_handler(
         self, route_info: Dict[str, Any], view_info: Dict[str, Any], method: str
     ) -> Callable:
-        """Create a handler function that calls the original Pyramid view.
+        """Create a handler function that calls the original Pyramid view using subrequest.
 
         Args:
             route_info: Route information
@@ -791,29 +791,22 @@ class PyramidIntrospector:
         Returns:
             Handler function for MCP tool
         """
-        view_callable = view_info.get("callable")
         route_pattern = route_info.get("pattern", "")
         route_name = route_info.get("name", "")
 
-        def handler(**kwargs: Any) -> Dict[str, Any]:
-            """MCP tool handler that delegates to Pyramid view."""
+        def handler(pyramid_request: Any, **kwargs: Any) -> Dict[str, Any]:
+            """MCP tool handler that delegates to Pyramid view via subrequest."""
             try:
-                # Create a minimal request object for the view
-                request = self._create_request_for_view(kwargs, route_pattern, method)
+                # Create subrequest to call the actual route
+                subrequest = self._create_subrequest(
+                    pyramid_request, kwargs, route_pattern, method
+                )
 
-                # Call the view callable
-                if view_callable:
-                    response = view_callable(request)
+                # Execute the subrequest
+                response = pyramid_request.invoke_subrequest(subrequest)
 
-                    # Convert response to MCP format
-                    return self._convert_response_to_mcp(response)
-                else:
-                    error_response = {
-                        "error": f"No view callable found for route {route_name}",
-                        "route": route_name,
-                        "method": method,
-                    }
-                    return self._convert_response_to_mcp(error_response)
+                # Convert response to MCP format
+                return self._convert_response_to_mcp(response)
 
             except Exception as e:
                 # Return error in MCP format
@@ -826,62 +819,93 @@ class PyramidIntrospector:
 
         return handler
 
-    def _create_request_for_view(
-        self, kwargs: Dict[str, Any], route_pattern: str, method: str
+    def _create_subrequest(
+        self, 
+        pyramid_request: Any,
+        kwargs: Dict[str, Any], 
+        route_pattern: str, 
+        method: str
     ) -> Any:
-        """Create a minimal request object for calling Pyramid views.
+        """Create a subrequest to call the actual Pyramid view.
 
         Args:
+            pyramid_request: Original pyramid request
             kwargs: MCP tool arguments
             route_pattern: Route pattern (e.g., '/api/hello')
             method: HTTP method
 
         Returns:
-            Request-like object with necessary attributes
+            Subrequest object ready for execution
         """
         import re
-
-        from pyramid.testing import DummyRequest
+        import json
+        from pyramid.request import Request
 
         # Extract path parameters from route pattern
         path_params = re.findall(r"\{([^}]+)\}", route_pattern)
         path_param_names = [param.split(":")[0] for param in path_params]
 
         # Separate path parameters from other parameters
-        matchdict = {}
+        path_values = {}
         query_params = {}
         json_body = {}
 
         for key, value in kwargs.items():
             if key in path_param_names:
-                matchdict[key] = value
+                path_values[key] = value
             else:
                 if method.upper() in ["POST", "PUT", "PATCH"]:
                     json_body[key] = value
                 else:
                     query_params[key] = value
 
-        # Create a dummy request with the appropriate data
+        # Build the actual URL by replacing path parameters in the pattern
+        url = route_pattern
+        for param_name, param_value in path_values.items():
+            # Replace {param} and {param:regex} patterns with actual values
+            url = re.sub(
+                rf"\{{{param_name}(?::[^}}]+)?\}}", 
+                str(param_value), 
+                url
+            )
+
+        # Add query parameters to URL
+        if query_params:
+            from urllib.parse import urlencode
+            query_string = urlencode(query_params)
+            url = f"{url}?{query_string}"
+
+        # Create the subrequest
+        subrequest = Request.blank(url)
+        subrequest.method = method.upper()
+
+        # Set request body for POST/PUT/PATCH requests
         if method.upper() in ["POST", "PUT", "PATCH"] and json_body:
-            import json
+            subrequest.body = json.dumps(json_body).encode('utf-8')
+            subrequest.content_type = "application/json"
 
-            # For POST requests with JSON body, create request with JSON data
-            request = DummyRequest(json_body=json_body)
-            # Set body as string for DummyRequest (not bytes)
-            request.body = json.dumps(json_body)
-            # Use environ dict to set content type
-            if not hasattr(request, "environ"):
-                request.environ = {}
-            request.environ["CONTENT_TYPE"] = "application/json"
-        else:
-            # For GET requests or requests without body
-            request = DummyRequest()
+        # Copy important headers from original request
+        if hasattr(pyramid_request, 'headers'):
+            # Copy relevant headers (like Authorization, User-Agent, etc.)
+            for header_name in ['Authorization', 'User-Agent', 'Accept']:
+                if header_name in pyramid_request.headers:
+                    subrequest.headers[header_name] = pyramid_request.headers[header_name]
 
-        request.method = method.upper()
-        request.matchdict = matchdict
-        request.params = query_params
+        return subrequest
 
-        return request
+    def _create_request_for_view(
+        self, kwargs: Dict[str, Any], route_pattern: str, method: str
+    ) -> Any:
+        """DEPRECATED: Use _create_subrequest instead.
+        
+        This method is kept for backward compatibility but should not be used
+        for new code. Use subrequest mechanism instead.
+        """
+        # This method is deprecated and should not be used
+        # Keeping it for backward compatibility only
+        raise NotImplementedError(
+            "This method is deprecated. Use subrequest mechanism instead."
+        )
 
     def _convert_response_to_mcp(self, response: Any) -> Dict[str, Any]:
         """Convert Pyramid view response to MCP tool response format.
