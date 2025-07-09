@@ -11,7 +11,6 @@ This module tests:
 Uses enhanced fixtures from conftest.py for clean, non-duplicated test setup.
 """
 
-
 from typing import Any
 
 from pyramid.config import Configurator
@@ -419,7 +418,7 @@ def test_tool_handler_with_parameters(test_pyramid_request):
     view_info = {"callable": param_view}
 
     handler = introspector._create_route_handler(route_info, view_info, "GET")
-    
+
     # Test handler with parameters
     result = handler(test_pyramid_request, id="123")
     assert isinstance(result, dict)  # Should return MCP response format

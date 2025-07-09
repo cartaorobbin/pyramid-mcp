@@ -68,7 +68,7 @@ def test_mcp_calls_protected_route_without_jwt_fails(testapp_with_jwt_auth):
             "method": "tools/call",
             "params": {"name": "get_protected_user", "arguments": {"id": 1}},
             "id": 1,
-        }
+        },
         # No Authorization header
     )
 
@@ -100,7 +100,7 @@ def test_mcp_calls_public_route_always_succeeds(testapp_with_jwt_auth):
             "method": "tools/call",
             "params": {"name": "get_public_info", "arguments": {}},
             "id": 1,
-        }
+        },
         # No Authorization header needed for public routes
     )
 

@@ -750,9 +750,9 @@ class PyramidIntrospector:
 
                     # Add description based on context
                     if method.upper() in ["POST", "PUT", "PATCH"]:
-                        param_schema[
-                            "description"
-                        ] = f"Request body parameter: {param_name}"
+                        param_schema["description"] = (
+                            f"Request body parameter: {param_name}"
+                        )
                     else:
                         param_schema["description"] = f"Query parameter: {param_name}"
 
@@ -820,11 +820,11 @@ class PyramidIntrospector:
         return handler
 
     def _create_subrequest(
-        self, 
+        self,
         pyramid_request: Any,
-        kwargs: Dict[str, Any], 
-        route_pattern: str, 
-        method: str
+        kwargs: Dict[str, Any],
+        route_pattern: str,
+        method: str,
     ) -> Any:
         """Create a subrequest to call the actual Pyramid view.
 
@@ -837,8 +837,9 @@ class PyramidIntrospector:
         Returns:
             Subrequest object ready for execution
         """
-        import re
         import json
+        import re
+
         from pyramid.request import Request
 
         # Extract path parameters from route pattern
@@ -863,15 +864,12 @@ class PyramidIntrospector:
         url = route_pattern
         for param_name, param_value in path_values.items():
             # Replace {param} and {param:regex} patterns with actual values
-            url = re.sub(
-                rf"\{{{param_name}(?::[^}}]+)?\}}", 
-                str(param_value), 
-                url
-            )
+            url = re.sub(rf"\{{{param_name}(?::[^}}]+)?\}}", str(param_value), url)
 
         # Add query parameters to URL
         if query_params:
             from urllib.parse import urlencode
+
             query_string = urlencode(query_params)
             url = f"{url}?{query_string}"
 
@@ -881,15 +879,17 @@ class PyramidIntrospector:
 
         # Set request body for POST/PUT/PATCH requests
         if method.upper() in ["POST", "PUT", "PATCH"] and json_body:
-            subrequest.body = json.dumps(json_body).encode('utf-8')
+            subrequest.body = json.dumps(json_body).encode("utf-8")
             subrequest.content_type = "application/json"
 
         # Copy important headers from original request
-        if hasattr(pyramid_request, 'headers'):
+        if hasattr(pyramid_request, "headers"):
             # Copy relevant headers (like Authorization, User-Agent, etc.)
-            for header_name in ['Authorization', 'User-Agent', 'Accept']:
+            for header_name in ["Authorization", "User-Agent", "Accept"]:
                 if header_name in pyramid_request.headers:
-                    subrequest.headers[header_name] = pyramid_request.headers[header_name]
+                    subrequest.headers[header_name] = pyramid_request.headers[
+                        header_name
+                    ]
 
         return subrequest
 
@@ -897,7 +897,7 @@ class PyramidIntrospector:
         self, kwargs: Dict[str, Any], route_pattern: str, method: str
     ) -> Any:
         """DEPRECATED: Use _create_subrequest instead.
-        
+
         This method is kept for backward compatibility but should not be used
         for new code. Use subrequest mechanism instead.
         """

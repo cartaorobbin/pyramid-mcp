@@ -329,6 +329,55 @@ poetry run pytest -m "not slow"     # Skip slow tests
 poetry run pytest --cov-report=html # Generate HTML coverage report
 ```
 
+
+#### Core Testing Principles
+
+##### ⚠️ CRITICAL: NO CONDITIONAL LOGIC IN TESTS
+**NEVER use conditional logic in tests** - This is a STRICT PROHIBITION:
+
+- **❌ NO `if` statements** - No `if condition:` or `if/else` blocks
+- **❌ NO `try/except` blocks** - No exception handling in tests
+- **❌ NO loops** - No `for`, `while`, or list comprehensions
+- **❌ NO ternary operators** - No `value if condition else other_value`
+
+```python
+# ❌ FORBIDDEN - Never do this in tests
+def test_bad_example():
+    response = make_request()
+    if response.status_code == 200:
+        assert "success" in response.json
+    else:
+        assert "error" in response.json
+
+# ✅ CORRECT - Write separate focused tests
+def test_successful_request_returns_success():
+    response = make_successful_request()
+    assert response.status_code == 200
+    assert "success" in response.json
+
+def test_failed_request_returns_error():
+    response = make_failed_request()
+    assert response.status_code == 400
+    assert "error" in response.json
+```
+
+**Why this rule exists:**
+- Tests should be predictable and deterministic
+- Each test should verify exactly one behavior
+- Conditional logic makes tests complex and harder to debug
+- Split complex scenarios into multiple focused tests
+
+**One test, one purpose** - Each test should verify exactly one behavior.
+
+**Simple assertions** - Test what should happen, not what shouldn't happen.
+
+**Use descriptive test names** - Name should describe the scenario and expected outcome.
+
+**Use fixtures for setup** - Don't create test data inside test functions. The fixture should live at conftest.py except for the fixture that setup the pyramid. If the test setup a pyramid please keep the fixture at the same file.
+
+**Check the fixtures** - Before create a new fixture check if a similar fixture exists.
+
+
 ### Documentation Framework
 
 #### MkDocs - Primary Documentation Tool
@@ -356,6 +405,50 @@ plugins:
         python:
           options:
             docstring_style: google
+```
+
+### Cornice Schema Validation
+
+#### ⭐ CRITICAL: Marshmallow Schema Validation with Cornice
+**When using Marshmallow schemas with Cornice, ALWAYS use the proper validator.**
+
+**Required Pattern:**
+```python
+from cornice import Service
+from cornice.validators import marshmallow_body_validator
+from marshmallow import Schema, fields
+
+class CreateUserSchema(Schema):
+    name = fields.Str(required=True)
+    email = fields.Email(required=True)
+
+@service.post(schema=CreateUserSchema(), validators=(marshmallow_body_validator,))
+def create_user(request):
+    # Access validated data via request.validated
+    name = request.validated['name']
+    email = request.validated['email']
+    return {"user": "created"}
+```
+
+**Key Requirements:**
+- **Import validator**: `from cornice.validators import marshmallow_body_validator`
+- **Set schema AND validators**: Both `schema=` and `validators=` parameters required
+- **Access via request.validated**: Validated data available in `request.validated`
+- **Proper tuple syntax**: `validators=(marshmallow_body_validator,)` with trailing comma
+
+**Common Mistake:**
+```python
+# ❌ WRONG - Schema alone is not enough
+@service.post(schema=CreateUserSchema())
+def create_user(request):
+    # This will NOT validate the request
+    pass
+
+# ✅ CORRECT - Include the validator
+@service.post(schema=CreateUserSchema(), validators=(marshmallow_body_validator,))
+def create_user(request):
+    # Now validation works correctly
+    pass
 ```
 
 ### Forbidden Libraries and Patterns

@@ -2,6 +2,7 @@
 Test MCP client interactions with pyramid-mcp using WebTest.
 Tests how a real MCP client would interact with auto-discovered tools.
 """
+
 from typing import Any, Dict, Optional
 
 import pytest

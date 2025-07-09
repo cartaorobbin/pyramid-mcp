@@ -211,7 +211,8 @@ def pstdio(ini: str, app: str, debug: bool) -> None:
                                 click.echo("   ✅ Tool executed (no content)", err=True)
                         else:
                             click.echo(
-                                f"   ✅ Success: {json.dumps(result)[:100]}...", err=True
+                                f"   ✅ Success: {json.dumps(result)[:100]}...",
+                                err=True,
                             )
 
                     if debug:
@@ -253,9 +254,11 @@ def pstdio(ini: str, app: str, debug: bool) -> None:
 
                     error_response = {
                         "jsonrpc": "2.0",
-                        "id": request_data.get("id")
-                        if "request_data" in locals()
-                        else None,
+                        "id": (
+                            request_data.get("id")
+                            if "request_data" in locals()
+                            else None
+                        ),
                         "error": {"code": -32603, "message": "Internal error"},
                     }
                     print(json.dumps(error_response), flush=True)

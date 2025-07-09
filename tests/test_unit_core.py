@@ -10,7 +10,6 @@ This module tests:
 Uses enhanced fixtures from conftest.py for clean, non-duplicated test setup.
 """
 
-
 from pyramid_mcp import PyramidMCP, __version__
 from pyramid_mcp.core import MCPConfiguration
 from pyramid_mcp.introspection import PyramidIntrospector

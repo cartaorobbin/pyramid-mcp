@@ -428,9 +428,11 @@ def calculator_view(request):
             "result": f"Advanced {operation} calculation completed",
             "complexity": "high",
             "requires_admin": True,
-            "performed_by": request._authenticated_user["username"]
-            if request._authenticated_user
-            else "unknown",
+            "performed_by": (
+                request._authenticated_user["username"]
+                if request._authenticated_user
+                else "unknown"
+            ),
         }
 
     # Basic operations
@@ -456,9 +458,11 @@ def calculator_view(request):
         "a": a,
         "b": b,
         "result": result,
-        "performed_by": request._authenticated_user["username"]
-        if request._authenticated_user
-        else "unknown",
+        "performed_by": (
+            request._authenticated_user["username"]
+            if request._authenticated_user
+            else "unknown"
+        ),
     }
 
 

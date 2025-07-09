@@ -295,14 +295,15 @@ class MCPProtocolHandler:
                 pyramid_request, context, tool.permission
             ):
                 tool_args = params.get("arguments", {})
-                
+
                 # Check if this is a route-based tool that needs pyramid_request
                 # (route-based tools have a signature that accepts pyramid_request)
                 import inspect
+
                 try:
                     sig = inspect.signature(tool.handler)
                     # If handler has pyramid_request parameter, pass it
-                    if 'pyramid_request' in sig.parameters:
+                    if "pyramid_request" in sig.parameters:
                         result = tool.handler(pyramid_request, **tool_args)
                     else:
                         result = tool.handler(**tool_args)
