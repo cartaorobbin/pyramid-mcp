@@ -192,7 +192,7 @@ def dummy_request():
 
 @pytest.fixture
 def test_pyramid_request():
-    """Create a test pyramid request with subrequest capability for testing route handlers."""
+    """Create a test pyramid request with subrequest capability for testing."""
     from pyramid.response import Response
     from pyramid.testing import DummyRequest
 
@@ -317,7 +317,7 @@ def expired_jwt_token():
         "username": "testuser",
         "roles": ["authenticated"],
         "exp": datetime.datetime.utcnow()
-        - datetime.timedelta(hours=1),  # Expired 1 hour ago
+        - datetime.timedelta(hours=1),  # Expired 1h ago
         "iat": datetime.datetime.utcnow() - datetime.timedelta(hours=2),
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)

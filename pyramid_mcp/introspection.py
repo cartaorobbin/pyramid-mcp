@@ -781,7 +781,7 @@ class PyramidIntrospector:
     def _create_route_handler(
         self, route_info: Dict[str, Any], view_info: Dict[str, Any], method: str
     ) -> Callable:
-        """Create a handler function that calls the original Pyramid view using subrequest.
+        """Create a handler function that calls the Pyramid view via subrequest.
 
         Args:
             route_info: Route information
@@ -806,7 +806,7 @@ class PyramidIntrospector:
                 response = pyramid_request.invoke_subrequest(subrequest)
 
                 # Convert response to MCP format
-                return self._convert_response_to_mcp(response)
+                return self._convert_response_to_mcp(response, view_info)
 
             except Exception as e:
                 # Return error in MCP format
@@ -907,11 +907,14 @@ class PyramidIntrospector:
             "This method is deprecated. Use subrequest mechanism instead."
         )
 
-    def _convert_response_to_mcp(self, response: Any) -> Dict[str, Any]:
+    def _convert_response_to_mcp(
+        self, response: Any, view_info: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """Convert Pyramid view response to MCP tool response format.
 
         Args:
             response: Pyramid view response (dict, string, or Response object)
+            view_info: Optional view information for content type detection
 
         Returns:
             MCP-compatible response
@@ -920,18 +923,63 @@ class PyramidIntrospector:
 
         from pyramid.response import Response
 
+        # Helper function to check if we should return structured JSON
+        def should_return_structured_json(
+            response_data: Any, content_type: Optional[str] = None
+        ) -> bool:
+            """Determine if response should be returned as structured JSON."""
+            # Check if response is a dictionary (likely JSON)
+            if isinstance(response_data, dict):
+                return True
+
+            # Check if content type indicates JSON
+            if content_type and "application/json" in content_type.lower():
+                return True
+
+            # Check view info for JSON renderer or content type
+            if view_info and isinstance(view_info, dict):
+                # Check cornice metadata for JSON content type
+                cornice_metadata = view_info.get("cornice_metadata", {})
+                if cornice_metadata.get("content_type") == "application/json":
+                    return True
+
+                # Check method-specific metadata
+                method_specific = cornice_metadata.get("method_specific", {})
+                for method_data in method_specific.values():
+                    if method_data.get("content_type") == "application/json":
+                        return True
+                    if method_data.get("renderer") == "json":
+                        return True
+
+                # Check renderer information
+                renderer = view_info.get("renderer", {})
+                if isinstance(renderer, dict) and renderer.get("type") == "json":
+                    return True
+
+            return False
+
         # Handle different response types
         if isinstance(response, dict):
             # Direct dictionary response (most common for JSON APIs)
-            return {
-                "content": [{"type": "text", "text": json.dumps(response, indent=2)}]
-            }
+            if should_return_structured_json(response):
+                return {"content": [{"type": "application/json", "data": response}]}
+            else:
+                return {
+                    "content": [
+                        {"type": "text", "text": json.dumps(response, indent=2)}
+                    ]
+                }
         elif isinstance(response, str):
             # String response
             return {"content": [{"type": "text", "text": response}]}
         elif isinstance(response, Response):
             # Pyramid Response object
             try:
+                # Get the content type from the response
+                content_type = (
+                    response.content_type if hasattr(response, "content_type") else None
+                )
+
                 # Get the body content
                 if hasattr(response, "text"):
                     content = response.text
@@ -944,14 +992,20 @@ class PyramidIntrospector:
                 else:
                     content = str(response)
 
-                # Try to parse as JSON for pretty formatting
+                # Try to parse as JSON
                 try:
                     parsed = json.loads(content)
-                    return {
-                        "content": [
-                            {"type": "text", "text": json.dumps(parsed, indent=2)}
-                        ]
-                    }
+                    # Check if we should return structured JSON
+                    if should_return_structured_json(parsed, content_type):
+                        return {
+                            "content": [{"type": "application/json", "data": parsed}]
+                        }
+                    else:
+                        return {
+                            "content": [
+                                {"type": "text", "text": json.dumps(parsed, indent=2)}
+                            ]
+                        }
                 except json.JSONDecodeError:
                     return {"content": [{"type": "text", "text": str(content)}]}
 
@@ -960,8 +1014,15 @@ class PyramidIntrospector:
         elif hasattr(response, "json") and callable(response.json):
             # Response object with json() method
             try:
-                json_data = json.dumps(response.json(), indent=2)
-                return {"content": [{"type": "text", "text": json_data}]}
+                parsed_json = response.json()
+                # Check if we should return structured JSON
+                if should_return_structured_json(parsed_json):
+                    return {
+                        "content": [{"type": "application/json", "data": parsed_json}]
+                    }
+                else:
+                    json_data = json.dumps(parsed_json, indent=2)
+                    return {"content": [{"type": "text", "text": json_data}]}
             except Exception:
                 return {"content": [{"type": "text", "text": str(response)}]}
         elif hasattr(response, "text"):
@@ -973,11 +1034,17 @@ class PyramidIntrospector:
                 body = response.body
                 if isinstance(body, bytes):
                     body = body.decode("utf-8")
-                # Try to parse as JSON for pretty formatting
+                # Try to parse as JSON for content type detection
                 try:
                     parsed = json.loads(body)
-                    json_data = json.dumps(parsed, indent=2)
-                    return {"content": [{"type": "text", "text": json_data}]}
+                    # Check if we should return structured JSON
+                    if should_return_structured_json(parsed):
+                        return {
+                            "content": [{"type": "application/json", "data": parsed}]
+                        }
+                    else:
+                        json_data = json.dumps(parsed, indent=2)
+                        return {"content": [{"type": "text", "text": json_data}]}
                 except json.JSONDecodeError:
                     return {"content": [{"type": "text", "text": str(body)}]}
             except Exception:

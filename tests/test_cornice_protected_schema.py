@@ -113,14 +113,19 @@ def test_cornice_service_with_schema_via_mcp(pyramid_config_with_service):
     assert "content" in result
     assert len(result["content"]) == 1
 
-    # Parse the actual view response to test the business logic
-    import json
+    # The response should now be structured JSON instead of text
+    content_item = result["content"][0]
 
-    # Debug: Print what we actually got
-    text_content = result["content"][0]["text"]
-    print(f"Raw response text: {text_content}")
+    # Check if we got structured JSON (new format) or text (old format)
+    if content_item.get("type") == "application/json":
+        # New structured JSON format
+        view_response = content_item["data"]
+    else:
+        # Fallback to old text format for backward compatibility
+        import json
 
-    view_response = json.loads(text_content)
+        text_content = content_item["text"]
+        view_response = json.loads(text_content)
 
     # Test the actual view return value
     assert "product" in view_response
