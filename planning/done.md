@@ -48,3 +48,54 @@ Successfully created a comprehensive test demonstrating Cornice service integrat
 
 ## Previous Completed Tasks
 (Add historical tasks below this line) 
+
+### [2024-12-19] Pyramid_tm Transaction Sharing Support
+
+**Status**: DONE ✅ (Tests Passing)
+**Assigned**: AI Assistant
+**Estimated Time**: 2 hours (actual)
+**Related Issue**: User request for transaction sharing in subrequests
+
+#### Plan
+- [x] Analyze current subrequest implementation
+- [x] Implement transaction sharing between parent request and subrequest
+- [x] Add method to detect if pyramid_tm is active
+- [x] Configure subrequest to share transaction context
+- [x] Update method naming per user feedback
+- [x] Add pyramid_tm as dev dependency
+- [x] Create comprehensive tests
+
+#### Progress
+- [x] Added `configure_transaction` method to handle pyramid_tm integration
+- [x] Updated `_create_subrequest` to call transaction configuration
+- [x] Removed unnecessary `_should_use_tweens_for_subrequest` method
+- [x] Simplified implementation to work with any transaction manager
+- [x] Added pyramid_tm as dev dependency using `poetry add --group dev`
+- [x] Created test fixtures and comprehensive test coverage
+- [x] All tests passing
+
+#### Final Implementation
+- **Transaction sharing**: Simplified approach that copies `request.tm` from parent to subrequest
+- **No complex detection**: Works with pyramid_tm, manual transaction management, or any transaction manager
+- **Error handling**: Graceful handling of missing transaction managers
+- **Method naming**: Clean `configure_transaction` method name
+- **Test coverage**: Two comprehensive tests covering both integration and unit testing
+
+#### Key Features
+- ✅ **Automatic transaction sharing**: Subrequests inherit parent request's transaction context
+- ✅ **Universal compatibility**: Works with pyramid_tm and manual transaction management
+- ✅ **Simple implementation**: No complex pyramid_tm detection logic needed
+- ✅ **Full test coverage**: Comprehensive tests ensure functionality works correctly
+- ✅ **Proper dependency management**: Added pyramid_tm using recommended `poetry add --group dev`
+
+#### Test Results
+```
+tests/test_pyramid_tm_integration.py::test_pyramid_tm_transaction_sharing PASSED
+tests/test_pyramid_tm_integration.py::test_configure_transaction_method PASSED
+```
+
+---
+
+## 📋 Historical Completed Tasks
+
+*Previous completed tasks will be listed here...* 

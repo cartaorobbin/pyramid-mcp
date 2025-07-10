@@ -5,9 +5,9 @@ description = "Model Context Protocol (MCP) integration for Pyramid web framewor
 authors = ["pyramid-mcp contributors"]
 license = "MIT"
 readme = "README.md"
-homepage = "https://github.com/your-org/pyramid-mcp"
-repository = "https://github.com/your-org/pyramid-mcp"
-documentation = "https://your-org.github.io/pyramid-mcp"
+homepage = "https://github.com/cartaorobbin/pyramid-mcp"
+repository = "https://github.com/cartaorobbin/pyramid-mcp"
+documentation = "https://github.com/cartaorobbin/pyramid-mc"
 keywords = ["pyramid", "mcp", "model-context-protocol", "web", "framework", "ai", "llm"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -49,6 +49,7 @@ httpx = "^0.28.1"
 pyjwt = "^2.10.1"
 cornice = "^6.0.0"
 tox = "^4.0.0"
+pyramid-tm = "^2.6"
 
 [build-system]
 requires = ["poetry-core"]

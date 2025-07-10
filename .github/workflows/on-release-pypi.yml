@@ -1,43 +1,72 @@
-name: release-main
+name: Publish to PyPI
 
 on:
   release:
     types: [published]
-    branches: [main]
 
 permissions:
-  id-token: write   # This is required for requesting the JWT
+  id-token: write   # Required for trusted publishing to PyPI
   contents: read
 
-
 jobs:
-  
   publish:
+    name: Publish to PyPI
     runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/pyramid-mcp/
+    
     steps:
-      - name: Check out
-        uses: actions/checkout@v3
+      - name: Check out repository
+        uses: actions/checkout@v4
 
-      - name: Set up the environment
+      - name: Set up Python environment
         uses: ./.github/actions/setup-poetry-env
+        with:
+          python-version: "3.11"
 
-      - name: Export tag
-        id: vars
-        run: echo tag=${GITHUB_REF#refs/*/} >> $GITHUB_OUTPUT
+      - name: Extract version from release tag
+        id: version
+        run: |
+          # Extract version from tag (remove 'v' prefix if present)
+          VERSION=${GITHUB_REF#refs/tags/}
+          VERSION=${VERSION#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Publishing version: $VERSION"
 
-      - name: Build
+      - name: Update version in pyproject.toml
+        run: |
+          poetry version ${{ steps.version.outputs.version }}
+          echo "Updated pyproject.toml version to ${{ steps.version.outputs.version }}"
+
+      - name: Verify version consistency
+        run: |
+          # Check that the version in pyproject.toml matches the tag
+          PYPROJECT_VERSION=$(poetry version --short)
+          TAG_VERSION=${{ steps.version.outputs.version }}
+          if [ "$PYPROJECT_VERSION" != "$TAG_VERSION" ]; then
+            echo "❌ Version mismatch: pyproject.toml has $PYPROJECT_VERSION but tag is $TAG_VERSION"
+            exit 1
+          fi
+          echo "✅ Version consistency verified: $PYPROJECT_VERSION"
+
+      - name: Build package
         run: |
           source .venv/bin/activate
-          poetry version $RELEASE_VERSION
           make build
-        env:
-          RELEASE_VERSION: ${{ steps.vars.outputs.tag }}
-      
-      - name: Publish to Pypi
-        env:
-          PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
+          echo "✅ Package built successfully"
+
+      - name: Verify package contents
         run: |
           source .venv/bin/activate
-          make publish
+          poetry run pip install twine
+          twine check dist/*
+          echo "✅ Package verification passed"
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          print-hash: true
+          verbose: true
 
 

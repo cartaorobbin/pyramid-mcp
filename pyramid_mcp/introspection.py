@@ -750,9 +750,9 @@ class PyramidIntrospector:
 
                     # Add description based on context
                     if method.upper() in ["POST", "PUT", "PATCH"]:
-                        param_schema["description"] = (
-                            f"Request body parameter: {param_name}"
-                        )
+                        param_schema[
+                            "description"
+                        ] = f"Request body parameter: {param_name}"
                     else:
                         param_schema["description"] = f"Query parameter: {param_name}"
 
@@ -877,6 +877,10 @@ class PyramidIntrospector:
         subrequest = Request.blank(url)
         subrequest.method = method.upper()
 
+        # 🌍 ENVIRON SHARING SUPPORT
+        # Copy parent request environ to subrequest for better context preservation
+        self._copy_request_environ(pyramid_request, subrequest)
+
         # Set request body for POST/PUT/PATCH requests
         if method.upper() in ["POST", "PUT", "PATCH"] and json_body:
             subrequest.body = json.dumps(json_body).encode("utf-8")
@@ -891,7 +895,72 @@ class PyramidIntrospector:
                         header_name
                     ]
 
+        # 🔄 PYRAMID_TM TRANSACTION SHARING SUPPORT
+        # Ensure subrequest shares the same transaction context as the parent request
+        self.configure_transaction(pyramid_request, subrequest)
+
         return subrequest
+
+    def configure_transaction(self, pyramid_request: Any, subrequest: Any) -> None:
+        """Configure transaction sharing between parent request and subrequest.
+
+        When pyramid_tm is active on the parent request, we need to ensure that
+        subrequests share the same transaction context rather than creating
+        separate transactions.
+
+        Args:
+            pyramid_request: The original pyramid request
+            subrequest: The subrequest to configure
+        """
+        # Share transaction manager from parent request if it exists
+        # This works both with pyramid_tm and manual transaction management
+        if hasattr(pyramid_request, "tm") and pyramid_request.tm is not None:
+            # Set the same transaction manager on the subrequest
+            subrequest.tm = pyramid_request.tm
+
+            # Also copy the registry reference to ensure proper integration
+            if hasattr(pyramid_request, "registry"):
+                subrequest.registry = pyramid_request.registry
+
+    def _copy_request_environ(self, pyramid_request: Any, subrequest: Any) -> None:
+        """Copy parent request environ to subrequest for better context preservation.
+
+        This ensures that subrequests inherit important context from the parent request
+        including environment variables, WSGI environ data, and middleware-added
+        context.
+
+        Args:
+            pyramid_request: The original pyramid request
+            subrequest: The subrequest to configure
+        """
+        # Request-specific environ variables that should NOT be copied
+        # These should remain specific to the subrequest
+        request_specific_keys = {
+            "PATH_INFO",
+            "SCRIPT_NAME",
+            "REQUEST_METHOD",
+            "QUERY_STRING",
+            "CONTENT_TYPE",
+            "CONTENT_LENGTH",
+            "REQUEST_URI",
+            "RAW_URI",
+            "wsgi.input",
+            "wsgi.errors",
+            "pyramid.request",
+            "pyramid.route",
+            "pyramid.matched_route",
+            "pyramid.matchdict",
+            "pyramid.request.method",
+            "pyramid.request.path",
+            "pyramid.request.path_info",
+            "pyramid.request.script_name",
+            "pyramid.request.query_string",
+        }
+
+        # Copy all parent environ except request-specific variables
+        for key, value in pyramid_request.environ.items():
+            if key not in request_specific_keys:
+                subrequest.environ[key] = value
 
     def _create_request_for_view(
         self, kwargs: Dict[str, Any], route_pattern: str, method: str

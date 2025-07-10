@@ -53,6 +53,7 @@ config.include('pyramid_mcp')
 ## Documentation
 
 - **[Integration Guide](integration.md)** - Connect with Claude, OpenAI, and other AI platforms
+- **[Publishing Guide](publishing.md)** - How to publish releases to PyPI with GitHub Actions
 - **[API Reference](modules.md)** - Complete API documentation
 - **[Examples](../examples/)** - Working examples and tutorials
 

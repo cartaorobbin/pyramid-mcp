@@ -1,0 +1,137 @@
+name: Test PyPI Publishing
+
+on:
+  pull_request:
+    paths:
+      - 'pyproject.toml'
+      - 'pyramid_mcp/version.py'
+      - '.github/workflows/on-release-pypi.yml'
+  workflow_dispatch:
+    inputs:
+      test_version:
+        description: 'Test version to publish (e.g., 0.1.0.dev1)'
+        required: true
+        default: '0.1.0.dev1'
+
+permissions:
+  id-token: write   # Required for trusted publishing to TestPyPI
+  contents: read
+
+jobs:
+  test-build:
+    name: Test Package Build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python environment
+        uses: ./.github/actions/setup-poetry-env
+        with:
+          python-version: "3.11"
+
+      - name: Run quality checks
+        run: |
+          source .venv/bin/activate
+          make check
+
+      - name: Run tests
+        run: |
+          source .venv/bin/activate
+          make test
+
+      - name: Set test version
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          poetry version ${{ github.event.inputs.test_version }}
+          echo "Test version set to ${{ github.event.inputs.test_version }}"
+
+      - name: Build package
+        run: |
+          source .venv/bin/activate
+          make build
+          echo "✅ Package built successfully"
+
+      - name: Verify package contents
+        run: |
+          source .venv/bin/activate
+          poetry run pip install twine
+          twine check dist/*
+          echo "✅ Package verification passed"
+
+      - name: List package contents
+        run: |
+          echo "📦 Package contents:"
+          ls -la dist/
+          echo ""
+          echo "📋 Package metadata:"
+          python -c "
+          import tarfile
+          import zipfile
+          import os
+          
+          for f in os.listdir('dist'):
+              print(f'=== {f} ===')
+              if f.endswith('.tar.gz'):
+                  with tarfile.open(f'dist/{f}', 'r:gz') as tar:
+                      print('Files:', tar.getnames()[:10])
+              elif f.endswith('.whl'):
+                  with zipfile.ZipFile(f'dist/{f}', 'r') as zip:
+                      print('Files:', zip.namelist()[:10])
+              print()
+          "
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-dist
+          path: dist/
+          retention-days: 7
+
+  test-publish:
+    name: Test Publish to TestPyPI
+    runs-on: ubuntu-latest
+    needs: test-build
+    if: github.event_name == 'workflow_dispatch'
+    environment:
+      name: test-pypi
+      url: https://test.pypi.org/p/pyramid-mcp/
+    
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: package-dist
+          path: dist/
+
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          print-hash: true
+          verbose: true
+
+      - name: Test installation from TestPyPI
+        run: |
+          # Wait a moment for the package to be available
+          sleep 30
+          
+          # Create a test environment
+          python -m venv test-env
+          source test-env/bin/activate
+          
+          # Install from TestPyPI
+          pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ pyramid-mcp
+          
+          # Test basic import
+          python -c "
+          import pyramid_mcp
+          print(f'✅ Successfully imported pyramid_mcp version {pyramid_mcp.__version__}')
+          
+          # Test basic functionality
+          from pyramid_mcp.core import tool
+          print('✅ Core functionality accessible')
+          "
+          
+          echo "✅ TestPyPI installation test passed" 

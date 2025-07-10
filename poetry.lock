@@ -809,6 +809,26 @@ docs = ["Sphinx (>=3.0.0)", "docutils", "pylons-sphinx-latesturl", "pylons-sphin
 testing = ["coverage", "pytest (>=5.4.2)", "pytest-cov", "webtest (>=1.3.1)", "zope.component (>=4.0)"]
 
 [[package]]
+name = "pyramid-tm"
+version = "2.6"
+description = "A package which allows Pyramid requests to join the active transaction"
+optional = false
+python-versions = ">=3.9"
+groups = ["dev"]
+files = [
+    {file = "pyramid_tm-2.6-py3-none-any.whl", hash = "sha256:665a4ee1d6f41f0c7ffa5e54d9b01d70cd3e8e5bd76277529acbdd6b6bd6fe9e"},
+    {file = "pyramid_tm-2.6.tar.gz", hash = "sha256:8148d2191285280c9a0c23e6df1018b3514b4cef02115b872dd0350a4d78709c"},
+]
+
+[package.dependencies]
+pyramid = ">=1.5"
+transaction = ">=2.0"
+
+[package.extras]
+docs = ["Sphinx (>=1.8.1)", "pylons-sphinx-themes (>=1.0.9)"]
+testing = ["WebTest", "coverage (>=5.0)", "pytest", "pytest-cov"]
+
+[[package]]
 name = "pytest"
 version = "7.4.4"
 description = "pytest: simple powerful testing with Python"
@@ -1049,6 +1069,25 @@ virtualenv = ">=20.31"
 test = ["devpi-process (>=1.0.2)", "pytest (>=8.3.4)", "pytest-mock (>=3.14)"]
 
 [[package]]
+name = "transaction"
+version = "5.0"
+description = "Transaction management for Python"
+optional = false
+python-versions = ">=3.8"
+groups = ["dev"]
+files = [
+    {file = "transaction-5.0-py3-none-any.whl", hash = "sha256:b4c0b2d49a042d86235fa76531c3356b66d7635bb0e9f29ba2512915fc7b7a42"},
+    {file = "transaction-5.0.tar.gz", hash = "sha256:106e7bd782bcc0cb5119fc9225b0c9a71dfc53adb938be905223adaef22b1174"},
+]
+
+[package.dependencies]
+"zope.interface" = "*"
+
+[package.extras]
+docs = ["Sphinx", "repoze.sphinx.autointerface"]
+testing = ["coverage"]
+
+[[package]]
 name = "translationstring"
 version = "1.4"
 description = "Utility library for i18n relied on by various Repoze and Pyramid packages"
@@ -1245,4 +1284,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "d023f8cd1bd8781b32f42b4afdabbf286c7d629e922023c999437f5a99852825"
+content-hash = "f85418832bd966d6b286b9bac01ad19a38bd0a16cdffba2397e1e7d5be258363"
