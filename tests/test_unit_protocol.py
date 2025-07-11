@@ -367,3 +367,85 @@ def test_handle_notifications_initialized_with_id(protocol_handler, dummy_reques
     assert (
         response is handler.NO_RESPONSE
     ), f"Expected NO_RESPONSE sentinel but got: {response}"
+
+
+def test_tool_to_dict_always_includes_input_schema():
+    """Test that MCPTool.to_dict() always includes inputSchema field."""
+    # Test tool with explicit inputSchema
+    tool_with_schema = MCPTool(
+        name="test_tool",
+        description="Test tool",
+        input_schema={
+            "type": "object",
+            "properties": {"param": {"type": "string"}},
+            "required": ["param"],
+        },
+    )
+
+    result = tool_with_schema.to_dict()
+    assert "inputSchema" in result
+    assert result["inputSchema"]["type"] == "object"
+    assert "param" in result["inputSchema"]["properties"]
+
+    # Test tool with None inputSchema (should get default empty schema)
+    tool_without_schema = MCPTool(
+        name="test_tool", description="Test tool", input_schema=None
+    )
+
+    result = tool_without_schema.to_dict()
+    assert "inputSchema" in result
+    assert result["inputSchema"]["type"] == "object"
+    assert result["inputSchema"]["properties"] == {}
+    assert result["inputSchema"]["required"] == []
+    assert result["inputSchema"]["additionalProperties"] is False
+
+    # Test tool with missing inputSchema (should get default empty schema)
+    tool_no_schema = MCPTool(
+        name="test_tool",
+        description="Test tool"
+        # No input_schema parameter at all
+    )
+
+    result = tool_no_schema.to_dict()
+    assert "inputSchema" in result
+    assert result["inputSchema"]["type"] == "object"
+    assert result["inputSchema"]["properties"] == {}
+    assert result["inputSchema"]["required"] == []
+    assert result["inputSchema"]["additionalProperties"] is False
+
+
+def test_tools_list_all_have_input_schema(protocol_handler):
+    """Test that all tools in tools/list response have inputSchema field."""
+    # Add a tool without explicit inputSchema
+    tool_without_schema = MCPTool(
+        name="test_tool", description="Test tool", input_schema=None
+    )
+    protocol_handler.register_tool(tool_without_schema)
+
+    # Add a tool with explicit inputSchema
+    tool_with_schema = MCPTool(
+        name="test_tool_with_schema",
+        description="Test tool with schema",
+        input_schema={
+            "type": "object",
+            "properties": {"param": {"type": "string"}},
+            "required": ["param"],
+        },
+    )
+    protocol_handler.register_tool(tool_with_schema)
+
+    # Get tools list
+    tools_list = [tool.to_dict() for tool in protocol_handler.tools.values()]
+
+    # Verify all tools have inputSchema
+    for tool in tools_list:
+        assert "inputSchema" in tool, f"Tool {tool.get('name')} missing inputSchema"
+        assert isinstance(
+            tool["inputSchema"], dict
+        ), f"Tool {tool.get('name')} inputSchema is not a dict"
+        assert (
+            "type" in tool["inputSchema"]
+        ), f"Tool {tool.get('name')} inputSchema missing type"
+        assert (
+            tool["inputSchema"]["type"] == "object"
+        ), f"Tool {tool.get('name')} inputSchema type is not 'object'"

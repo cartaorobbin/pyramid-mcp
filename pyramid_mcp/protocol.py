@@ -6,13 +6,101 @@ messages. It provides the core protocol functionality for communication
 between MCP clients and servers.
 """
 
+import hashlib
+import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Callable, Dict, Optional, Set, Union
 
 from marshmallow import Schema, fields
 from pyramid.interfaces import ISecurityPolicy
 from pyramid.request import Request
+
+# Claude Desktop client validation pattern for tool names
+CLAUDE_TOOL_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
+
+
+def validate_tool_name(name: str) -> bool:
+    """
+    Validate if a tool name matches Claude Desktop's requirements.
+
+    Args:
+        name: Tool name to validate
+
+    Returns:
+        True if valid, False otherwise
+    """
+    return bool(CLAUDE_TOOL_NAME_PATTERN.match(name))
+
+
+def sanitize_tool_name(name: str, used_names: Optional[Set[str]] = None) -> str:
+    """
+    Sanitize a tool name to meet Claude Desktop requirements.
+
+    This function ensures the name matches the pattern ^[a-zA-Z0-9_-]{1,64}$
+    and handles collisions by appending a hash-based suffix.
+
+    Args:
+        name: Original tool name
+        used_names: Set of already used names to avoid collisions
+
+    Returns:
+        Sanitized tool name that's guaranteed to be valid
+
+    Raises:
+        ValueError: If the name cannot be sanitized (e.g., empty after cleaning)
+    """
+    if used_names is None:
+        used_names = set()
+
+    # Step 1: Clean the name - remove invalid characters
+    cleaned = re.sub(r"[^a-zA-Z0-9_-]", "_", name)
+
+    # Step 2: Ensure it's not empty
+    if not cleaned:
+        cleaned = "tool"
+
+    # Step 3: Ensure it doesn't start with a number (good practice)
+    if cleaned[0].isdigit():
+        cleaned = "tool_" + cleaned
+
+    # Step 4: Handle length - if too long, truncate intelligently
+    if len(cleaned) > 64:
+        # Reserve 8 characters for collision hash (underscore + 7 chars)
+        max_base_length = 64 - 8
+        cleaned = cleaned[:max_base_length]
+
+    # Step 5: Check for collision
+    if cleaned not in used_names:
+        return cleaned
+
+    # Step 6: Handle collision with hash-based suffix
+    # Create a hash of the original name for uniqueness
+    name_hash = hashlib.md5(name.encode("utf-8")).hexdigest()[:7]
+
+    # Calculate max length for base to fit hash suffix
+    max_base_length = 64 - 8  # 8 chars for "_" + 7-char hash
+    base_name = cleaned[:max_base_length]
+
+    # Try variations with the hash
+    for i in range(1000):  # Safety limit
+        if i == 0:
+            candidate = f"{base_name}_{name_hash}"
+        else:
+            # If even the hash collides, add a counter
+            counter_suffix = f"{i:03d}"
+            # Adjust base name to fit hash + counter
+            available_length = (
+                64 - len(name_hash) - len(counter_suffix) - 2
+            )  # 2 underscores
+            adjusted_base = base_name[:available_length]
+            candidate = f"{adjusted_base}_{name_hash}_{counter_suffix}"
+
+        if candidate not in used_names:
+            return candidate
+
+    # This should never happen in practice
+    raise ValueError(f"Could not generate unique name for '{name}' after 1000 attempts")
 
 
 class MCPErrorCode(Enum):
@@ -148,8 +236,15 @@ class MCPTool:
         tool_dict: Dict[str, Any] = {"name": self.name}
         if self.description:
             tool_dict["description"] = self.description
-        if self.input_schema:
-            tool_dict["inputSchema"] = self.input_schema
+
+        # inputSchema is required by MCP protocol - always include it
+        tool_dict["inputSchema"] = self.input_schema or {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": False,
+        }
+
         return tool_dict
 
 
@@ -174,6 +269,8 @@ class MCPProtocolHandler:
             "resources": {"subscribe": False, "listChanged": True},
             "prompts": {"listChanged": True},
         }
+        # Track used tool names to prevent collisions
+        self._used_tool_names: Set[str] = set()
 
     def register_tool(self, tool: MCPTool) -> None:
         """Register an MCP tool.
@@ -181,7 +278,26 @@ class MCPProtocolHandler:
         Args:
             tool: The MCPTool to register
         """
-        self.tools[tool.name] = tool
+        original_name = tool.name
+
+        # Sanitize the tool name to ensure Claude Desktop compatibility
+        sanitized_name = sanitize_tool_name(tool.name, self._used_tool_names)
+
+        # Update the tool with the sanitized name
+        if sanitized_name != original_name:
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"Tool name '{original_name}' sanitized to '{sanitized_name}' "
+                f"for Claude Desktop compatibility"
+            )
+            tool.name = sanitized_name
+
+        # Register the tool
+        self.tools[sanitized_name] = tool
+        self._used_tool_names.add(sanitized_name)
+
         # Update capabilities to indicate we have tools
         self.capabilities["tools"] = {}
 

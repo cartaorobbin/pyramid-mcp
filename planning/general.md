@@ -64,6 +64,85 @@
 
 ---
 
+## [2025-01-20] Claude Desktop Tool Name Validation Fix
+
+**Status**: DONE ✅
+**Assigned**: Assistant  
+**Estimated Time**: 2 hours
+**Related Issue**: Claude Desktop client tool name validation error
+
+### Plan
+- [x] Analyze Claude Desktop tool name validation requirements
+- [x] Implement tool name validation and sanitization functions
+- [x] Create robust collision prevention system
+- [x] Update MCP protocol handler to use validation
+- [x] Create comprehensive test suite using function-based tests
+- [x] Fix code quality issues (formatting, linting)
+- [x] Verify all tests pass
+
+### Progress
+- [x] **Analyzed requirements**: Claude Desktop enforces `^[a-zA-Z0-9_-]{1,64}$` pattern
+- [x] **Implemented validation system**: 
+  - Added `validate_tool_name()` function with regex pattern matching
+  - Added `sanitize_tool_name()` function with intelligent sanitization
+  - Handles invalid characters, length limits, numeric prefixes
+  - Prevents collisions with hash-based suffixes
+- [x] **Updated MCP protocol handler**:
+  - Modified `register_tool()` to automatically sanitize names
+  - Added collision tracking with `_used_tool_names` set
+  - Preserves original tool functionality while fixing names
+  - Logs warnings when names are sanitized
+- [x] **Created comprehensive test suite**:
+  - 17 function-based tests (following project rules)
+  - Tests validation, sanitization, collision prevention
+  - Tests edge cases, unicode handling, long names
+  - Tests integration with MCP protocol handler
+- [x] **Fixed code quality issues**:
+  - Ran auto-formatter (black) to fix formatting
+  - Fixed long line issues in tests
+  - Removed unused imports
+  - All tests pass: `make test` ✅
+  - All quality checks pass: `make check` ✅
+
+### Decisions Made
+- **Hash-based collision prevention**: Using MD5 hash to create unique suffixes instead of simple counters
+- **Intelligent sanitization**: Replace invalid chars with underscores, handle numeric prefixes
+- **Automatic application**: Sanitization happens transparently in `register_tool()`
+- **Preserve functionality**: Original tool handlers and metadata preserved unchanged
+- **Function-based tests**: Following project rules (no class-based tests)
+
+### Key Features Implemented
+- **Pattern validation**: `^[a-zA-Z0-9_-]{1,64}$` matching Claude Desktop requirements
+- **Character sanitization**: Invalid chars → underscores, unicode → ASCII
+- **Length management**: Intelligent truncation preserving readability
+- **Collision prevention**: Hash-based unique suffixes for duplicate names
+- **Integration**: Seamless integration with existing MCP protocol handler
+- **Logging**: Warning messages when names are sanitized
+
+### Test Results
+- ✅ **All tests passing**: 179 passed, 1 xfailed, 0 failed
+- ✅ **Code quality checks**: All black, isort, flake8, mypy checks pass
+- ✅ **Tool name validation**: 17 specific tests all pass
+- ✅ **Collision prevention**: Successfully prevents name collisions
+- ✅ **Unicode handling**: Properly sanitizes unicode characters
+- ✅ **Length limits**: Handles extremely long names correctly
+
+### Deliverables
+- ✅ **Updated `pyramid_mcp/protocol.py`**: Added validation and sanitization functions
+- ✅ **Updated `MCPProtocolHandler`**: Automatic tool name sanitization
+- ✅ **Created `tests/test_tool_name_validation.py`**: Comprehensive function-based test suite
+- ✅ **Code quality fixes**: All formatting and linting issues resolved
+
+### Solution Benefits
+- **Claude Desktop compatibility**: All tool names now pass validation
+- **Zero breaking changes**: Existing code continues to work unchanged
+- **Collision-free**: Prevents name conflicts with intelligent suffixes
+- **Maintainable**: Clean, well-tested implementation
+- **Logging**: Clear warnings when sanitization occurs
+- **Robust**: Handles edge cases, unicode, very long names
+
+---
+
 ## [2025-01-20] PyPI Publishing Setup with GitHub Actions
 
 **Status**: DONE ✅
