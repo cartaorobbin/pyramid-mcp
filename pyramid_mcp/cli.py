@@ -10,6 +10,7 @@ import logging
 import sys
 import time
 from datetime import datetime
+from typing import Any
 
 import click
 from pyramid.paster import bootstrap
@@ -169,6 +170,36 @@ def pstdio(ini: str, app: str, debug: bool) -> None:
 
                     env = prepare(registry=app_instance.registry)
                     request = env["request"]
+
+                    # Add invoke_subrequest method to the request since it's not
+                    # available in the scripting context (normally added by router)
+                    def invoke_subrequest(
+                        subrequest: Any, use_tweens: bool = False
+                    ) -> Any:
+                        """Invoke a subrequest through the WSGI application.
+
+                        This replicates what the Pyramid router does internally.
+                        """
+                        # The router adds registry and invoke_subrequest to subrequests
+                        subrequest.registry = app_instance.registry
+
+                        # Add invoke_subrequest recursively to support nested
+                        # subrequests
+                        subrequest.invoke_subrequest = (
+                            lambda sr, ut=False: invoke_subrequest(sr, ut)
+                        )
+
+                        # Apply request extensions like the router does
+                        from pyramid.request import apply_request_extensions
+
+                        apply_request_extensions(subrequest)
+
+                        # Process the subrequest through the WSGI application
+                        # This is the core of what invoke_subrequest does
+                        return subrequest.get_response(app_instance)
+
+                    # Add the method to the request
+                    request.invoke_subrequest = invoke_subrequest
 
                     start_time = time.time()
                     response = protocol_handler.handle_message(request_data, request)
