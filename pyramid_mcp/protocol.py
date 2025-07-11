@@ -156,6 +156,9 @@ class MCPTool:
 class MCPProtocolHandler:
     """Handles MCP protocol messages and routing."""
 
+    # Special sentinel value to indicate no response should be sent
+    NO_RESPONSE = object()
+
     def __init__(self, server_name: str, server_version: str):
         """Initialize the MCP protocol handler.
 
@@ -186,7 +189,7 @@ class MCPProtocolHandler:
         self,
         message_data: Dict[str, Any],
         pyramid_request: Request,
-    ) -> Dict[str, Any]:
+    ) -> Union[Dict[str, Any], object]:
         """Handle an incoming MCP message.
 
         Args:
@@ -194,7 +197,7 @@ class MCPProtocolHandler:
             pyramid_request: The pyramid request
 
         Returns:
-            The response message as a dictionary
+            The response message as a dictionary, or NO_RESPONSE for notifications
         """
         try:
             request = MCPRequest.from_dict(message_data)
@@ -211,11 +214,9 @@ class MCPProtocolHandler:
             elif request.method == "prompts/list":
                 return self._handle_list_prompts(request)
             elif request.method == "notifications/initialized":
-                # Notifications don't expect responses, so we handle this specially
+                # Notifications don't expect responses according to JSON-RPC 2.0 spec
                 self._handle_notifications_initialized(request)
-                # Return empty dict to indicate no response should be sent
-                # In a real stdio implementation, this would not send anything
-                return {}
+                return self.NO_RESPONSE
             else:
                 error = MCPError(
                     code=MCPErrorCode.METHOD_NOT_FOUND.value,

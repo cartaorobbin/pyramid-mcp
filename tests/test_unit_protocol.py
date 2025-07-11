@@ -323,3 +323,47 @@ def test_protocol_handler_server_info(protocol_handler):
     assert hasattr(handler, "server_version")
     assert handler.server_name == "test-protocol"
     assert handler.server_version == "1.0.0"
+
+
+def test_handle_notifications_initialized(protocol_handler, dummy_request):
+    """Test that notifications/initialized returns NO_RESPONSE sentinel."""
+    handler = protocol_handler
+
+    # Test notifications/initialized request
+    message_data = {
+        "jsonrpc": "2.0",
+        "method": "notifications/initialized",
+        "params": {}
+        # Note: No "id" field for notifications according to JSON-RPC 2.0 spec
+    }
+
+    # Handle the message
+    response = handler.handle_message(message_data, dummy_request)
+
+    # Should return the NO_RESPONSE sentinel
+    assert (
+        response is handler.NO_RESPONSE
+    ), f"Expected NO_RESPONSE sentinel but got: {response}"
+
+
+def test_handle_notifications_initialized_with_id(protocol_handler, dummy_request):
+    """Test that notifications/initialized with id field still returns NO_RESPONSE."""
+    handler = protocol_handler
+
+    # Test notifications/initialized request with id
+    # (technically not correct for notifications)
+    message_data = {
+        "jsonrpc": "2.0",
+        "method": "notifications/initialized",
+        "params": {},
+        "id": 1,
+    }
+
+    # Handle the message
+    response = handler.handle_message(message_data, dummy_request)
+
+    # Should still return NO_RESPONSE
+    # (notifications should not have responses regardless of id)
+    assert (
+        response is handler.NO_RESPONSE
+    ), f"Expected NO_RESPONSE sentinel but got: {response}"

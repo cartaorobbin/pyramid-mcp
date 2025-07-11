@@ -7,7 +7,7 @@ license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/cartaorobbin/pyramid-mcp"
 repository = "https://github.com/cartaorobbin/pyramid-mcp"
-documentation = "https://github.com/cartaorobbin/pyramid-mc"
+documentation = "https://github.com/cartaorobbin/pyramid-mcp"
 keywords = ["pyramid", "mcp", "model-context-protocol", "web", "framework", "ai", "llm"]
 classifiers = [
     "Development Status :: 4 - Beta",

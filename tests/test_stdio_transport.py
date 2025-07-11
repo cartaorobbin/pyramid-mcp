@@ -307,3 +307,51 @@ def test_stdio_transport_protocol_compliance():
 
     # Should be method not found error
     assert response["error"]["code"] == -32601  # Method not found
+
+
+def test_stdio_transport_notifications_initialized():
+    """Test that stdio transport properly handles notifications/initialized.
+
+    Ensures no response is sent for notifications per JSON-RPC 2.0 spec.
+    """
+    # Test notifications/initialized request (should not return a response)
+    notification_request = {
+        "jsonrpc": "2.0",
+        "method": "notifications/initialized",
+        "params": {}
+        # Note: No "id" field for notifications according to JSON-RPC 2.0 spec
+    }
+
+    # Run via Docker container
+    cmd = [
+        "docker",
+        "run",
+        "--rm",
+        "-i",
+        "pyramid-mcp-secure:latest",
+        "pstdio",
+        "--ini",
+        "/app/examples/secure/development.ini",
+    ]
+
+    result = subprocess.run(
+        cmd,
+        input=json.dumps(notification_request),
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+    assert result.returncode == 0, f"Command failed: {result.stderr}"
+
+    # For notifications, there should be no response (empty stdout)
+    # The key fix: stdio transport should not send anything for notifications
+    assert (
+        result.stdout.strip() == ""
+    ), f"Expected no response for notification, but got: {result.stdout}"
+
+    # Check stderr for proper logging
+    assert (
+        "No response sent for notification" in result.stderr
+        or "notification" in result.stderr.lower()
+    )

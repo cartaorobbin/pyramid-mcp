@@ -307,7 +307,15 @@ class PyramidMCP:
 
             # Handle the message through protocol handler
             response = self.protocol_handler.handle_message(message_data, request)
-            return response
+
+            # Check if this is a notification that should not receive a response
+            if response is self.protocol_handler.NO_RESPONSE:
+                # For HTTP, return minimal success response for notifications
+                # (stdio transport handles this differently by not sending anything)
+                return {"jsonrpc": "2.0", "result": "ok"}
+
+            # Type cast since we know it's a dict if not NO_RESPONSE
+            return response  # type: ignore
 
         except Exception as e:
             # Try to extract request ID if possible
@@ -346,6 +354,11 @@ class PyramidMCP:
                     response_data = self.protocol_handler.handle_message(
                         message_data, request
                     )
+
+                    # Check if this is a notification that should not receive a response
+                    if response_data is self.protocol_handler.NO_RESPONSE:
+                        # Don't send any data for notifications in SSE
+                        return
 
                     # Format as SSE
                     sse_data = f"data: {json.dumps(response_data)}\n\n"

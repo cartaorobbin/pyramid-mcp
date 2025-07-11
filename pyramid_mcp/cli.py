@@ -174,6 +174,17 @@ def pstdio(ini: str, app: str, debug: bool) -> None:
                     response = protocol_handler.handle_message(request_data, request)
                     processing_time = (time.time() - start_time) * 1000
 
+                    # Check if this is a notification that should not receive a response
+                    if response is protocol_handler.NO_RESPONSE:
+                        # Don't send any response for notifications (JSON-RPC 2.0 spec)
+                        click.echo(
+                            f"📤 [{timestamp}] No response sent for notification "
+                            f"(took {processing_time:.1f}ms)",
+                            err=True,
+                        )
+                        click.echo("─" * 60, err=True)
+                        continue
+
                     # Log the response we're sending back to Claude
                     response_msg = (
                         f"📤 [{timestamp}] Response to Claude "
