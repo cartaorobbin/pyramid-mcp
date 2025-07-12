@@ -30,12 +30,15 @@ from marshmallow import Schema
 from pyramid.config import Configurator
 from pyramid.threadlocal import get_current_registry
 
-from pyramid_mcp.core import MCPConfiguration, MCPDescriptionPredicate, PyramidMCP
+from pyramid_mcp.core import MCPConfiguration, MCPDescriptionPredicate, MCPSecurityPredicate, PyramidMCP
+from pyramid_mcp.security import MCPSecurityType
 from pyramid_mcp.version import __version__
 
 __all__ = [
     "PyramidMCP",
     "MCPConfiguration",
+    "MCPDescriptionPredicate",
+    "MCPSecurityPredicate",
     "__version__",
     "includeme",
     "tool",
@@ -68,7 +71,7 @@ def includeme(config: Configurator) -> None:
             'mcp.server_version': '1.0.0'
         })
     """
-    settings = config.registry.settings
+    settings = config.registry.settings  # type: ignore
 
     # Extract MCP settings from pyramid settings
     mcp_config = _extract_mcp_config_from_settings(settings)
@@ -77,10 +80,10 @@ def includeme(config: Configurator) -> None:
     pyramid_mcp = PyramidMCP(config, config=mcp_config)
 
     # Store the instance in registry for access by application code
-    config.registry.pyramid_mcp = pyramid_mcp
+    config.registry.pyramid_mcp = pyramid_mcp  # type: ignore
 
     # Store registry for tool decorator in testing scenarios
-    _tool_registry_storage.registry = config.registry
+    _tool_registry_storage.registry = config.registry  # type: ignore
 
     # Add MCP routes immediately (before action execution)
     pyramid_mcp._add_mcp_routes_only()
@@ -93,6 +96,9 @@ def includeme(config: Configurator) -> None:
 
     # Register the MCP description view predicate
     config.add_view_predicate("mcp_description", MCPDescriptionPredicate)
+    
+    # Register the MCP security view predicate  
+    config.add_view_predicate("mcp_security", MCPSecurityPredicate)
 
     # Register a post-configure hook to discover routes and register tools
     # Use order=999999 to ensure this runs after all other configuration including scans
@@ -109,6 +115,7 @@ def tool(
     description: Optional[str] = None,
     schema: Optional[Type[Schema]] = None,
     permission: Optional[str] = None,
+    security: Optional[MCPSecurityType] = None,
 ) -> Callable:
     """
     Decorator to register a function as an MCP tool using the current Pyramid registry.
@@ -148,6 +155,7 @@ def tool(
                 "description": tool_description,
                 "schema": schema,
                 "permission": permission,
+                "security": security,
             },
         )
 
@@ -156,14 +164,18 @@ def tool(
         if registry is not None:
             pyramid_mcp = getattr(registry, "pyramid_mcp", None)
             if pyramid_mcp:
-                pyramid_mcp.tool(name, description, schema, permission)(func)
+                pyramid_mcp.tool(
+                    name, description, schema, permission, security=security
+                )(func)
         else:
             # Check if we have a stored registry for testing
             stored_registry = getattr(_tool_registry_storage, "registry", None)
             if stored_registry:
                 pyramid_mcp = getattr(stored_registry, "pyramid_mcp", None)
                 if pyramid_mcp:
-                    pyramid_mcp.tool(name, description, schema, permission)(func)
+                    pyramid_mcp.tool(
+                        name, description, schema, permission, security=security
+                    )(func)
 
         return func
 
@@ -220,7 +232,7 @@ def _parse_bool_setting(value: Any) -> bool:
 
 def _get_mcp_directive(config: Configurator) -> PyramidMCP:
     """Directive to get PyramidMCP instance from configurator."""
-    return cast(PyramidMCP, config.registry.pyramid_mcp)
+    return cast(PyramidMCP, config.registry.pyramid_mcp)  # type: ignore
 
 
 def _get_mcp_from_request(request: Any) -> PyramidMCP:
@@ -257,7 +269,6 @@ def _register_pending_tools(pyramid_mcp: PyramidMCP) -> None:
                 tool_config["name"],
                 tool_config["description"],
                 tool_config["schema"],
-                tool_config.get(
-                    "permission", None
-                ),  # Default to None for backward compatibility
+                tool_config.get("permission", None),
+                security=tool_config.get("security", None),
             )(obj)

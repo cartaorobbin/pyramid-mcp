@@ -11,6 +11,7 @@ import re
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from pyramid_mcp.protocol import MCPTool
+from pyramid_mcp.security import BearerAuthSchema, BasicAuthSchema
 
 
 class PyramidIntrospector:
@@ -113,6 +114,7 @@ class PyramidIntrospector:
                             "renderer": None,
                             "context": view_intr.get("context"),
                             "mcp_description": view_intr.get("mcp_description"),
+                            "mcp_security": view_intr.get("mcp_security"),
                             "predicates": {
                                 "xhr": view_intr.get("xhr"),
                                 "accept": view_intr.get("accept"),
@@ -523,12 +525,19 @@ class PyramidIntrospector:
                 route_pattern, view_callable, method, view
             )
 
+            # Extract security configuration from view info
+            security_type = view.get("mcp_security")
+            security = None
+            if security_type:
+                security = self._convert_security_type_to_schema(security_type)
+
             # Create MCP tool
             tool = MCPTool(
                 name=tool_name,
                 description=description,
                 input_schema=input_schema,
                 handler=self._create_route_handler(route_info, view, method),
+                security=security,
             )
 
             tools.append(tool)
@@ -720,51 +729,16 @@ class PyramidIntrospector:
                             "default": 0,
                         }
 
-        # Try to extract parameters from view function signature
-        if view_callable is not None:
-            try:
-                sig = inspect.signature(view_callable)
-                for param_name, param in sig.parameters.items():
-                    # Skip 'request' parameter
-                    if param_name == "request":
-                        continue
-
-                    # Skip path parameters (already handled)
-                    if param_name in [p.split(":")[0] for p in path_params]:
-                        continue
-
-                    param_schema = {"type": "string"}
-
-                    # Try to infer type from annotation
-                    if param.annotation != inspect.Parameter.empty:
-                        if param.annotation == int:
-                            param_schema["type"] = "integer"
-                        elif param.annotation == float:
-                            param_schema["type"] = "number"
-                        elif param.annotation == bool:
-                            param_schema["type"] = "boolean"
-                        elif param.annotation == list:
-                            param_schema["type"] = "array"
-                        elif param.annotation == dict:
-                            param_schema["type"] = "object"
-
-                    # Add description based on context
-                    if method.upper() in ["POST", "PUT", "PATCH"]:
-                        param_schema[
-                            "description"
-                        ] = f"Request body parameter: {param_name}"
-                    else:
-                        param_schema["description"] = f"Query parameter: {param_name}"
-
-                    properties[param_name] = param_schema
-
-                    # Required if no default value
-                    if param.default == inspect.Parameter.empty:
-                        required.append(param_name)
-
-            except Exception:
-                # If signature inspection fails, continue with path params only
-                pass
+        # Add a generic 'data' parameter for request body/query data
+        # (since Pyramid views only take 'request' parameter, we can't extract params from signature)
+        if "data" not in properties:
+            properties["data"] = {
+                "type": "string",
+                "description": "Request data parameter",
+            }
+            # Make it required for POST/PUT/PATCH methods
+            if method.upper() in ["POST", "PUT", "PATCH"]:
+                required.append("data")
 
         # Return schema if we have properties
         if properties:
@@ -793,13 +767,19 @@ class PyramidIntrospector:
         """
         route_pattern = route_info.get("pattern", "")
         route_name = route_info.get("name", "")
+        
+        # Get security configuration from view_info
+        security_type = view_info.get("mcp_security")
+        security = None
+        if security_type:
+            security = self._convert_security_type_to_schema(security_type)
 
         def handler(pyramid_request: Any, **kwargs: Any) -> Dict[str, Any]:
             """MCP tool handler that delegates to Pyramid view via subrequest."""
             try:
                 # Create subrequest to call the actual route
                 subrequest = self._create_subrequest(
-                    pyramid_request, kwargs, route_pattern, method
+                    pyramid_request, kwargs, route_pattern, method, security
                 )
 
                 # Execute the subrequest
@@ -825,6 +805,7 @@ class PyramidIntrospector:
         kwargs: Dict[str, Any],
         route_pattern: str,
         method: str,
+        security: Optional[Any] = None,
     ) -> Any:
         """Create a subrequest to call the actual Pyramid view.
 
@@ -833,6 +814,7 @@ class PyramidIntrospector:
             kwargs: MCP tool arguments
             route_pattern: Route pattern (e.g., '/api/hello')
             method: HTTP method
+            security: Security schema for auth parameter conversion
 
         Returns:
             Subrequest object ready for execution
@@ -842,16 +824,28 @@ class PyramidIntrospector:
 
         from pyramid.request import Request
 
+        # Get authentication headers from pyramid_request if they were processed by MCP protocol handler
+        auth_headers = {}
+        if hasattr(pyramid_request, 'mcp_auth_headers') and pyramid_request.mcp_auth_headers:
+            auth_headers = pyramid_request.mcp_auth_headers
+            print(f"🔐 AUTH DEBUG: Using MCP auth headers: {auth_headers}")
+        else:
+            print("🔐 AUTH DEBUG: No MCP auth headers found")
+        
+        # kwargs should already have auth parameters removed by MCP protocol handler
+        filtered_kwargs = kwargs
+        print(f"🔐 AUTH DEBUG: kwargs after MCP processing: {filtered_kwargs}")
+
         # Extract path parameters from route pattern
         path_params = re.findall(r"\{([^}]+)\}", route_pattern)
         path_param_names = [param.split(":")[0] for param in path_params]
 
-        # Separate path parameters from other parameters
+        # Separate path parameters from other parameters (using filtered kwargs)
         path_values = {}
         query_params = {}
         json_body = {}
 
-        for key, value in kwargs.items():
+        for key, value in filtered_kwargs.items():
             if key in path_param_names:
                 path_values[key] = value
             else:
@@ -894,6 +888,10 @@ class PyramidIntrospector:
                     subrequest.headers[header_name] = pyramid_request.headers[
                         header_name
                     ]
+
+        # Add authentication headers from MCP security parameters
+        for header_name, header_value in auth_headers.items():
+            subrequest.headers[header_name] = header_value
 
         # 🔄 PYRAMID_TM TRANSACTION SHARING SUPPORT
         # Ensure subrequest shares the same transaction context as the parent request
@@ -1361,3 +1359,22 @@ class PyramidIntrospector:
                         else str(validator.regex)
                     )
                     field_info["pattern"] = pattern
+
+    def _convert_security_type_to_schema(self, security_type: str) -> Optional[Any]:
+        """Convert string security type to appropriate schema object.
+
+        Args:
+            security_type: String security type ("bearer", "basic", etc.)
+
+        Returns:
+            Appropriate security schema object or None if unknown
+        """
+        security_type_lower = security_type.lower()
+        
+        if security_type_lower == "bearer":
+            return BearerAuthSchema()
+        elif security_type_lower == "basic":
+            return BasicAuthSchema()
+        else:
+            # Unknown security type, return None
+            return None

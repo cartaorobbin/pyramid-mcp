@@ -21,6 +21,7 @@ from pyramid_mcp.protocol import (
     MCPTool,
     create_json_schema_from_marshmallow,
 )
+from pyramid_mcp.security import MCPSecurityType
 from pyramid_mcp.wsgi import MCPWSGIApp
 
 
@@ -169,6 +170,7 @@ class PyramidMCP:
         schema: Optional[Type[Schema]] = None,
         permission: Optional[str] = None,
         context: Optional[Any] = None,
+        security: Optional[MCPSecurityType] = None,
     ) -> Callable:
         """Decorator to register a function as an MCP tool.
 
@@ -178,6 +180,7 @@ class PyramidMCP:
             schema: Marshmallow schema for input validation
             permission: Pyramid permission requirement for this tool
             context: Context or context factory to use for permission checking
+            security: Authentication parameter specification for this tool
 
         Returns:
             Decorated function
@@ -195,6 +198,18 @@ class PyramidMCP:
             >>> @mcp.tool(permission="view", context=AuthenticatedContext)
             >>> def secure_operation() -> str:
             ...     return "Secure data"
+
+            >>> # With authentication parameters
+            >>> from pyramid_mcp.security import BearerAuth
+            >>> @mcp.tool(
+            ...     description="Secure API call",
+            ...     security=BearerAuth(
+            ...         description="API token",
+            ...         parameter_name="token"
+            ...     )
+            ... )
+            >>> def secure_api_call(token: str, data: str) -> str:
+            ...     return f"Secure API called with data: {data}"
         """
 
         def decorator(func: Callable) -> Callable:
@@ -217,6 +232,7 @@ class PyramidMCP:
                 handler=func,
                 permission=permission,
                 context=context,
+                security=security,
             )
 
             self.manual_tools[tool_name] = tool
@@ -465,6 +481,31 @@ class PyramidMCP:
             PyramidMCP instance
         """
         return cls(wsgi_app=wsgi_app, config=config)
+
+
+class MCPSecurityPredicate:
+    """
+    View predicate class for mcp_security parameter.
+
+    This is a non-filtering predicate that allows mcp_security
+    to be used as a view configuration parameter without affecting
+    view matching logic.
+    """
+
+    def __init__(self, val: Any, config: Any) -> None:
+        """Initialize the predicate with the mcp_security value."""
+        self.val = val
+        self.config = config
+
+    def text(self) -> str:
+        """Return text representation for introspection."""
+        return f"mcp_security = {self.val!r}"
+
+    phash = text  # For compatibility with Pyramid's predicate system
+
+    def __call__(self, context: Any, request: Any) -> bool:
+        """Always return True - this is a non-filtering predicate."""
+        return True
 
 
 class MCPDescriptionPredicate:

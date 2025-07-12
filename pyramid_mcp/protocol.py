@@ -16,6 +16,15 @@ from marshmallow import Schema, fields
 from pyramid.interfaces import ISecurityPolicy
 from pyramid.request import Request
 
+from pyramid_mcp.security import (
+    MCPSecurityType,
+    create_auth_headers,
+    extract_auth_credentials,
+    merge_auth_into_schema,
+    remove_auth_from_tool_args,
+    validate_auth_credentials,
+)
+
 # Claude Desktop client validation pattern for tool names
 CLAUDE_TOOL_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
 
@@ -230,6 +239,7 @@ class MCPTool:
     handler: Optional[Callable] = None
     permission: Optional[str] = None  # Pyramid permission requirement
     context: Optional[Any] = None  # Context for permission checking
+    security: Optional[MCPSecurityType] = None  # Authentication parameter specification
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to MCP tool format."""
@@ -237,13 +247,16 @@ class MCPTool:
         if self.description:
             tool_dict["description"] = self.description
 
-        # inputSchema is required by MCP protocol - always include it
-        tool_dict["inputSchema"] = self.input_schema or {
+        # Start with base inputSchema or create default
+        base_schema = self.input_schema or {
             "type": "object",
             "properties": {},
             "required": [],
             "additionalProperties": False,
         }
+
+        # Merge authentication parameters into inputSchema
+        tool_dict["inputSchema"] = merge_auth_into_schema(base_schema, self.security)
 
         return tool_dict
 
@@ -412,6 +425,121 @@ class MCPProtocolHandler:
                 pyramid_request, context, tool.permission
             ):
                 tool_args = params.get("arguments", {})
+
+                # Process authentication parameters if tool has security specification
+                if tool.security:
+                    # Validate authentication credentials
+                    validation_error = validate_auth_credentials(
+                        tool_args, tool.security
+                    )
+                    if validation_error:
+                        # Map validation error types to appropriate MCP error codes
+                        error_type = validation_error.get(
+                            "type", "authentication_error"
+                        )
+                        error_message = validation_error.get(
+                            "message", "Authentication failed"
+                        )
+
+                        # Determine appropriate error code based on error type
+                        if error_type in ["missing_credentials", "empty_credentials"]:
+                            error_code = MCPErrorCode.INVALID_PARAMS.value
+                        elif error_type == "validation_error":
+                            error_code = MCPErrorCode.INVALID_PARAMS.value
+                        else:
+                            error_code = MCPErrorCode.INTERNAL_ERROR.value
+
+                        # Create security-safe error response
+                        # (don't expose sensitive details)
+                        error_data = {
+                            "authentication_error_type": error_type,
+                            "tool_name": tool_name,
+                        }
+
+                        # Add safe details for missing/empty credentials only
+                        if error_type == "missing_credentials":
+                            missing_fields = validation_error.get("details", {}).get(
+                                "missing_fields", []
+                            )
+                            error_data["missing_parameters"] = missing_fields
+                        elif error_type == "empty_credentials":
+                            empty_fields = validation_error.get("details", {}).get(
+                                "empty_fields", []
+                            )
+                            error_data["empty_parameters"] = empty_fields
+
+                        error = MCPError(
+                            code=error_code, message=error_message, data=error_data
+                        )
+                        response = MCPResponse(id=request.id, error=error)
+                        return response.to_dict()
+
+                    # Extract authentication credentials for use in HTTP headers
+                    try:
+                        auth_credentials = extract_auth_credentials(
+                            tool_args, tool.security
+                        )
+                    except Exception as e:
+                        error = MCPError(
+                            code=MCPErrorCode.INTERNAL_ERROR.value,
+                            message=(
+                                "Failed to extract authentication credentials: "
+                                f"{str(e)}"
+                            ),
+                            data={
+                                "authentication_error_type": "extraction_error",
+                                "tool_name": tool_name,
+                            },
+                        )
+                        response = MCPResponse(id=request.id, error=error)
+                        return response.to_dict()
+
+                    # Remove authentication parameters from tool arguments
+                    # This ensures credentials are not passed to the handler function
+                    try:
+                        tool_args = remove_auth_from_tool_args(tool_args, tool.security)
+                    except Exception as e:
+                        error = MCPError(
+                            code=MCPErrorCode.INTERNAL_ERROR.value,
+                            message=(
+                                "Failed to process authentication parameters: "
+                                f"{str(e)}"
+                            ),
+                            data={
+                                "authentication_error_type": (
+                                    "parameter_processing_error"
+                                ),
+                                "tool_name": tool_name,
+                            },
+                        )
+                        response = MCPResponse(id=request.id, error=error)
+                        return response.to_dict()
+
+                    # Create HTTP headers from authentication credentials
+                    try:
+                        auth_headers = create_auth_headers(
+                            auth_credentials, tool.security
+                        )
+                    except Exception as e:
+                        error = MCPError(
+                            code=MCPErrorCode.INTERNAL_ERROR.value,
+                            message=(
+                                f"Failed to create authentication headers: {str(e)}"
+                            ),
+                            data={
+                                "authentication_error_type": "header_creation_error",
+                                "tool_name": tool_name,
+                            },
+                        )
+                        response = MCPResponse(id=request.id, error=error)
+                        return response.to_dict()
+
+                    # Store auth headers in pyramid_request for handler access
+                    # Handlers can access these via pyramid_request.mcp_auth_headers
+                    pyramid_request.mcp_auth_headers = auth_headers
+                else:
+                    # No authentication required - set empty headers for consistency
+                    pyramid_request.mcp_auth_headers = {}
 
                 # Check if this is a route-based tool that needs pyramid_request
                 # (route-based tools have a signature that accepts pyramid_request)

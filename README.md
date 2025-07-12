@@ -12,8 +12,9 @@ Pyramid MCP is a library that exposes Pyramid web application endpoints as Model
 
 - 🔌 **Pyramid Plugin**: Easy integration with `config.include('pyramid_mcp')`
 - 🛠️ **Tool Registration**: Simple `@tool` decorator for registering MCP tools
+- 🔐 **Authentication Parameters**: Support for Bearer token and Basic auth as tool parameters
 - ⚙️ **Settings-based Configuration**: Configure via Pyramid settings
-- 🔍 **Route Discovery**: Automatic discovery of Pyramid routes (planned)
+- 🔍 **Route Discovery**: Automatic discovery of Pyramid routes (configurable)
 - 📡 **Multiple Protocols**: Support for HTTP and SSE (Server-Sent Events)
 - 🧪 **Well Tested**: Comprehensive test suite with pytest
 - 📚 **Type Hints**: Full type annotations for better IDE support
@@ -143,9 +144,10 @@ settings = {
     'mcp.enable_sse': 'true',              # Enable Server-Sent Events
     'mcp.enable_http': 'true',             # Enable HTTP protocol
     
-    # Route Discovery (planned)
-    'mcp.include_patterns': 'api/*, users/*',  # Routes to include
-    'mcp.exclude_patterns': 'internal/*',      # Routes to exclude
+    # Route Discovery Configuration
+    'mcp.route_discovery.enabled': 'false',           # Enable automatic route discovery
+    'mcp.route_discovery.include_patterns': 'api/*',  # Routes to include as tools
+    'mcp.route_discovery.exclude_patterns': 'internal/*',  # Routes to exclude from tools
 }
 
 config = Configurator(settings=settings)
@@ -203,12 +205,27 @@ class MyToolSchema(Schema):
 @tool(name="validated_tool", schema=MyToolSchema)
 def validated_tool(param1: str, param2: int) -> str:
     return f"Validated: {param1} + {param2}"
+
+# With authentication parameters
+from pyramid_mcp.security import BearerAuthSchema
+
+@tool(
+    name="secure_tool", 
+    description="Tool that requires authentication",
+    security=BearerAuthSchema()
+)
+def secure_tool(pyramid_request, data: str, auth_token: str) -> dict:
+    """Tool with Bearer token authentication."""
+    # Access authentication headers
+    headers = pyramid_request.mcp_auth_headers
+    return {"data": data, "authenticated": True}
 ```
 
 ### Manual Usage (Advanced)
 
 ```python
 from pyramid_mcp import PyramidMCP, MCPConfiguration
+from pyramid_mcp.security import BearerAuthSchema
 
 # Manual configuration
 config = Configurator()
@@ -223,6 +240,16 @@ pyramid_mcp = PyramidMCP(config, config=mcp_config)
 @pyramid_mcp.tool("manual_tool")
 def manual_tool(x: int) -> int:
     return x * 2
+
+# Register tool with authentication
+@pyramid_mcp.tool(
+    name="secure_manual_tool",
+    description="Secure tool with authentication",
+    security=BearerAuthSchema()
+)
+def secure_manual_tool(pyramid_request, data: str, auth_token: str) -> dict:
+    headers = pyramid_request.mcp_auth_headers
+    return {"data": data, "authenticated": True}
 
 # Mount manually (with auto_commit=False for more control)
 pyramid_mcp.mount(auto_commit=False)
@@ -352,6 +379,34 @@ class UserSchema(Schema):
 def create_user(name: str, age: int) -> dict:
     return {"id": 123, "name": name, "age": age, "created": True}
 
+# Tool with Bearer token authentication
+from pyramid_mcp.security import BearerAuthSchema
+
+@tool(
+    name="secure_api_request",
+    description="Make authenticated API request",
+    security=BearerAuthSchema()
+)
+def secure_api_request(pyramid_request, endpoint: str, auth_token: str) -> dict:
+    # Auth headers are automatically created
+    headers = pyramid_request.mcp_auth_headers
+    # headers = {"Authorization": "Bearer <token>"}
+    return {"endpoint": endpoint, "status": "authenticated"}
+
+# Tool with Basic authentication
+from pyramid_mcp.security import BasicAuthSchema
+
+@tool(
+    name="database_query",
+    description="Query database with credentials",
+    security=BasicAuthSchema()
+)
+def database_query(pyramid_request, query: str, username: str, password: str) -> dict:
+    # Auth headers are automatically created
+    headers = pyramid_request.mcp_auth_headers
+    # headers = {"Authorization": "Basic <base64_encoded_credentials>"}
+    return {"query": query, "status": "executed"}
+
 # Async tool (if using async views)
 @tool(name="async_tool", description="Async operation")
 async def async_tool(data: str) -> str:
@@ -367,7 +422,7 @@ async def async_tool(data: str) -> str:
 ```python
 settings = {
     # MCP Server Configuration
-    'mcp.server_name': 'my-api',           # Server name (default: 'pyramid-mcp-server')
+    'mcp.server_name': 'my-api',           # Server name (default: 'pyramid-mcp')
     'mcp.server_version': '1.0.0',        # Server version (default: '1.0.0')
     'mcp.mount_path': '/mcp',              # Mount path for MCP endpoints (default: '/mcp')
     
@@ -375,15 +430,110 @@ settings = {
     'mcp.enable_sse': 'true',              # Enable Server-Sent Events (default: True)
     'mcp.enable_http': 'true',             # Enable HTTP protocol (default: True)
     
-    # Route Discovery (planned feature)
-    'mcp.include_patterns': 'api/*, users/*',  # Routes to include as tools
-    'mcp.exclude_patterns': 'internal/*',      # Routes to exclude from tools
-    
-    # Advanced Options
-    'mcp.auto_commit': 'true',             # Auto-commit configuration (default: True)
-    'mcp.strict_mode': 'false',            # Strict mode for validation (default: False)
+    # Route Discovery Configuration
+    'mcp.route_discovery.enabled': 'false',           # Enable automatic route discovery (default: False)
+    'mcp.route_discovery.include_patterns': 'api/*',  # Routes to include as tools
+    'mcp.route_discovery.exclude_patterns': 'internal/*',  # Routes to exclude from tools
 }
 ```
+
+### Authentication Parameters Feature
+
+Pyramid MCP supports tools that require authentication credentials to be passed as parameters rather than HTTP headers. This is particularly useful for Claude AI clients that cannot pass HTTP headers.
+
+#### Bearer Token Authentication
+
+```python
+from pyramid_mcp import tool
+from pyramid_mcp.security import BearerAuthSchema
+
+@tool(
+    name="secure_api_call",
+    description="Call a secure API endpoint",
+    security=BearerAuthSchema()
+)
+def secure_api_call(pyramid_request, data: str, auth_token: str) -> dict:
+    """Call a secure API with Bearer token authentication."""
+    # Authentication headers are automatically available
+    headers = pyramid_request.mcp_auth_headers
+    # headers = {"Authorization": "Bearer <token>"}
+    
+    # Make API call with authentication
+    return {"success": True, "data": data}
+```
+
+#### HTTP Basic Authentication
+
+```python
+from pyramid_mcp import tool
+from pyramid_mcp.security import BasicAuthSchema
+
+@tool(
+    name="secure_ftp_access",
+    description="Access FTP server with credentials",
+    security=BasicAuthSchema()
+)
+def secure_ftp_access(pyramid_request, path: str, username: str, password: str) -> dict:
+    """Access FTP server with basic authentication."""
+    # Authentication headers are automatically available
+    headers = pyramid_request.mcp_auth_headers
+    # headers = {"Authorization": "Basic <base64_encoded_credentials>"}
+    
+    # Use credentials for FTP access
+    return {"path": path, "status": "connected"}
+```
+
+#### How It Works
+
+1. **Schema Integration**: Authentication parameters are automatically merged into the tool's JSON schema
+2. **Parameter Extraction**: Credentials are extracted from tool arguments during execution
+3. **Header Generation**: Authentication headers are created and made available via `pyramid_request.mcp_auth_headers`
+4. **Parameter Cleanup**: Authentication parameters are removed from the arguments passed to your handler function
+5. **Validation**: Credentials are validated before tool execution
+
+#### Example MCP Call with Authentication
+
+```bash
+# Call a tool with Bearer token authentication
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0", 
+    "method": "tools/call", 
+    "id": 1,
+    "params": {
+      "name": "secure_api_call",
+      "arguments": {
+        "data": "hello world",
+        "auth_token": "your-bearer-token-here"
+      }
+    }
+  }'
+
+# Call a tool with Basic authentication
+curl -X POST http://localhost:8080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0", 
+    "method": "tools/call", 
+    "id": 2,
+    "params": {
+      "name": "secure_ftp_access",
+      "arguments": {
+        "path": "/home/user",
+        "username": "myuser",
+        "password": "mypassword"
+      }
+    }
+  }'
+```
+
+#### Security Considerations
+
+- **Credentials are passed as parameters**: Authentication data is sent in the request body, not HTTP headers
+- **No credential logging**: Authentication parameters are removed from handler arguments before execution
+- **Validation**: Credentials are validated before tool execution
+- **Standard HTTP headers**: Credentials are converted to standard HTTP Authorization headers for your use
 
 ## Development
 
