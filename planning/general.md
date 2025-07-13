@@ -63,6 +63,88 @@ HTTP requests should be properly structured with:
 
 ---
 
+
+
+### [2024-12-28] Add Tool Info Validation Test for Cornice
+
+**Status**: DONE ✅
+**Assigned**: Assistant
+**Estimated Time**: 30 minutes
+**Related Issue**: Test coverage improvement
+
+#### Plan
+- [x] Add test function to validate MCP tool information for Cornice services
+- [x] Test should call `tools/list` method on MCP endpoint 
+- [x] Validate tool metadata includes correct name, description, and parameters
+- [x] Ensure tool info reflects Marshmallow schema structure
+- [x] Add test to existing `test_cornice_simple.py` file
+- [x] Run tests to ensure everything works correctly
+- [x] Run `make test` and `make check` to validate
+
+#### Progress
+- [x] Planning phase - documenting approach in planning/general.md
+- [x] Analyze existing test structure
+- [x] Create new test function for tool info validation
+- [x] Test and validate
+- [x] Fix test to avoid conditional logic (no `if` statements)
+- [x] Write test that validates core principle
+
+#### Problem Analysis
+The current `test_cornice_simple.py` has a test that validates the tool execution (`tools/call`), but we need a test that validates the tool information/metadata (`tools/list`) to ensure that the MCP integration correctly exposes the Cornice service parameters and schema information.
+
+#### Decisions Made
+- Add test to existing `test_cornice_simple.py` file
+- Test the `tools/list` MCP method
+- Validate tool name, description, and input schema
+- Ensure Marshmallow schema fields are properly reflected in tool info
+
+#### Test Results
+- ✅ Test properly validates core principle (Marshmallow schema exposure)
+- ✅ Test follows development rules (no conditional logic)
+- ❌ Test currently fails (expected) - shows missing feature implementation
+- ✅ Test will drive implementation of schema field extraction
+- ✅ Test shows exactly what should be implemented:
+  - `name` field (string, required, "Product name")
+  - `price` field (number, required, "Product price")  
+  - `category` field (string, optional, "Product category")
+
+#### Implementation Status
+The test reveals that Marshmallow schema integration for Cornice is not fully implemented yet (there's a TODO comment in the codebase). This test will help guide the implementation of this missing feature.
+
+---
+
+### [2024-12-28] Implement Marshmallow Schema Integration for Cornice
+
+**Status**: IN PROGRESS
+**Assigned**: Assistant
+**Estimated Time**: 45 minutes
+**Related Issue**: Missing feature implementation
+
+#### Plan
+- [ ] Locate the TODO comment in `pyramid_mcp/introspection.py`
+- [ ] Implement schema extraction using existing `_extract_marshmallow_schema_info` method
+- [ ] Replace the generic "data" field with actual Marshmallow schema fields
+- [ ] Ensure the implementation works with the failing test
+- [ ] Run tests to verify the implementation works
+- [ ] Run `make test` and `make check` to validate
+
+#### Progress
+- [x] Planning phase - documenting approach in planning/general.md
+- [ ] Locate TODO comment and understand the context
+- [ ] Implement the schema extraction feature
+- [ ] Test and validate implementation
+
+#### Problem Analysis
+The current TODO comment in `_generate_input_schema` method doesn't extract Marshmallow schema information from Cornice services. Instead, it uses a generic "data" field. The test we just created validates that schema fields should be properly exposed in tool info.
+
+#### Decisions Made
+- Use existing `_extract_marshmallow_schema_info` method for consistency
+- Replace the generic HTTP request structure approach with proper schema field extraction
+- Ensure the implementation properly handles required vs optional fields
+- Maintain backward compatibility with non-schema Cornice services
+
+---
+
 *Add new tasks here as they are started.*
 
 ---

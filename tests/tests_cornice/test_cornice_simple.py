@@ -12,8 +12,6 @@ import pytest
 from cornice import Service
 from cornice.validators import marshmallow_body_validator
 from marshmallow import Schema, fields
-from pyramid.config import Configurator
-from webtest import TestApp
 
 
 class CreateProductSchema(Schema):
@@ -53,36 +51,19 @@ def products_service():
     return products
 
 
-@pytest.fixture
-def pyramid_config_with_service(products_service):
-    """Pyramid configuration with Cornice service."""
-    config = Configurator()
-    config.include("cornice")
-
-    # Note: No authentication required - focusing on schema validation and view response
-
-    # Add the service
-    config.add_cornice_service(products_service)
-
-    # Configure MCP settings to enable route discovery
-    config.registry.settings.update(
-        {  # type: ignore
-            "mcp.route_discovery.enabled": "true",
-            "mcp.server_name": "test-server",
-            "mcp.server_version": "1.0.0",
-        }
-    )
-
-    # Include pyramid-mcp for automatic route discovery
-    config.include("pyramid_mcp")
-
-    return config
-
-
-def test_cornice_service_with_schema_via_mcp(pyramid_config_with_service):
+def test_cornice_service_with_schema_via_mcp(
+    pyramid_app_with_services, products_service
+):
     """Test that Cornice service with Marshmallow schema works via MCP integration."""
-    config = pyramid_config_with_service
-    app = TestApp(config.make_wsgi_app())
+    # Configure MCP settings
+    settings = {
+        "mcp.route_discovery.enabled": "true",
+        "mcp.server_name": "test-server",
+        "mcp.server_version": "1.0.0",
+    }
+
+    # Create app with Cornice services using the new fixture
+    app = pyramid_app_with_services(services=[products_service], settings=settings)
 
     # Test data for product creation
     product_data = {"name": "Test Widget", "price": 29.99, "category": "electronics"}
@@ -132,3 +113,88 @@ def test_cornice_service_with_schema_via_mcp(pyramid_config_with_service):
     assert product["price"] == 29.99
     assert product["category"] == "electronics"
     assert product["status"] == "created"
+
+
+def test_cornice_service_tool_info_validation(
+    pyramid_app_with_services, products_service
+):
+    """Test that Cornice service tool info is properly exposed via MCP."""
+    # Create app with Cornice services using the new fixture
+    # Note: No settings override - use fixture's isolated configuration
+    app = pyramid_app_with_services(services=[products_service])
+
+    # MCP call to list tools
+    mcp_request = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/list",
+        "params": {},
+    }
+
+    # Call the MCP endpoint
+    response = app.post_json("/mcp", mcp_request)  # type: ignore
+
+    # Assert successful MCP response
+    assert response.status_code == 200
+    assert response.content_type == "application/json"
+
+    # Assert MCP response structure
+    mcp_response = response.json
+    assert mcp_response["id"] == 1
+    assert mcp_response["jsonrpc"] == "2.0"
+    assert "result" in mcp_response
+
+    # Get the tools list
+    result = mcp_response["result"]
+    assert "tools" in result
+    tools = result["tools"]
+    assert len(tools) == 1
+
+    # Check first tool is create_products
+    assert (
+        tools[0]["name"] == "create_products"
+    ), f"Expected create_products tool, got {tools[0]['name']}"
+
+    # Validate the tool info
+    tool = tools[0]
+    assert tool["description"] == "Create a new product with schema validation."
+
+    # Validate the input schema contains Marshmallow schema information
+    assert "inputSchema" in tool
+    input_schema = tool["inputSchema"]
+
+    # This test validates that the Marshmallow schema fields from CreateProductSchema
+    # are properly exposed in the MCP tool info
+
+    # The input schema should have properties field containing the Marshmallow fields
+    assert "properties" in input_schema
+    properties = input_schema["properties"]
+
+    # Validate 'name' field from CreateProductSchema
+    assert "name" in properties
+    name_field = properties["name"]
+    assert name_field["type"] == "string"
+    assert name_field["description"] == "Product name"
+
+    # Validate 'price' field from CreateProductSchema
+    assert "price" in properties
+    price_field = properties["price"]
+    assert price_field["type"] == "number"
+    assert price_field["description"] == "Product price"
+
+    # Validate 'category' field from CreateProductSchema
+    assert "category" in properties
+    category_field = properties["category"]
+    assert category_field["type"] == "string"
+    assert category_field["description"] == "Product category"
+
+    # Validate required fields match the schema
+    assert "required" in input_schema
+    required_fields = input_schema["required"]
+    assert "name" in required_fields
+    assert "price" in required_fields
+    assert "category" not in required_fields  # Optional field
+
+    # Validate schema structure
+    assert input_schema["type"] == "object"
+    assert input_schema.get("additionalProperties") is False

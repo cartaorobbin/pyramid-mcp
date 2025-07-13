@@ -498,12 +498,25 @@ class PyramidIntrospector:
             # Use view's request methods, or fall back to route's request methods
             methods = view.get("request_methods")
             if not methods:
-                # Fall back to route's request methods
-                route_methods = route_info.get("request_methods")
-                if route_methods:
-                    methods = list(route_methods)
-                else:
-                    methods = ["GET"]  # Final fallback
+                # For Cornice services, check if we have explicit method definitions
+                cornice_service = route_info.get("cornice_service")
+                if cornice_service:
+                    # Extract defined methods from Cornice service
+                    defined_methods = cornice_service.get("defined_methods", [])
+                    if defined_methods:
+                        methods = defined_methods
+                    else:
+                        # Extract methods from service definitions
+                        definitions = cornice_service.get("definitions", [])
+                        methods = list(set(method for method, _, _ in definitions))
+
+                # Fall back to route's request methods only if not a Cornice service
+                if not methods:
+                    route_methods = route_info.get("request_methods")
+                    if route_methods:
+                        methods = list(route_methods)
+                    else:
+                        methods = ["GET"]  # Final fallback only for non-Cornice routes
             elif isinstance(methods, str):
                 # If methods is a string, convert to list
                 methods = [methods]
@@ -703,9 +716,11 @@ class PyramidIntrospector:
                 schema = method_info.get("schema")
 
                 if schema:
-                    # TODO: Extract schema information and incorporate into HTTP
-                    # request structure
-                    pass
+                    # Extract Marshmallow schema information and return it directly
+                    schema_info = self._extract_marshmallow_schema_info(schema)
+                    if schema_info:
+                        # Return Marshmallow schema directly instead of HTTP structure
+                        return schema_info
 
         # Extract path parameters from route pattern
         path_params = re.findall(r"\{([^}]+)\}", pattern)
@@ -1225,46 +1240,12 @@ class PyramidIntrospector:
         Returns:
             Dictionary containing schema field information for MCP
         """
-        try:
-            # Try to import marshmallow
-            import marshmallow
-        except ImportError:
-            # If marshmallow is not available, return empty schema info
-            return {}
+        from pyramid_mcp.schemas import MCPSchemaInfoSchema
 
-        # Handle schema class vs instance
-        if isinstance(schema, type):
-            # If it's a class, instantiate it
-            try:
-                schema_instance = schema()
-            except Exception:
-                # If instantiation fails, return empty info
-                return {}
-        else:
-            # It's already an instance
-            schema_instance = schema
-
-        # Check if it's actually a Marshmallow schema
-        if not isinstance(schema_instance, marshmallow.Schema):
-            return {}
-
-        schema_info: Dict[str, Any] = {
-            "properties": {},
-            "required": [],
-            "type": "object",
-            "additionalProperties": False,
-        }
-
-        # Extract field information
-        for field_name, field_obj in schema_instance.fields.items():
-            field_info = self._marshmallow_field_to_mcp_type(field_obj)
-            schema_info["properties"][field_name] = field_info
-
-            # Check if field is required
-            if field_obj.required:
-                schema_info["required"].append(field_name)
-
-        return schema_info
+        # Use the schema to extract and structure the data
+        mcp_schema = MCPSchemaInfoSchema()
+        result = mcp_schema.dump(schema)
+        return result if isinstance(result, dict) else {}
 
     def _marshmallow_field_to_mcp_type(self, field: Any) -> Dict[str, Any]:
         """Convert a Marshmallow field to MCP parameter type.
@@ -1275,12 +1256,7 @@ class PyramidIntrospector:
         Returns:
             Dictionary containing MCP parameter type information
         """
-        try:
-            # Try to import marshmallow fields
-            import marshmallow.fields as fields
-        except ImportError:
-            # If marshmallow is not available, return generic string type
-            return {"type": "string", "description": "Unknown field type"}
+        import marshmallow.fields as fields
 
         field_info: Dict[str, Any] = {}
 

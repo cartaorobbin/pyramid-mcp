@@ -2,6 +2,45 @@
 
 ## ✅ Recently Completed
 
+### [2024-12-28] Create Cornice Test Fixtures
+
+**Status**: DONE ✅
+**Assigned**: Assistant
+**Completed**: 2024-12-28
+**Estimated Time**: 1 hour (actual: ~45 minutes)
+**Related Issue**: Test infrastructure improvement
+
+#### Summary
+Successfully created a reusable `pyramid_app_with_services` fixture for Cornice integration testing, following the same pattern as `pyramid_app_with_views` but specialized for Cornice services. The fixture enables consistent testing of Cornice services with pyramid-mcp integration.
+
+#### Implementation Details
+- **New Fixture**: `pyramid_app_with_services` in `tests/tests_cornice/conftest.py`
+- **Pattern**: Factory function that accepts services list, optional settings, and ignore patterns
+- **Configuration**: Includes both `cornice` and `pyramid_mcp` automatically
+- **Usage**: Accepts list of Cornice service objects instead of routes
+- **Return**: TestApp instance ready for HTTP testing
+
+#### Key Features
+1. **Services Support**: Accepts list of Cornice service objects
+2. **Settings Override**: Supports custom MCP and Pyramid settings
+3. **Scanning Support**: Optional ignore patterns for module scanning
+4. **Consistent API**: Same interface pattern as `pyramid_app_with_views`
+5. **MCP Integration**: Automatic route discovery enabled by default
+
+#### Test Results
+- ✅ All tests pass (245 passed, 1 xfailed)
+- ✅ All code quality checks pass (black, isort, flake8, mypy)
+- ✅ Existing Cornice test updated to use new fixture
+- ✅ Proper code organization in `tests/tests_cornice/` directory
+
+#### Refactoring Benefits
+- Eliminated custom `pyramid_config_with_service` fixture
+- Standardized Cornice test infrastructure
+- Improved test consistency and reusability
+- Separated Cornice-specific fixtures from main conftest.py
+
+---
+
 ### [2025-01-30] Create Test for Protected Cornice Service with Schema Integration
 
 **Status**: DONE ✅

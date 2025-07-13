@@ -76,7 +76,7 @@ def includeme(config: Configurator) -> None:
             'mcp.server_version': '1.0.0'
         })
     """
-    settings = config.registry.settings
+    settings = config.registry.settings  # type: ignore
 
     # Extract MCP settings from pyramid settings
     mcp_config = _extract_mcp_config_from_settings(settings)
@@ -85,10 +85,7 @@ def includeme(config: Configurator) -> None:
     pyramid_mcp = PyramidMCP(config, config=mcp_config)
 
     # Store the instance in registry for access by application code
-    config.registry.pyramid_mcp = pyramid_mcp
-
-    # Store registry for tool decorator in testing scenarios
-    _tool_registry_storage.registry = config.registry
+    config.registry.pyramid_mcp = pyramid_mcp  # type: ignore
 
     # Add MCP routes immediately (before action execution)
     pyramid_mcp._add_mcp_routes_only()
@@ -167,33 +164,15 @@ def tool(
         # Try to register immediately if registry is available
         registry = get_current_registry()
         if registry is not None:
-            pyramid_mcp = getattr(registry, "pyramid_mcp", None)
+            pyramid_mcp = getattr(registry, "pyramid_mcp", None)  # type: ignore
             if pyramid_mcp:
                 pyramid_mcp.tool(
                     name, description, schema, permission, security=security
                 )(func)
-        else:
-            # Check if we have a stored registry for testing
-            stored_registry = getattr(_tool_registry_storage, "registry", None)
-            if stored_registry:
-                pyramid_mcp = getattr(stored_registry, "pyramid_mcp", None)
-                if pyramid_mcp:
-                    pyramid_mcp.tool(
-                        name, description, schema, permission, security=security
-                    )(func)
 
         return func
 
     return decorator
-
-
-class _ToolRegistryStorage:
-    """Helper class to store registry for tool registration in testing."""
-
-    registry = None
-
-
-_tool_registry_storage = _ToolRegistryStorage()
 
 
 def _extract_mcp_config_from_settings(settings: dict) -> MCPConfiguration:
@@ -242,9 +221,9 @@ def _get_mcp_directive(config: Configurator) -> PyramidMCP:
     return cast(PyramidMCP, config.registry.pyramid_mcp)
 
 
-def _get_mcp_from_request(request: Any) -> PyramidMCP:
-    """Request method to get PyramidMCP instance."""
-    return cast(PyramidMCP, request.registry.pyramid_mcp)
+def _get_mcp_from_request(request: Any) -> Optional[PyramidMCP]:
+    """Get PyramidMCP instance from request registry."""
+    return getattr(request.registry, "pyramid_mcp", None)  # type: ignore
 
 
 def _setup_mcp_complete(config: Configurator, pyramid_mcp: PyramidMCP) -> None:
@@ -261,21 +240,7 @@ def _setup_mcp_complete(config: Configurator, pyramid_mcp: PyramidMCP) -> None:
 
 def _register_pending_tools(pyramid_mcp: PyramidMCP) -> None:
     """Register any tools that were decorated but not immediately registered."""
-    import gc
-    import types
-
-    # Find all functions with _mcp_tool_config attribute
-    for obj in gc.get_objects():
-        if (
-            isinstance(obj, types.FunctionType)
-            and hasattr(obj, "_mcp_tool_config")
-            and obj.__name__ not in pyramid_mcp.protocol_handler.tools
-        ):
-            tool_config = obj._mcp_tool_config
-            pyramid_mcp.tool(
-                tool_config["name"],
-                tool_config["description"],
-                tool_config["schema"],
-                tool_config.get("permission", None),
-                security=tool_config.get("security", None),
-            )(obj)
+    # With the new per-registry approach, we don't need to search for global tools
+    # since each registry handles its own tools through the tool decorator
+    # that registers immediately when the registry is available
+    pass
