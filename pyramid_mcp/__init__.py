@@ -76,7 +76,7 @@ def includeme(config: Configurator) -> None:
             'mcp.server_version': '1.0.0'
         })
     """
-    settings = config.registry.settings  # type: ignore
+    settings = config.registry.settings
 
     # Extract MCP settings from pyramid settings
     mcp_config = _extract_mcp_config_from_settings(settings)
@@ -85,10 +85,10 @@ def includeme(config: Configurator) -> None:
     pyramid_mcp = PyramidMCP(config, config=mcp_config)
 
     # Store the instance in registry for access by application code
-    config.registry.pyramid_mcp = pyramid_mcp  # type: ignore
+    config.registry.pyramid_mcp = pyramid_mcp
 
     # Store registry for tool decorator in testing scenarios
-    _tool_registry_storage.registry = config.registry  # type: ignore
+    _tool_registry_storage.registry = config.registry
 
     # Add MCP routes immediately (before action execution)
     pyramid_mcp._add_mcp_routes_only()
@@ -239,7 +239,7 @@ def _parse_bool_setting(value: Any) -> bool:
 
 def _get_mcp_directive(config: Configurator) -> PyramidMCP:
     """Directive to get PyramidMCP instance from configurator."""
-    return cast(PyramidMCP, config.registry.pyramid_mcp)  # type: ignore
+    return cast(PyramidMCP, config.registry.pyramid_mcp)
 
 
 def _get_mcp_from_request(request: Any) -> PyramidMCP:

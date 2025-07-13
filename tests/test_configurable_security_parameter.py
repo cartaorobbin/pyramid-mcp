@@ -124,8 +124,9 @@ def test_end_to_end_with_custom_security_parameter():
     assert security_schema.__class__.__name__ == "BearerAuthSchema"
 
 
-def test_backward_compatibility_with_mcp_security():
-    """Test that existing mcp_security parameter still works (backward compatibility)."""
+def test_mcp_security_parameter_backward_compatibility():
+    """Test that existing mcp_security parameter still works (backward
+    compatibility)."""
 
     # Test that default configuration uses mcp_security
     config = MCPConfiguration()

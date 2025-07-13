@@ -65,25 +65,22 @@ class UserUpdateSchema(Schema):
 @pytest.fixture
 def pyramid_app_with_views():
     """
-    Simple fixture that creates Pyramid app with views and MCP.
+    Create a Pyramid app with given routes and optional view scanning.
 
-    Usage:
-        app = pyramid_app_with_views(routes)
-
-    Where routes is a list of (route_name, route_pattern) tuples.
-    The view functions with @view_config decorators will be registered automatically.
+    routes is a list of (route_name, route_pattern) tuples.
+    ignore is optional list of module patterns to ignore when scanning.
+    settings is optional dict of Pyramid settings (defaults to MCP route
+    discovery enabled).
     """
 
-    def _create_app(routes):
+    def _create_app(routes, ignore=None, settings=None):
         from pyramid.config import Configurator
         from webtest import TestApp
 
-        config = Configurator()
-
-        # Enable route discovery BEFORE including pyramid_mcp
-        config.registry.settings.update(
-            {"mcp.route_discovery.enabled": "true"}  # type: ignore
-        )
+        # Use provided settings or default to route discovery enabled
+        if settings is None:
+            settings = {"mcp.route_discovery.enabled": "true"}
+        config = Configurator(settings=settings)
 
         config.include("pyramid_mcp")
 
@@ -91,7 +88,9 @@ def pyramid_app_with_views():
         for route_name, route_pattern in routes:
             config.add_route(route_name, route_pattern)
 
-        config.scan()
+        # Scan with optional ignore parameter passed directly to Pyramid
+        config.scan(ignore=ignore)
+
         return TestApp(config.make_wsgi_app())
 
     return _create_app

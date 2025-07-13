@@ -375,7 +375,12 @@ def update_user_profile(request):
     return {"message": f"Profile updated for {username}", "user": user_data["profile"]}
 
 
-@view_config(route_name="api_secure_data", renderer="json", permission="view", mcp_security="bearer")
+@view_config(
+    route_name="api_secure_data",
+    renderer="json",
+    permission="view",
+    mcp_security="bearer",
+)
 def secure_data(request):
     """Get secure data. (Authenticated access)"""
     user = request._authenticated_user
@@ -387,7 +392,12 @@ def secure_data(request):
     }
 
 
-@view_config(route_name="api_admin_data", renderer="json", permission="view", mcp_security="bearer")
+@view_config(
+    route_name="api_admin_data",
+    renderer="json",
+    permission="view",
+    mcp_security="bearer",
+)
 def admin_data(request):
     """Get admin data. (Admin-only access via AdminContext)"""
     user = request._authenticated_user
@@ -648,11 +658,13 @@ def create_app(global_config=None, **settings):
     }
 
     # Add MCP configuration with route discovery enabled
-    filtered_settings.update({
-        'mcp.server_name': 'secure-pyramid-mcp',
-        'mcp.mount_path': '/mcp',
-        'mcp.route_discovery.enabled': 'true',  # Enable route discovery
-    })
+    filtered_settings.update(
+        {
+            "mcp.server_name": "secure-pyramid-mcp",
+            "mcp.mount_path": "/mcp",
+            "mcp.route_discovery.enabled": "true",  # Enable route discovery
+        }
+    )
 
     config = Configurator(settings=filtered_settings)
 

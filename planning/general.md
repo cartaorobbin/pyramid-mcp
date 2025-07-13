@@ -2,7 +2,64 @@
 
 ## 🎯 Current Active Tasks
 
-*No active tasks currently. The critical MCP security authentication bug has been fixed and moved to planning/done.md.*
+### [2024-12-28] Refactor Introspection Input Schema Generation
+
+**Status**: IN PROGRESS
+**Assigned**: Assistant
+**Estimated Time**: 2 hours
+**Related Issue**: Code quality improvement
+
+#### Plan
+- [ ] Create new `pyramid_mcp/schemas.py` file for schema definitions
+- [ ] Design Marshmallow schema for HTTP request structure (path, body, headers, querystring)
+- [ ] Refactor `_generate_input_schema` method in introspection.py to use new schema approach
+- [ ] Remove misleading comment about Pyramid views and generic 'data' parameter
+- [ ] Update tests to work with new schema structure
+- [ ] Run `make test` and `make check` to ensure everything passes
+
+#### Progress
+- [x] Planning phase - documenting approach
+- [x] Create schemas.py file with ONLY clean Marshmallow schemas
+- [x] Implement HTTPRequestSchema with proper nested fields structure
+- [x] Improve schemas structure with individual parameter schemas:
+  - [x] PathParameterSchema for single path parameters
+  - [x] QueryParameterSchema for single query parameters  
+  - [x] BodySchema for single body fields
+  - [x] HTTPRequestSchema uses lists of these schemas
+- [x] Revert introspection.py to working state
+- [x] Clean schemas.py to contain ONLY schemas:
+  - [x] PathParameterSchema - for individual path parameters
+  - [x] QueryParameterSchema - for individual query parameters  
+  - [x] BodySchema - for individual body fields
+  - [x] RequestHeadersSchema - for headers
+  - [x] HTTPRequestSchema - main schema using lists of the above
+  - [x] Removed all utility functions (schemas only!)
+- [x] Update introspection.py to use the schemas:
+  - [x] Added imports for all schema classes
+  - [x] Updated _generate_input_schema method to use schemas properly
+  - [x] Uses PathParameterSchema().load() for path parameters
+  - [x] Uses QueryParameterSchema().load() for query parameters
+  - [x] Uses BodySchema().load() for body fields
+  - [x] Uses HTTPRequestSchema().load() for validation and .dump() for JSON output
+  - [x] Removed misleading comment about Pyramid view parameters
+  - [x] Cleaned up legacy properties/required variables
+- [ ] Update tests
+- [ ] Validate with make test/check
+
+#### Problem Analysis
+Current code has misleading comment: "since Pyramid views only take 'request' parameter, we can't extract params from signature" 
+and uses a generic 'data' parameter that doesn't properly represent HTTP request structure.
+
+HTTP requests should be properly structured with:
+- Path parameters (from URL path like /users/{id})
+- Query parameters (from URL query string like ?limit=10&offset=0)
+- Request body (for POST/PUT/PATCH requests)
+- Headers (for authentication, content-type, etc.)
+
+#### Decisions Made
+- Create separate schemas.py file to reduce introspection.py size
+- Use Marshmallow schemas to properly validate and structure HTTP request data
+- Remove generic 'data' parameter approach in favor of proper HTTP structure
 
 ---
 

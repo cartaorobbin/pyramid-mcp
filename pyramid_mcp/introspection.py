@@ -9,7 +9,15 @@ to extract enhanced metadata and validation information.
 import re
 from typing import Any, Callable, Dict, List, Optional, Union
 
+import marshmallow
+
 from pyramid_mcp.protocol import MCPTool
+from pyramid_mcp.schemas import (
+    BodySchema,
+    HTTPRequestSchema,
+    PathParameterSchema,
+    QueryParameterSchema,
+)
 from pyramid_mcp.security import BasicAuthSchema, BearerAuthSchema
 
 
@@ -659,7 +667,10 @@ class PyramidIntrospector:
         method: str,
         view_info: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Generate JSON schema for tool input from route pattern and view signature.
+        """Generate JSON schema for tool input based on HTTP request structure.
+
+        Creates a schema that properly represents HTTP requests with separate
+        sections for path parameters, query parameters, request body, and headers.
 
         Args:
             pattern: Route pattern (e.g., '/users/{id}')
@@ -668,10 +679,18 @@ class PyramidIntrospector:
             view_info: View information including Cornice metadata
 
         Returns:
-            JSON schema dictionary or None
+            JSON schema dictionary using HTTPRequestSchema structure or None
         """
-        properties: Dict[str, Any] = {}
-        required: List[str] = []
+        # Create HTTPRequestSchema instance for proper HTTP request structure
+        http_schema = HTTPRequestSchema()
+
+        # Initialize with empty HTTP request structure
+        http_request: Dict[str, Any] = {
+            "path": [],
+            "query": [],
+            "body": [],
+            "headers": {},
+        }
 
         # Check for Marshmallow schema in Cornice metadata first
         if view_info and "cornice_metadata" in view_info:
@@ -684,23 +703,27 @@ class PyramidIntrospector:
                 schema = method_info.get("schema")
 
                 if schema:
-                    # Extract schema information using Marshmallow
-                    schema_info = self._extract_marshmallow_schema_info(schema)
-                    if schema_info and "properties" in schema_info:
-                        # Use schema properties as base
-                        properties.update(schema_info["properties"])
-                        required.extend(schema_info.get("required", []))
+                    # TODO: Extract schema information and incorporate into HTTP
+                    # request structure
+                    pass
 
         # Extract path parameters from route pattern
         path_params = re.findall(r"\{([^}]+)\}", pattern)
         for param in path_params:
             # Remove any regex constraints (e.g., {id:\d+} -> id)
             clean_param = param.split(":")[0]
-            properties[clean_param] = {
-                "type": "string",
-                "description": f"Path parameter: {clean_param}",
-            }
-            required.append(clean_param)
+
+            # Use PathParameterSchema to create proper path parameter
+            path_param_schema = PathParameterSchema()
+            path_param_data = path_param_schema.load(
+                {
+                    "name": clean_param,
+                    "value": "",  # Will be filled by the tool caller
+                    "type": "string",
+                    "description": f"Path parameter: {clean_param}",
+                }
+            )
+            http_request["path"].append(path_param_data)
 
         # Add common query parameters for known patterns
         if method.upper() == "GET":
@@ -714,47 +737,68 @@ class PyramidIntrospector:
 
                 # Check for name parameter in hello endpoints
                 if "hello" in doc or "name" in doc:
-                    properties["name"] = {
-                        "type": "string",
-                        "description": "Name to greet",
-                        "default": "World",
-                    }
+                    # Use QueryParameterSchema to create proper query parameter
+                    query_param_schema = QueryParameterSchema()
+                    name_param_data = query_param_schema.load(
+                        {
+                            "name": "name",
+                            "value": "",
+                            "type": "string",
+                            "description": "Name to greet",
+                            "default": "World",
+                        }
+                    )
+                    http_request["query"].append(name_param_data)
 
                 # For user endpoints, look for common parameters
                 if "user" in doc:
-                    if "id" not in properties:  # Don't override path params
-                        properties["limit"] = {
+                    # Use QueryParameterSchema to create proper query parameters
+                    query_param_schema = QueryParameterSchema()
+                    limit_param_data = query_param_schema.load(
+                        {
+                            "name": "limit",
+                            "value": "",
                             "type": "integer",
                             "description": "Maximum number of items to return",
                             "default": 10,
                         }
-                        properties["offset"] = {
+                    )
+                    http_request["query"].append(limit_param_data)
+
+                    offset_param_data = query_param_schema.load(
+                        {
+                            "name": "offset",
+                            "value": "",
                             "type": "integer",
                             "description": "Number of items to skip",
                             "default": 0,
                         }
+                    )
+                    http_request["query"].append(offset_param_data)
 
-        # Add a generic 'data' parameter for request body/query data
-        # (since Pyramid views only take 'request' parameter, we can't extract
-        # params from signature)
-        if "data" not in properties:
-            properties["data"] = {
-                "type": "string",
-                "description": "Request data parameter",
-            }
-            # Make it required for POST/PUT/PATCH methods
-            if method.upper() in ["POST", "PUT", "PATCH"]:
-                required.append("data")
+        # Add request body fields for methods that typically have body data
+        if method.upper() in ["POST", "PUT", "PATCH"]:
+            # Use BodySchema to create proper body field
+            body_schema = BodySchema()
+            body_field_data = body_schema.load(
+                {
+                    "name": "data",
+                    "value": "",
+                    "type": "string",
+                    "description": "Request body data",
+                    "required": True,
+                }
+            )
+            http_request["body"].append(body_field_data)
 
-        # Return schema if we have properties
-        if properties:
-            schema = {
-                "type": "object",
-                "properties": properties,
-                "required": required,
-                "additionalProperties": False,
-            }
-            return schema
+        # Return schema using HTTPRequestSchema structure
+        if http_request["path"] or http_request["query"] or http_request["body"]:
+            # Validate and serialize the HTTP request structure using HTTPRequestSchema
+            validated_request = http_schema.load(http_request)
+
+            # Use schema dump to get the JSON representation
+            dumped_schema = http_schema.dump(validated_request)
+            return dumped_schema  # type: ignore
 
         return None
 
@@ -1300,15 +1344,13 @@ class PyramidIntrospector:
             self._add_validation_constraints(field, field_info)
 
         # Add default value if available
-        if hasattr(field, "default") and field.default is not None:
-            # Handle marshmallow.missing
-            try:
-                import marshmallow
-
-                if field.default is not marshmallow.missing:
-                    field_info["default"] = field.default
-            except ImportError:
-                pass
+        # Check for dump_default first (new marshmallow), then default (old marshmallow)
+        if hasattr(field, "dump_default") and field.dump_default is not None:
+            if field.dump_default is not marshmallow.missing:
+                field_info["default"] = field.dump_default
+        elif hasattr(field, "default") and field.default is not None:
+            if field.default is not marshmallow.missing:
+                field_info["default"] = field.default
 
         return field_info
 
