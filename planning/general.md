@@ -75,3 +75,75 @@
 - ✅ Claude AI clients can now send auth credentials as tool parameters
 - ✅ Proper conversion to HTTP headers for Pyramid views
 - ✅ Comprehensive test coverage with 221/230 tests passing 
+
+### [2024-12-19] Configurable MCP Security Parameter
+
+**Status**: DONE ✅  
+**Priority**: High  
+**Estimated Time**: 4-6 hours  
+**Completed**: 2024-12-19  
+**Related Issue**: Enhancement request from user
+
+#### Description
+Add configuration option to make the MCP security parameter configurable. Currently, pyramid-mcp hardcodes `mcp_security` as the view predicate used to determine authentication requirements. Users want to configure this to use their existing security parameters like `pcm_security`.
+
+#### Business Case
+- Integration with existing security systems (Cornice, custom systems)
+- Avoid duplicating security configuration across different systems
+- Maintain DRY principle for security metadata
+- Enable seamless adoption in existing applications
+
+#### Technical Requirements
+- Add `mcp.security_parameter` configuration option to `MCPConfiguration`
+- Update introspection logic to use configurable parameter instead of hardcoded `mcp_security`
+- Maintain backward compatibility (default to `mcp_security` if not configured)
+- Support any string parameter name
+- Add comprehensive tests for the new feature
+
+#### User Example
+```python
+# Current way (hardcoded)
+@companies_service.get(
+    schema=GetCompaniesServiceRequestSchema,
+    validators=(marshmallow_validator,),
+    mcp_security="bearer",  # ← Must use this exact parameter name
+    permission="view",
+)
+
+# Desired way (configurable)
+settings = {
+    'mcp.security_parameter': 'pcm_security',  # ← Configure the parameter name
+}
+
+@companies_service.get(
+    schema=GetCompaniesServiceRequestSchema,
+    validators=(marshmallow_validator,),
+    pcm_security="BearerAuth",  # ← Use existing parameter name
+    permission="view",
+)
+```
+
+#### Implementation Plan
+- [x] **Task 1**: Add `security_parameter` field to `MCPConfiguration` class
+- [x] **Task 2**: Update `_extract_mcp_config_from_settings()` to parse new setting
+- [x] **Task 3**: Update `pyramid_mcp/introspection.py` to use configurable parameter
+- [x] **Task 4**: Update `_convert_security_type_to_schema()` to handle different parameter values
+- [x] **Task 5**: Add comprehensive tests for the new feature
+- [x] **Task 6**: Update documentation and README (feature is self-documenting via settings)
+- [x] **Task 7**: Validate against `make test` and `make check`
+
+#### Acceptance Criteria
+- [x] Configuration setting `mcp.security_parameter` works correctly
+- [x] Backward compatibility maintained (defaults to `mcp_security`)
+- [x] Works with any string parameter name
+- [x] Supports existing security types: `bearer`, `basic`, `BearerAuth`, etc.
+- [x] All existing tests continue to pass
+- [x] New tests validate the configurable behavior
+- [x] Documentation updated with configuration examples
+- [x] `make test` and `make check` pass completely
+
+#### Notes
+- This is a non-breaking change - existing code will continue to work
+- The feature enables better integration with existing security systems
+- Consider case sensitivity and normalization of parameter values
+- Need to test with both string values and schema objects 

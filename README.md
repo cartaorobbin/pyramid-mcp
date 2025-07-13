@@ -426,6 +426,9 @@ settings = {
     'mcp.server_version': '1.0.0',        # Server version (default: '1.0.0')
     'mcp.mount_path': '/mcp',              # Mount path for MCP endpoints (default: '/mcp')
     
+    # Security Configuration
+    'mcp.security_parameter': 'mcp_security',  # Name of security parameter in views (default: 'mcp_security')
+    
     # Protocol Configuration  
     'mcp.enable_sse': 'true',              # Enable Server-Sent Events (default: True)
     'mcp.enable_http': 'true',             # Enable HTTP protocol (default: True)
@@ -534,6 +537,97 @@ curl -X POST http://localhost:8080/mcp \
 - **No credential logging**: Authentication parameters are removed from handler arguments before execution
 - **Validation**: Credentials are validated before tool execution
 - **Standard HTTP headers**: Credentials are converted to standard HTTP Authorization headers for your use
+
+### Configurable Security Parameter
+
+By default, pyramid-mcp looks for the `mcp_security` parameter in your view configurations to determine what authentication parameters to add to MCP tools. However, you can configure this to use any existing security parameter from your application, avoiding the need to duplicate security configuration.
+
+#### Using Existing Security Parameters
+
+If your application already uses security parameters like `pcm_security`, `api_security`, or any other custom parameter name, you can configure pyramid-mcp to use them:
+
+```python
+# Configure pyramid-mcp to use your existing security parameter
+settings = {
+    'mcp.security_parameter': 'pcm_security',  # Use existing parameter name
+    'mcp.server_name': 'my-api',
+    'mcp.mount_path': '/mcp'
+}
+
+config = Configurator(settings=settings)
+config.include('pyramid_mcp')
+```
+
+#### Example with Custom Security Parameter
+
+```python
+from pyramid.view import view_config
+from pyramid.config import Configurator
+
+# Configure to use 'api_auth' as the security parameter
+settings = {
+    'mcp.security_parameter': 'api_auth',
+    'mcp.server_name': 'my-enterprise-api'
+}
+
+config = Configurator(settings=settings)
+config.include('pyramid_mcp')
+
+# Your existing views with custom security parameter
+@view_config(
+    route_name='secure_endpoint',
+    renderer='json',
+    api_auth='bearer'  # Uses your existing parameter name
+)
+def secure_endpoint_view(request):
+    return {"message": "secure data"}
+
+@view_config(
+    route_name='admin_endpoint', 
+    renderer='json',
+    api_auth='basic'  # Uses your existing parameter name
+)
+def admin_endpoint_view(request):
+    return {"admin": "data"}
+```
+
+#### Benefits of Configurable Security Parameter
+
+1. **No Duplication**: Reuse existing security configuration instead of adding new `mcp_security` parameters
+2. **Consistency**: Use the same security parameter names across your entire application
+3. **Integration**: Seamlessly integrate with existing security systems and middleware
+4. **Flexibility**: Change security parameter names without modifying view code
+
+#### Backward Compatibility
+
+The default behavior remains unchanged. If you don't configure `mcp.security_parameter`, pyramid-mcp will continue to use `mcp_security` as the parameter name:
+
+```python
+# Default behavior (no configuration needed)
+@view_config(route_name='secure', renderer='json', mcp_security='bearer')
+def secure_view(request):
+    return {"data": "secure"}
+```
+
+#### Advanced Security Integration
+
+You can integrate with complex security systems by using descriptive parameter names:
+
+```python
+# Configure for enterprise security system
+settings = {
+    'mcp.security_parameter': 'enterprise_auth_level',
+    'mcp.server_name': 'enterprise-api'
+}
+
+@view_config(
+    route_name='financial_data',
+    renderer='json', 
+    enterprise_auth_level='bearer'  # Integrates with existing system
+)
+def financial_data_view(request):
+    return {"financial": "data"}
+```
 
 ## Development
 

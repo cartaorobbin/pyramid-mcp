@@ -61,37 +61,39 @@ class UserUpdateSchema(Schema):
 # 🏗️ CORE PYRAMID FIXTURES
 # =============================================================================
 
+
 @pytest.fixture
 def pyramid_app_with_views():
     """
     Simple fixture that creates Pyramid app with views and MCP.
-    
+
     Usage:
         app = pyramid_app_with_views(routes)
-        
+
     Where routes is a list of (route_name, route_pattern) tuples.
     The view functions with @view_config decorators will be registered automatically.
     """
+
     def _create_app(routes):
         from pyramid.config import Configurator
         from webtest import TestApp
-        
+
         config = Configurator()
-        
+
         # Enable route discovery BEFORE including pyramid_mcp
-        config.registry.settings.update({  # type: ignore
-            'mcp.route_discovery.enabled': 'true'
-        })
-        
-        config.include('pyramid_mcp')
-        
+        config.registry.settings.update(
+            {"mcp.route_discovery.enabled": "true"}  # type: ignore
+        )
+
+        config.include("pyramid_mcp")
+
         # Create routes - views will be registered by scan()
         for route_name, route_pattern in routes:
             config.add_route(route_name, route_pattern)
-        
+
         config.scan()
         return TestApp(config.make_wsgi_app())
-    
+
     return _create_app
 
 

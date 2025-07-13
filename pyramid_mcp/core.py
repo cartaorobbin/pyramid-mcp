@@ -40,6 +40,8 @@ class MCPConfiguration:
     route_discovery_enabled: bool = False
     route_discovery_include_patterns: Optional[List[str]] = None
     route_discovery_exclude_patterns: Optional[List[str]] = None
+    # Security parameter configuration
+    security_parameter: str = "mcp_security"
 
 
 class PyramidMCP:
@@ -134,6 +136,7 @@ class PyramidMCP:
                         self.exclude_patterns = (
                             mcp_config.route_discovery_exclude_patterns or []
                         )
+                        self.security_parameter = mcp_config.security_parameter
 
                 discovery_config = RouteDiscoveryConfig(self.config)
 

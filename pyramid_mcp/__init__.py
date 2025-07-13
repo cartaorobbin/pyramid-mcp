@@ -30,7 +30,12 @@ from marshmallow import Schema
 from pyramid.config import Configurator
 from pyramid.threadlocal import get_current_registry
 
-from pyramid_mcp.core import MCPConfiguration, MCPDescriptionPredicate, MCPSecurityPredicate, PyramidMCP
+from pyramid_mcp.core import (
+    MCPConfiguration,
+    MCPDescriptionPredicate,
+    MCPSecurityPredicate,
+    PyramidMCP,
+)
 from pyramid_mcp.security import MCPSecurityType
 from pyramid_mcp.version import __version__
 
@@ -96,8 +101,8 @@ def includeme(config: Configurator) -> None:
 
     # Register the MCP description view predicate
     config.add_view_predicate("mcp_description", MCPDescriptionPredicate)
-    
-    # Register the MCP security view predicate  
+
+    # Register the MCP security view predicate
     config.add_view_predicate("mcp_security", MCPSecurityPredicate)
 
     # Register a post-configure hook to discover routes and register tools
@@ -211,6 +216,8 @@ def _extract_mcp_config_from_settings(settings: dict) -> MCPConfiguration:
         route_discovery_exclude_patterns=_parse_list_setting(
             settings.get("mcp.route_discovery.exclude_patterns")
         ),
+        # Security parameter settings
+        security_parameter=settings.get("mcp.security_parameter", "mcp_security"),
     )
 
 

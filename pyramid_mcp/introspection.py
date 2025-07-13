@@ -6,12 +6,11 @@ and convert them into MCP tools. Includes support for Cornice REST framework
 to extract enhanced metadata and validation information.
 """
 
-import inspect
 import re
 from typing import Any, Callable, Dict, List, Optional, Union
 
 from pyramid_mcp.protocol import MCPTool
-from pyramid_mcp.security import BearerAuthSchema, BasicAuthSchema
+from pyramid_mcp.security import BasicAuthSchema, BearerAuthSchema
 
 
 class PyramidIntrospector:
@@ -24,6 +23,9 @@ class PyramidIntrospector:
             configurator: Pyramid configurator instance
         """
         self.configurator = configurator
+        self._security_parameter = (
+            "mcp_security"  # Will be overridden by discover_tools
+        )
 
     def discover_routes(self) -> List[Dict[str, Any]]:
         """Discover routes from the Pyramid application.
@@ -349,6 +351,9 @@ class PyramidIntrospector:
         Returns:
             List of MCPTool objects
         """
+        # Store the security parameter for use in other methods
+        self._security_parameter = config.security_parameter
+
         # Use the existing comprehensive method
         return self.discover_tools_from_pyramid(None, config)
 
@@ -525,8 +530,8 @@ class PyramidIntrospector:
                 route_pattern, view_callable, method, view
             )
 
-            # Extract security configuration from view info
-            security_type = view.get("mcp_security")
+            # Extract security configuration from view info using configurable parameter
+            security_type = view.get(config.security_parameter)
             security = None
             if security_type:
                 security = self._convert_security_type_to_schema(security_type)
@@ -730,7 +735,8 @@ class PyramidIntrospector:
                         }
 
         # Add a generic 'data' parameter for request body/query data
-        # (since Pyramid views only take 'request' parameter, we can't extract params from signature)
+        # (since Pyramid views only take 'request' parameter, we can't extract
+        # params from signature)
         if "data" not in properties:
             properties["data"] = {
                 "type": "string",
@@ -767,9 +773,9 @@ class PyramidIntrospector:
         """
         route_pattern = route_info.get("pattern", "")
         route_name = route_info.get("name", "")
-        
-        # Get security configuration from view_info
-        security_type = view_info.get("mcp_security")
+
+        # Get security configuration from view_info using configurable parameter
+        security_type = view_info.get(self._security_parameter)
         security = None
         if security_type:
             security = self._convert_security_type_to_schema(security_type)
@@ -824,14 +830,18 @@ class PyramidIntrospector:
 
         from pyramid.request import Request
 
-        # Get authentication headers from pyramid_request if they were processed by MCP protocol handler
+        # Get authentication headers from pyramid_request if they were processed
+        # by MCP protocol handler
         auth_headers = {}
-        if hasattr(pyramid_request, 'mcp_auth_headers') and pyramid_request.mcp_auth_headers:
+        if (
+            hasattr(pyramid_request, "mcp_auth_headers")
+            and pyramid_request.mcp_auth_headers
+        ):
             auth_headers = pyramid_request.mcp_auth_headers
             print(f"🔐 AUTH DEBUG: Using MCP auth headers: {auth_headers}")
         else:
             print("🔐 AUTH DEBUG: No MCP auth headers found")
-        
+
         # kwargs should already have auth parameters removed by MCP protocol handler
         filtered_kwargs = kwargs
         print(f"🔐 AUTH DEBUG: kwargs after MCP processing: {filtered_kwargs}")
@@ -1364,16 +1374,18 @@ class PyramidIntrospector:
         """Convert string security type to appropriate schema object.
 
         Args:
-            security_type: String security type ("bearer", "basic", etc.)
+            security_type: String security type ("bearer", "basic", "BearerAuth", etc.)
 
         Returns:
             Appropriate security schema object or None if unknown
         """
         security_type_lower = security_type.lower()
-        
-        if security_type_lower == "bearer":
+
+        # Handle various forms of Bearer authentication
+        if security_type_lower in ["bearer", "bearerauth", "bearer_auth", "jwt"]:
             return BearerAuthSchema()
-        elif security_type_lower == "basic":
+        # Handle various forms of Basic authentication
+        elif security_type_lower in ["basic", "basicauth", "basic_auth"]:
             return BasicAuthSchema()
         else:
             # Unknown security type, return None

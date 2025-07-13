@@ -375,7 +375,7 @@ def update_user_profile(request):
     return {"message": f"Profile updated for {username}", "user": user_data["profile"]}
 
 
-@view_config(route_name="api_secure_data", renderer="json", permission="view")
+@view_config(route_name="api_secure_data", renderer="json", permission="view", mcp_security="bearer")
 def secure_data(request):
     """Get secure data. (Authenticated access)"""
     user = request._authenticated_user
@@ -387,7 +387,7 @@ def secure_data(request):
     }
 
 
-@view_config(route_name="api_admin_data", renderer="json", permission="view")
+@view_config(route_name="api_admin_data", renderer="json", permission="view", mcp_security="bearer")
 def admin_data(request):
     """Get admin data. (Admin-only access via AdminContext)"""
     user = request._authenticated_user
@@ -407,6 +407,7 @@ def admin_data(request):
     renderer="json",
     request_method="POST",
     permission="simple_calc",
+    mcp_security="basic",
 )
 def calculator_view(request):
     """Calculator with dynamic permission checking via context factory."""
@@ -646,6 +647,13 @@ def create_app(global_config=None, **settings):
         k: v for k, v in settings.items() if not k.startswith("pyramid.")
     }
 
+    # Add MCP configuration with route discovery enabled
+    filtered_settings.update({
+        'mcp.server_name': 'secure-pyramid-mcp',
+        'mcp.mount_path': '/mcp',
+        'mcp.route_discovery.enabled': 'true',  # Enable route discovery
+    })
+
     config = Configurator(settings=filtered_settings)
 
     # Set up security policy
@@ -673,7 +681,7 @@ def create_app(global_config=None, **settings):
     # Dynamic context routes
     config.add_route("calculator", "/calculator", factory=calculator_context_factory)
 
-    # Include pyramid_mcp with custom security for MCP tools
+    # Include pyramid_mcp with route discovery enabled
     config.include("pyramid_mcp")
 
     # ✨ DEMONSTRATION: Custom MCP route with context factory security
