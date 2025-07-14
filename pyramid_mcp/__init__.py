@@ -240,7 +240,34 @@ def _setup_mcp_complete(config: Configurator, pyramid_mcp: PyramidMCP) -> None:
 
 def _register_pending_tools(pyramid_mcp: PyramidMCP) -> None:
     """Register any tools that were decorated but not immediately registered."""
-    # With the new per-registry approach, we don't need to search for global tools
-    # since each registry handles its own tools through the tool decorator
-    # that registers immediately when the registry is available
-    pass
+    import sys
+    import inspect
+    
+    # Search through all loaded modules for functions with _mcp_tool_config
+    for module_name, module in sys.modules.items():
+        if module is None:
+            continue
+            
+        # Skip built-in modules and standard library modules
+        if module_name.startswith('_') or '.' not in module_name:
+            continue
+            
+        try:
+            # Get all functions in the module
+            for name, obj in inspect.getmembers(module, inspect.isfunction):
+                # Check if function has MCP tool configuration
+                if hasattr(obj, '_mcp_tool_config'):
+                    config = obj._mcp_tool_config
+                    
+                    # Use the PyramidMCP.tool method to register the tool
+                    pyramid_mcp.tool(
+                        name=config.get('name'),
+                        description=config.get('description'),
+                        schema=config.get('schema'),
+                        permission=config.get('permission'),
+                        security=config.get('security')
+                    )(obj)
+                    
+        except (AttributeError, TypeError):
+            # Skip modules that can't be introspected
+            continue

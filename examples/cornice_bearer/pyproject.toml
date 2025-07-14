@@ -1,0 +1,25 @@
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "pyramid-mcp-cornice-bearer-example"
+version = "0.1.0"
+description = "Cornice + Bearer Authentication + MCP Integration Example"
+authors = ["Pyramid MCP Team"]
+readme = "README.md"
+packages = [{include = "cornice_bearer_app.py"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+pyramid = "^2.0"
+cornice = "^6.1.0"
+marshmallow = "^3.19.0"
+pyramid-mcp = {path = "../../", develop = true}
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.2.0"
+webtest = "^3.0.0"
+
+[tool.poetry.scripts]
+cornice-bearer-app = "cornice_bearer_app:main" 

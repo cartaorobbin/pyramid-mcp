@@ -170,8 +170,8 @@ class PyramidIntrospector:
                 routes_info.append(route_info)
 
         except Exception as e:
-            # Log the error but don't fail completely
-            print(f"Error discovering routes: {e}")
+            # Silently handle errors to avoid interfering with JSON protocol
+            pass
 
         return routes_info
 
@@ -219,7 +219,8 @@ class PyramidIntrospector:
             # Cornice is not installed, return empty list
             pass
         except Exception as e:
-            print(f"Error discovering Cornice services: {e}")
+            # Silently handle errors to avoid interfering with JSON protocol
+            pass
 
         return cornice_services
 
@@ -806,14 +807,54 @@ class PyramidIntrospector:
             )
             http_request["body"].append(body_field_data)
 
-        # Return schema using HTTPRequestSchema structure
+        # Convert to proper JSON schema format with "type": "object"
         if http_request["path"] or http_request["query"] or http_request["body"]:
-            # Validate and serialize the HTTP request structure using HTTPRequestSchema
-            validated_request = http_schema.load(http_request)
+            # Create proper JSON schema structure
+            json_schema = {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": False,
+            }
 
-            # Use schema dump to get the JSON representation
-            dumped_schema = http_schema.dump(validated_request)
-            return dumped_schema  # type: ignore
+            # Add path parameters to properties
+            for path_param in http_request["path"]:
+                param_name = path_param["name"]
+                json_schema["properties"][param_name] = {
+                    "type": path_param.get("type", "string"),
+                    "description": path_param.get("description", f"Path parameter: {param_name}"),
+                }
+                json_schema["required"].append(param_name)
+
+            # Add query parameters to properties
+            for query_param in http_request["query"]:
+                param_name = query_param["name"]
+                param_schema = {
+                    "type": query_param.get("type", "string"),
+                    "description": query_param.get("description", f"Query parameter: {param_name}"),
+                }
+                
+                # Add default value if present
+                if "default" in query_param:
+                    param_schema["default"] = query_param["default"]
+                
+                json_schema["properties"][param_name] = param_schema
+                
+                # Only add to required if no default value
+                if "default" not in query_param and query_param.get("required", False):
+                    json_schema["required"].append(param_name)
+
+            # Add body parameters to properties
+            for body_param in http_request["body"]:
+                param_name = body_param["name"]
+                json_schema["properties"][param_name] = {
+                    "type": body_param.get("type", "string"),
+                    "description": body_param.get("description", f"Request body parameter: {param_name}"),
+                }
+                if body_param.get("required", False):
+                    json_schema["required"].append(param_name)
+
+            return json_schema
 
         return None
 
@@ -897,13 +938,11 @@ class PyramidIntrospector:
             and pyramid_request.mcp_auth_headers
         ):
             auth_headers = pyramid_request.mcp_auth_headers
-            print(f"🔐 AUTH DEBUG: Using MCP auth headers: {auth_headers}")
         else:
-            print("🔐 AUTH DEBUG: No MCP auth headers found")
+            auth_headers = {}
 
         # kwargs should already have auth parameters removed by MCP protocol handler
         filtered_kwargs = kwargs
-        print(f"🔐 AUTH DEBUG: kwargs after MCP processing: {filtered_kwargs}")
 
         # Extract path parameters from route pattern
         path_params = re.findall(r"\{([^}]+)\}", route_pattern)

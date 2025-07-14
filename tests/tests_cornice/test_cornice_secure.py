@@ -67,6 +67,9 @@ def secure_user_service():
 # =============================================================================
 
 
+
+
+
 def test_secure_cornice_service_tools_list(pyramid_app_with_services, secure_user_service):
     """Test that secure Cornice service appears in MCP tools list."""
     app = pyramid_app_with_services([secure_user_service])
@@ -108,4 +111,7 @@ def test_secure_cornice_service_tools_list(pyramid_app_with_services, secure_use
     
     # Verify Bearer auth requirement is exposed in schema
     assert "auth_token" in schema["properties"]
-    assert schema["properties"]["auth_token"]["type"] == "string" 
+    assert schema["properties"]["auth_token"]["type"] == "string"
+    
+    # Verify the schema has correct type field
+    assert schema.get("type") == "object", f"Schema type is '{schema.get('type')}', expected 'object'" 
