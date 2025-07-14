@@ -118,8 +118,6 @@ class PyramidIntrospector:
                             "permission": None,  # Populated from permissions
                             "renderer": None,
                             "context": view_intr.get("context"),
-                            "mcp_description": view_intr.get("mcp_description"),
-                            "mcp_security": view_intr.get("mcp_security"),
                             "predicates": {
                                 "xhr": view_intr.get("xhr"),
                                 "accept": view_intr.get("accept"),
@@ -130,6 +128,15 @@ class PyramidIntrospector:
                             },
                             "cornice_metadata": {},  # Enhanced with Cornice data
                         }
+
+                        # Store ALL custom predicates dynamically
+                        # This allows any custom security parameter to be extracted
+                        for key, value in view_intr.items():
+                            if (
+                                key not in view_info
+                                and key not in view_info["predicates"]
+                            ):
+                                view_info[key] = value
 
                         # Enhanced: Extract Cornice metadata for this view
                         if cornice_service:

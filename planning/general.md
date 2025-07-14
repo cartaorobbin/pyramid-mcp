@@ -10,6 +10,63 @@ All test failures and mypy errors have been resolved. The codebase is now in a c
 - ✅ Clean code formatting
 - ✅ All linting rules satisfied
 
+### [2024-12-14] Dynamic Custom Security Parameter Extraction
+
+**Status**: DONE ✅
+**Priority**: Medium
+**Completed**: 2024-12-14
+**Related Issue**: User reported issue with `pcm_security` parameter not being extracted
+
+#### Description
+Fixed hardcoded security parameter extraction in `pyramid_mcp/introspection.py`. The code was only extracting specific hardcoded parameters (`mcp_security`, `pcm_security`) instead of dynamically extracting all custom predicates based on the configurable `security_parameter` setting.
+
+#### Problem
+The `discover_routes` method in `PyramidIntrospector` was hardcoding specific security parameter names:
+```python
+# BAD - hardcoded parameters
+"mcp_description": view_intr.get("mcp_description"),
+"mcp_security": view_intr.get("mcp_security"),
+"pcm_security": view_intr.get("pcm_security"),
+```
+
+This meant that custom security parameters (like `pcm_security`) would be stored, but only specific ones were hardcoded. The proper approach is to store ALL custom predicates dynamically and let the `self._security_parameter` setting determine which one to use.
+
+#### Solution
+Replaced hardcoded parameter extraction with dynamic extraction:
+```python
+# GOOD - dynamic extraction
+# Store ALL custom predicates dynamically
+# This allows any custom security parameter to be extracted
+for key, value in view_intr.items():
+    if (
+        key not in view_info
+        and key not in view_info["predicates"]
+    ):
+        view_info[key] = value
+```
+
+#### Results
+- ✅ **Flexible parameter support**: Any custom security parameter name now works
+- ✅ **Backward compatibility**: Existing `mcp_security` usage continues to work
+- ✅ **Real-world usage**: `pcm_security="BearerAuth"` now works correctly
+- ✅ **Test validation**: All 247 tests pass, including existing security parameter tests
+- ✅ **Code quality**: All `make check` requirements satisfied
+
+#### Key Insight
+The framework was already designed to support configurable security parameters via the `self._security_parameter` setting. The issue was that the view introspection step was hardcoding which parameters to extract, instead of extracting all custom predicates and letting the later configuration determine which one to use.
+
+#### Technical Implementation
+1. **View Discovery**: Now stores ALL custom predicates from `view_intr.items()`
+2. **Security Parameter Resolution**: Uses `self._security_parameter` (set from config) to extract the right parameter
+3. **Schema Conversion**: Existing `_convert_security_type_to_schema()` handles string-to-schema conversion
+4. **Tool Generation**: Existing `merge_auth_into_schema()` adds auth parameters to tool schemas
+
+#### Testing
+- ✅ Verified with real-world `pcm_security="BearerAuth"` usage
+- ✅ All 9 tools in cornice_bearer example show proper authentication parameters
+- ✅ Public tools correctly have no authentication requirements
+- ✅ Secured tools correctly include `auth_token` parameter with Bearer description
+
 ## 📋 Available for New Tasks
 
 The development environment is ready for new feature development or bug fixes. See `planning/backlog.md` for potential next tasks.

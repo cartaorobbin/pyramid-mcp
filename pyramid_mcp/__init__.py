@@ -99,8 +99,8 @@ def includeme(config: Configurator) -> None:
     # Register the MCP description view predicate
     config.add_view_predicate("mcp_description", MCPDescriptionPredicate)
 
-    # Register the MCP security view predicate
-    config.add_view_predicate("mcp_security", MCPSecurityPredicate)
+    # Register the MCP security view predicate using configurable parameter name
+    config.add_view_predicate(mcp_config.security_parameter, MCPSecurityPredicate)
 
     # Register a post-configure hook to discover routes and register tools
     # Use order=999999 to ensure this runs after all other configuration including scans
