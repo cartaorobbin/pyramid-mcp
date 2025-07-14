@@ -24,10 +24,12 @@ Registering tools:
         pass
 """
 
+import logging
 from typing import Any, Callable, List, Optional, Type, cast
 
 from marshmallow import Schema
 from pyramid.config import Configurator
+from pyramid.exceptions import ConfigurationError
 from pyramid.threadlocal import get_current_registry
 
 from pyramid_mcp.core import (
@@ -38,6 +40,8 @@ from pyramid_mcp.core import (
 )
 from pyramid_mcp.security import MCPSecurityType
 from pyramid_mcp.version import __version__
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "PyramidMCP",
@@ -100,7 +104,13 @@ def includeme(config: Configurator) -> None:
     config.add_view_predicate("mcp_description", MCPDescriptionPredicate)
 
     # Register the MCP security view predicate using configurable parameter name
-    config.add_view_predicate(mcp_config.security_parameter, MCPSecurityPredicate)
+    try:
+        config.add_view_predicate(mcp_config.security_parameter, MCPSecurityPredicate)
+    except Exception as e:
+        # If there's a conflict, log a warning but continue
+        logger.warning(
+            f"Could not register view predicate '{mcp_config.security_parameter}': {e}"
+        )
 
     # Register a post-configure hook to discover routes and register tools
     # Use order=999999 to ensure this runs after all other configuration including scans
@@ -218,7 +228,7 @@ def _parse_bool_setting(value: Any) -> bool:
 
 def _get_mcp_directive(config: Configurator) -> PyramidMCP:
     """Directive to get PyramidMCP instance from configurator."""
-    return cast(PyramidMCP, config.registry.pyramid_mcp)
+    return cast(PyramidMCP, cast(Any, config.registry).pyramid_mcp)
 
 
 def _get_mcp_from_request(request: Any) -> Optional[PyramidMCP]:
