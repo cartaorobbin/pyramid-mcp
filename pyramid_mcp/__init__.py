@@ -29,7 +29,6 @@ from typing import Any, Callable, List, Optional, Type, cast
 
 from marshmallow import Schema
 from pyramid.config import Configurator
-from pyramid.exceptions import ConfigurationError
 from pyramid.threadlocal import get_current_registry
 
 from pyramid_mcp.core import (
@@ -104,12 +103,13 @@ def includeme(config: Configurator) -> None:
     config.add_view_predicate("mcp_description", MCPDescriptionPredicate)
 
     # Register the MCP security view predicate using configurable parameter name
-    try:
+    if mcp_config.add_security_predicate:
         config.add_view_predicate(mcp_config.security_parameter, MCPSecurityPredicate)
-    except Exception as e:
-        # If there's a conflict, log a warning but continue
-        logger.warning(
-            f"Could not register view predicate '{mcp_config.security_parameter}': {e}"
+    else:
+        # User disabled security predicate registration
+        logger.info(
+            "Security predicate registration disabled via "
+            "mcp.add_security_predicate=false"
         )
 
     # Register a post-configure hook to discover routes and register tools
@@ -207,6 +207,9 @@ def _extract_mcp_config_from_settings(settings: dict) -> MCPConfiguration:
         ),
         # Security parameter settings
         security_parameter=settings.get("mcp.security_parameter", "mcp_security"),
+        add_security_predicate=_parse_bool_setting(
+            settings.get("mcp.add_security_predicate", "true")
+        ),
     )
 
 

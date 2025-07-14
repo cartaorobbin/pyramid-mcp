@@ -42,6 +42,7 @@ class MCPConfiguration:
     route_discovery_exclude_patterns: Optional[List[str]] = None
     # Security parameter configuration
     security_parameter: str = "mcp_security"
+    add_security_predicate: bool = True
 
 
 class PyramidMCP:

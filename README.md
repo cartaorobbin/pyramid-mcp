@@ -12,7 +12,7 @@ Pyramid MCP is a library that exposes Pyramid web application endpoints as Model
 
 - 🔌 **Pyramid Plugin**: Easy integration with `config.include('pyramid_mcp')`
 - 🛠️ **Tool Registration**: Simple `@tool` decorator for registering MCP tools
-- 🔐 **Authentication Parameters**: Support for Bearer token and Basic auth as tool parameters
+- 🔐 **Authentication Parameters**: Support for Bearer token and Basic auth as tool parameters (uses `mcp_security` parameter by default, configurable)
 - ⚙️ **Settings-based Configuration**: Configure via Pyramid settings
 - 🔍 **Route Discovery**: Automatic discovery of Pyramid routes (configurable)
 - 📡 **Multiple Protocols**: Support for HTTP and SSE (Server-Sent Events)
@@ -128,6 +128,27 @@ curl -X POST http://localhost:8080/mcp \
     }
   }'
 ```
+
+## Security Parameter Name
+
+**Key Concept**: The security parameter name is **`mcp_security`** by default, but can be configured to any name you prefer.
+
+This allows you to:
+- Use existing security parameters from your application (e.g., `pcm_security`, `api_security`)
+- Avoid duplicating security configuration
+- Maintain consistency across your application
+
+```python
+# Default: uses 'mcp_security' parameter
+@view_config(route_name='secure', renderer='json', mcp_security='bearer')
+
+# Configured: uses your existing parameter name
+settings = {'mcp.security_parameter': 'pcm_security'}
+# Now use: pcm_security='BearerAuth'
+@view_config(route_name='secure', renderer='json', pcm_security='BearerAuth')
+```
+
+**See the [Configurable Security Parameter](#configurable-security-parameter) section for complete details.**
 
 ### Configuration
 
@@ -428,6 +449,7 @@ settings = {
     
     # Security Configuration
     'mcp.security_parameter': 'mcp_security',  # Name of security parameter in views (default: 'mcp_security')
+    'mcp.add_security_predicate': 'true',     # Register security view predicate (default: True)
     
     # Protocol Configuration  
     'mcp.enable_sse': 'true',              # Enable Server-Sent Events (default: True)
@@ -540,7 +562,28 @@ curl -X POST http://localhost:8080/mcp \
 
 ### Configurable Security Parameter
 
+**Parameter Name**: The security parameter name is **`mcp_security`** by default, but can be configured to any name you prefer.
+
 By default, pyramid-mcp looks for the `mcp_security` parameter in your view configurations to determine what authentication parameters to add to MCP tools. However, you can configure this to use any existing security parameter from your application, avoiding the need to duplicate security configuration.
+
+```python
+# Default usage with 'mcp_security' parameter
+@view_config(route_name='secure', renderer='json', mcp_security='bearer')
+def secure_view(request):
+    return {"data": "secure"}
+
+# Or configure to use your existing parameter name
+settings = {
+    'mcp.security_parameter': 'pcm_security',  # Use existing parameter name
+}
+config = Configurator(settings=settings)
+config.include('pyramid_mcp')
+
+# Now use your existing parameter name
+@view_config(route_name='secure', renderer='json', pcm_security='BearerAuth')
+def secure_view(request):
+    return {"data": "secure"}
+```
 
 #### Using Existing Security Parameters
 
@@ -628,6 +671,37 @@ settings = {
 def financial_data_view(request):
     return {"financial": "data"}
 ```
+
+#### Disabling Security Predicate Registration
+
+**Parameter**: `mcp.add_security_predicate`  
+**Type**: Boolean  
+**Default**: `true`
+
+In some cases, you may want to disable pyramid-mcp's automatic registration of the security view predicate. This is useful when:
+
+1. **Library Conflicts**: Another library (like pycornmarsh) already registers the same predicate name
+2. **Manual Registration**: You want to register the predicate manually with custom behavior
+3. **Testing**: You need to control predicate registration timing for testing
+
+```python
+# Disable automatic predicate registration
+settings = {
+    'mcp.security_parameter': 'pcm_security',
+    'mcp.add_security_predicate': 'false',  # Disable automatic registration
+}
+
+config = Configurator(settings=settings)
+config.include('pyramid_mcp')
+
+# The 'pcm_security' predicate won't be registered by pyramid-mcp
+# Your application or another library must register it
+```
+
+**Use Cases**:
+- **Cornice Integration**: When using Cornice with existing security predicates
+- **Custom Predicates**: When you need predicates with custom validation logic
+- **Conflict Resolution**: When multiple libraries try to register the same predicate
 
 ## Development
 
