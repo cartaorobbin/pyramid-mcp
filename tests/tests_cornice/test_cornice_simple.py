@@ -148,15 +148,15 @@ def test_cornice_service_tool_info_validation(
     result = mcp_response["result"]
     assert "tools" in result
     tools = result["tools"]
-    assert len(tools) == 1
 
-    # Check first tool is create_products
+    # Find the Cornice service tool among all registered tools
+    cornice_tools = [tool for tool in tools if tool["name"] == "create_products"]
     assert (
-        tools[0]["name"] == "create_products"
-    ), f"Expected create_products tool, got {tools[0]['name']}"
+        len(cornice_tools) == 1
+    ), f"Expected 1 create_products tool, got {len(cornice_tools)}"
 
-    # Validate the tool info
-    tool = tools[0]
+    # Check the Cornice service tool
+    tool = cornice_tools[0]
     assert tool["description"] == "Create a new product with schema validation."
 
     # Validate the input schema contains Marshmallow schema information

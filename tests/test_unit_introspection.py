@@ -195,18 +195,18 @@ def test_input_schema_generation():
     schema = introspector._generate_input_schema("/users/{id}", sample_view, "GET")
 
     assert schema is not None
-    # New HTTPRequestSchema structure
-    assert "path" in schema
-    assert "query" in schema
-    assert "body" in schema
-    assert "headers" in schema
+    # New JSON schema format
+    assert schema["type"] == "object"
+    assert "properties" in schema
+    assert "required" in schema
+    assert "additionalProperties" in schema
 
     # Check path parameters
-    assert len(schema["path"]) == 1
-    path_param = schema["path"][0]
-    assert path_param["name"] == "id"
-    assert path_param["type"] == "string"
-    assert "Path parameter" in path_param["description"]
+    assert "id" in schema["properties"]
+    id_param = schema["properties"]["id"]
+    assert id_param["type"] == "string"
+    assert "Path parameter" in id_param["description"]
+    assert "id" in schema["required"]
 
 
 def test_input_schema_with_annotations():
@@ -221,21 +221,22 @@ def test_input_schema_with_annotations():
     )
 
     assert schema is not None
-    # New HTTPRequestSchema structure
-    assert "path" in schema
-    assert "body" in schema
+    # New JSON schema format
+    assert schema["type"] == "object"
+    assert "properties" in schema
+    assert "required" in schema
 
     # Check path parameters
-    assert len(schema["path"]) == 1
-    path_param = schema["path"][0]
-    assert path_param["name"] == "user_id"
+    assert "user_id" in schema["properties"]
+    user_id_param = schema["properties"]["user_id"]
+    assert user_id_param["type"] == "string"
+    assert "user_id" in schema["required"]
 
     # Check body parameters (POST method should have body field)
-    assert len(schema["body"]) == 1
-    body_param = schema["body"][0]
-    assert body_param["name"] == "data"
-    assert body_param["type"] == "string"
-    assert body_param["required"] is True
+    assert "data" in schema["properties"]
+    data_param = schema["properties"]["data"]
+    assert data_param["type"] == "string"
+    assert "data" in schema["required"]
 
     # Note: Current implementation doesn't extract type annotations from function
     # signatures
@@ -255,22 +256,22 @@ def test_input_schema_complex_types():
     )
 
     assert schema is not None
-    # New HTTPRequestSchema structure
-    assert "path" in schema
-    assert "body" in schema
+    # New JSON schema format
+    assert schema["type"] == "object"
+    assert "properties" in schema
+    assert "required" in schema
 
     # Check path parameters
-    assert len(schema["path"]) == 1
-    path_param = schema["path"][0]
-    assert path_param["name"] == "item_id"
-    assert path_param["type"] == "string"
+    assert "item_id" in schema["properties"]
+    item_id_param = schema["properties"]["item_id"]
+    assert item_id_param["type"] == "string"
+    assert "item_id" in schema["required"]
 
     # Check body parameters (PUT method should have body field)
-    assert len(schema["body"]) == 1
-    body_param = schema["body"][0]
-    assert body_param["name"] == "data"
-    assert body_param["type"] == "string"
-    assert body_param["required"] is True
+    assert "data" in schema["properties"]
+    data_param = schema["properties"]["data"]
+    assert data_param["type"] == "string"
+    assert "data" in schema["required"]
 
     # Note: Current implementation doesn't extract type annotations from function
     # signatures

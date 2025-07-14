@@ -76,7 +76,7 @@ def includeme(config: Configurator) -> None:
             'mcp.server_version': '1.0.0'
         })
     """
-    settings = config.registry.settings  # type: ignore
+    settings = cast(Any, config.registry).settings
 
     # Extract MCP settings from pyramid settings
     mcp_config = _extract_mcp_config_from_settings(settings)
@@ -85,7 +85,7 @@ def includeme(config: Configurator) -> None:
     pyramid_mcp = PyramidMCP(config, config=mcp_config)
 
     # Store the instance in registry for access by application code
-    config.registry.pyramid_mcp = pyramid_mcp  # type: ignore
+    cast(Any, config.registry).pyramid_mcp = pyramid_mcp
 
     # Add MCP routes immediately (before action execution)
     pyramid_mcp._add_mcp_routes_only()
@@ -164,7 +164,7 @@ def tool(
         # Try to register immediately if registry is available
         registry = get_current_registry()
         if registry is not None:
-            pyramid_mcp = getattr(registry, "pyramid_mcp", None)  # type: ignore
+            pyramid_mcp = getattr(cast(Any, registry), "pyramid_mcp", None)
             if pyramid_mcp:
                 pyramid_mcp.tool(
                     name, description, schema, permission, security=security
@@ -223,7 +223,7 @@ def _get_mcp_directive(config: Configurator) -> PyramidMCP:
 
 def _get_mcp_from_request(request: Any) -> Optional[PyramidMCP]:
     """Get PyramidMCP instance from request registry."""
-    return getattr(request.registry, "pyramid_mcp", None)  # type: ignore
+    return getattr(cast(Any, request.registry), "pyramid_mcp", None)
 
 
 def _setup_mcp_complete(config: Configurator, pyramid_mcp: PyramidMCP) -> None:
@@ -240,34 +240,42 @@ def _setup_mcp_complete(config: Configurator, pyramid_mcp: PyramidMCP) -> None:
 
 def _register_pending_tools(pyramid_mcp: PyramidMCP) -> None:
     """Register any tools that were decorated but not immediately registered."""
-    import sys
     import inspect
-    
+    import sys
+
     # Search through all loaded modules for functions with _mcp_tool_config
-    for module_name, module in sys.modules.items():
-        if module is None:
-            continue
-            
+    for module_name, module in list(sys.modules.items()):
         # Skip built-in modules and standard library modules
-        if module_name.startswith('_') or '.' not in module_name:
+        # Allow test modules to register their tools for testing
+        if (
+            module_name.startswith("_")
+            or not hasattr(module, "__file__")
+            or module.__file__ is None
+        ):
             continue
-            
+
         try:
-            # Get all functions in the module
-            for name, obj in inspect.getmembers(module, inspect.isfunction):
-                # Check if function has MCP tool configuration
-                if hasattr(obj, '_mcp_tool_config'):
-                    config = obj._mcp_tool_config
-                    
-                    # Use the PyramidMCP.tool method to register the tool
-                    pyramid_mcp.tool(
-                        name=config.get('name'),
-                        description=config.get('description'),
-                        schema=config.get('schema'),
-                        permission=config.get('permission'),
-                        security=config.get('security')
-                    )(obj)
-                    
-        except (AttributeError, TypeError):
-            # Skip modules that can't be introspected
+            # Only introspect modules we can safely access
+            # Get all functions in the module without triggering new imports
+            if hasattr(module, "__dict__"):
+                for name, obj in module.__dict__.items():
+                    # Only check functions, avoid descriptors that trigger imports
+                    if (
+                        inspect.isfunction(obj)
+                        and hasattr(obj, "_mcp_tool_config")
+                        and not name.startswith("_")
+                    ):
+                        config = obj._mcp_tool_config
+
+                        # Use the PyramidMCP.tool method to register the tool
+                        pyramid_mcp.tool(
+                            name=config.get("name"),
+                            description=config.get("description"),
+                            schema=config.get("schema"),
+                            permission=config.get("permission"),
+                            security=config.get("security"),
+                        )(obj)
+
+        except (AttributeError, TypeError, ImportError, ModuleNotFoundError):
+            # Skip modules that can't be introspected safely
             continue

@@ -6,7 +6,10 @@ HTTP request data in MCP tools. These schemas represent the proper structure
 of HTTP requests with path parameters, query parameters, request body, and headers.
 """
 
-from marshmallow import Schema, fields, pre_dump
+from typing import Any, Dict
+
+import marshmallow.fields as fields
+from marshmallow import Schema, missing, pre_dump
 
 
 class PathParameterSchema(Schema):
@@ -17,6 +20,9 @@ class PathParameterSchema(Schema):
     type = fields.Str(load_default="string", metadata={"description": "Parameter type"})
     description = fields.Str(
         load_default="", metadata={"description": "Parameter description"}
+    )
+    default = fields.Raw(
+        load_default=None, metadata={"description": "Default parameter value"}
     )
 
 
@@ -30,9 +36,10 @@ class QueryParameterSchema(Schema):
         load_default="", metadata={"description": "Parameter description"}
     )
     default = fields.Raw(
-        load_default=None,
-        allow_none=True,
-        metadata={"description": "Default parameter value"},
+        load_default=None, metadata={"description": "Default parameter value"}
+    )
+    required = fields.Bool(
+        load_default=True, metadata={"description": "Is parameter required"}
     )
 
 
@@ -46,7 +53,7 @@ class BodySchema(Schema):
         load_default="", metadata={"description": "Field description"}
     )
     required = fields.Bool(
-        load_default=False, metadata={"description": "Whether field is required"}
+        load_default=True, metadata={"description": "Is field required"}
     )
 
 
@@ -72,34 +79,32 @@ class HTTPRequestSchema(Schema):
     )
 
 
-def convert_marshmallow_field_to_mcp_type(field):
+def convert_marshmallow_field_to_mcp_type(field: Any) -> Dict[str, Any]:
     """Convert a Marshmallow field to MCP parameter type information."""
-    import marshmallow
     import marshmallow.fields as fields_module
-    import marshmallow.validate as validate  # noqa: F401
 
-    field_info = {}
+    field_info: Dict[str, Any] = {}
 
     # Map Marshmallow field types to MCP types
     # Check more specific types first to avoid inheritance issues
     if isinstance(field, fields_module.Email):
         field_info["type"] = "string"
         field_info["format"] = "email"
-    elif isinstance(field, fields_module.Url):
-        field_info["type"] = "string"
-        field_info["format"] = "uri"
     elif isinstance(field, fields_module.UUID):
         field_info["type"] = "string"
         field_info["format"] = "uuid"
+    elif isinstance(field, fields_module.DateTime):
+        field_info["type"] = "string"
+        field_info["format"] = "date-time"
     elif isinstance(field, fields_module.Date):
         field_info["type"] = "string"
         field_info["format"] = "date"
     elif isinstance(field, fields_module.Time):
         field_info["type"] = "string"
         field_info["format"] = "time"
-    elif isinstance(field, fields_module.DateTime):
+    elif isinstance(field, fields_module.Url):
         field_info["type"] = "string"
-        field_info["format"] = "date-time"
+        field_info["format"] = "uri"
     elif isinstance(field, fields_module.Integer):
         field_info["type"] = "integer"
     elif isinstance(field, fields_module.Float):
@@ -108,9 +113,8 @@ def convert_marshmallow_field_to_mcp_type(field):
         field_info["type"] = "boolean"
     elif isinstance(field, fields_module.List):
         field_info["type"] = "array"
-        # If the list has a container field, get its type
+        # Get inner field type
         if hasattr(field, "inner") and field.inner:
-            # Recursively convert the inner field
             inner_field_info = convert_marshmallow_field_to_mcp_type(field.inner)
             # Remove None values from inner field info
             if isinstance(inner_field_info, dict):
@@ -125,7 +129,7 @@ def convert_marshmallow_field_to_mcp_type(field):
             # Use MCPSchemaInfoSchema to extract nested schema info
             nested_schema_converter = MCPSchemaInfoSchema()
             nested_info = nested_schema_converter.extract_schema_info(field.schema)
-            if nested_info:
+            if nested_info and isinstance(nested_info, dict):
                 field_info.update(nested_info)
     elif isinstance(field, fields_module.Dict):
         field_info["type"] = "object"
@@ -138,64 +142,62 @@ def convert_marshmallow_field_to_mcp_type(field):
 
     # Add description if available (from field metadata)
     if hasattr(field, "metadata") and field.metadata:
-        if "description" in field.metadata:
-            field_info["description"] = field.metadata["description"]
-        elif "doc" in field.metadata:
-            field_info["description"] = field.metadata["doc"]
+        description = field.metadata.get("description")
+        if description:
+            field_info["description"] = description
 
     # Add validation constraints
-    if hasattr(field, "validate") and field.validate:
-        _add_field_validation_constraints(field, field_info)
-
-    # Add default value if available
-    # Check for dump_default first (new marshmallow), then default (old marshmallow)
-    if hasattr(field, "dump_default") and field.dump_default is not None:
-        if field.dump_default is not marshmallow.missing:
-            field_info["default"] = field.dump_default
-    elif hasattr(field, "default") and field.default is not None:
-        if field.default is not marshmallow.missing:
-            field_info["default"] = field.default
+    _add_field_validation_constraints(field, field_info)
 
     return field_info
 
 
-def _add_field_validation_constraints(field, field_info):
-    """Add validation constraints from Marshmallow field to MCP field info."""
+def _add_field_validation_constraints(field: Any, field_info: Dict[str, Any]) -> None:
+    """Add validation constraints from field to field_info dict."""
     import marshmallow.validate as validate
 
-    validators = field.validate
-    if not validators:
-        return
+    # Handle string length constraints
+    if hasattr(field, "validate"):
+        validators = (
+            field.validate if isinstance(field.validate, list) else [field.validate]
+        )
 
-    # Handle single validator or list of validators
-    if not isinstance(validators, list):
-        validators = [validators]
+        for validator in validators:
+            if isinstance(validator, validate.Length):
+                if validator.min is not None:
+                    if field_info.get("type") == "string":
+                        field_info["minLength"] = validator.min
+                    elif field_info.get("type") == "array":
+                        field_info["minItems"] = validator.min
 
-    for validator in validators:
-        # Length validator
-        if isinstance(validator, validate.Length):
-            if hasattr(validator, "min") and validator.min is not None:
-                if field_info.get("type") == "string":
-                    field_info["minLength"] = validator.min
-                elif field_info.get("type") == "array":
-                    field_info["minItems"] = validator.min
-            if hasattr(validator, "max") and validator.max is not None:
-                if field_info.get("type") == "string":
-                    field_info["maxLength"] = validator.max
-                elif field_info.get("type") == "array":
-                    field_info["maxItems"] = validator.max
+                if validator.max is not None:
+                    if field_info.get("type") == "string":
+                        field_info["maxLength"] = validator.max
+                    elif field_info.get("type") == "array":
+                        field_info["maxItems"] = validator.max
 
-        # Range validator
-        elif isinstance(validator, validate.Range):
-            if hasattr(validator, "min") and validator.min is not None:
-                field_info["minimum"] = validator.min
-            if hasattr(validator, "max") and validator.max is not None:
-                field_info["maximum"] = validator.max
+            elif isinstance(validator, validate.Range):
+                if validator.min is not None:
+                    field_info["minimum"] = validator.min
+                if validator.max is not None:
+                    field_info["maximum"] = validator.max
 
-        # OneOf validator (enum)
-        elif isinstance(validator, validate.OneOf):
-            if hasattr(validator, "choices") and validator.choices:
+            elif isinstance(validator, validate.OneOf):
                 field_info["enum"] = list(validator.choices)
+
+    # Handle default values
+    if hasattr(field, "load_default") and field.load_default is not None:
+        # Convert marshmallow missing sentinel to None
+        if field.load_default != missing:
+            field_info["default"] = field.load_default
+
+    # Also check dump_default and the older default field
+    if hasattr(field, "dump_default") and field.dump_default is not None:
+        if field.dump_default != missing:
+            field_info["default"] = field.dump_default
+    elif hasattr(field, "default") and field.default is not None:
+        if field.default != missing:
+            field_info["default"] = field.default
 
 
 class MCPSchemaInfoSchema(Schema):
@@ -207,7 +209,7 @@ class MCPSchemaInfoSchema(Schema):
     additionalProperties = fields.Bool(missing=False)
 
     @pre_dump
-    def extract_schema_info(self, schema, **kwargs):
+    def extract_schema_info(self, schema: Any, **kwargs: Any) -> Dict[str, Any]:
         """Extract field information from a Marshmallow schema."""
         import marshmallow
 
@@ -218,20 +220,29 @@ class MCPSchemaInfoSchema(Schema):
                 schema_instance = schema()
             except Exception:
                 # If instantiation fails, return empty info
-                return {}
+                return {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                    "additionalProperties": False,
+                }
         else:
-            # It's already an instance
             schema_instance = schema
 
         # Check if it's actually a Marshmallow schema
         if not isinstance(schema_instance, marshmallow.Schema):
-            return {}
+            return {
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": False,
+            }
 
-        # Create the schema info object with converted field information
-        schema_data = {
+        # Start with basic schema structure
+        schema_data: Dict[str, Any] = {
+            "type": "object",
             "properties": {},
             "required": [],
-            "type": "object",
             "additionalProperties": False,
         }
 

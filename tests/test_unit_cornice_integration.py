@@ -539,18 +539,27 @@ def test_cornice_service_with_marshmallow_schema():
     schema = create_tool.input_schema
     assert schema is not None
 
-    # New HTTPRequestSchema structure
-    assert "path" in schema
-    assert "query" in schema
-    assert "body" in schema
-    assert "headers" in schema
+    # Should have Marshmallow schema extracted from Cornice service
+    assert schema["type"] == "object"
+    assert "properties" in schema
+    assert "required" in schema
 
-    # Check body parameters (POST method should have body field)
-    assert len(schema["body"]) == 1
-    body_param = schema["body"][0]
-    assert body_param["name"] == "data"
-    assert body_param["type"] == "string"
-    assert body_param["required"] is True
+    # Check that Marshmallow schema fields are extracted
+    properties = schema["properties"]
+    assert "name" in properties
+    assert "email" in properties
+    assert "age" in properties
+
+    # Check field types
+    assert properties["name"]["type"] == "string"
+    assert properties["email"]["type"] == "string"
+    assert properties["email"]["format"] == "email"
+    assert properties["age"]["type"] == "integer"
+
+    # Check required fields
+    required = schema["required"]
+    assert "name" in required
+    assert "email" in required
 
     # TODO: Cornice Marshmallow schema integration is not yet implemented
     # The current implementation should be enhanced to extract schema fields from
@@ -569,7 +578,12 @@ def test_marshmallow_schema_without_cornice():
 
     # Should return empty schema info for non-marshmallow objects
     schema_info = introspector._extract_marshmallow_schema_info(fake_schema)
-    assert schema_info == {}
+    assert schema_info == {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": False,
+    }
 
 
 # =============================================================================

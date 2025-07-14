@@ -36,6 +36,17 @@ def calculator_tool(operation: str, a: float, b: float) -> str:
         return f"Unknown operation: {operation}"
 
 
+@tool(name="data_analyzer", description="Analyze data from API responses")
+def data_analyzer_tool(data_type: str, analysis: str) -> str:
+    """Analyze data based on type and analysis method."""
+    if analysis == "describe":
+        return f"This is {data_type} data suitable for {analysis} analysis"
+    elif analysis == "validate":
+        return f"Data type '{data_type}' is valid for processing"
+    else:
+        return f"Unknown analysis '{analysis}' for '{data_type}'"
+
+
 def test_auto_discovered_tools_call_real_views():
     """Test that auto-discovered tools call actual Pyramid views, not simulations."""
     settings = {
@@ -469,17 +480,7 @@ def test_multi_step_integration_scenario():
     config.add_view(data_view, route_name="api_data", renderer="json")
     config.add_view(process_view, route_name="api_process", renderer="json")
 
-    # 3. Add manual tools that complement the API
-    @tool(name="data_analyzer", description="Analyze data from API responses")
-    def data_analyzer(data_type: str, analysis: str) -> str:
-        """Analyze data based on type and analysis method."""
-        if analysis == "describe":
-            return f"This is {data_type} data suitable for {analysis} analysis"
-        elif analysis == "validate":
-            return f"Data type '{data_type}' is valid for processing"
-        else:
-            return f"Unknown analysis '{analysis}' for '{data_type}'"
-
+    # 3. Manual tools defined at module level will be automatically registered
     config.include("pyramid_mcp")
 
     app = TestApp(config.make_wsgi_app())

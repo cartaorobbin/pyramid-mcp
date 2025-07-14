@@ -12,12 +12,7 @@ from typing import Any, Callable, Dict, List, Optional, Union
 import marshmallow
 
 from pyramid_mcp.protocol import MCPTool
-from pyramid_mcp.schemas import (
-    BodySchema,
-    HTTPRequestSchema,
-    PathParameterSchema,
-    QueryParameterSchema,
-)
+from pyramid_mcp.schemas import BodySchema, PathParameterSchema, QueryParameterSchema
 from pyramid_mcp.security import BasicAuthSchema, BearerAuthSchema
 
 
@@ -169,7 +164,7 @@ class PyramidIntrospector:
 
                 routes_info.append(route_info)
 
-        except Exception as e:
+        except Exception:
             # Silently handle errors to avoid interfering with JSON protocol
             pass
 
@@ -218,7 +213,7 @@ class PyramidIntrospector:
         except ImportError:
             # Cornice is not installed, return empty list
             pass
-        except Exception as e:
+        except Exception:
             # Silently handle errors to avoid interfering with JSON protocol
             pass
 
@@ -695,9 +690,6 @@ class PyramidIntrospector:
         Returns:
             JSON schema dictionary using HTTPRequestSchema structure or None
         """
-        # Create HTTPRequestSchema instance for proper HTTP request structure
-        http_schema = HTTPRequestSchema()
-
         # Initialize with empty HTTP request structure
         http_request: Dict[str, Any] = {
             "path": [],
@@ -810,7 +802,7 @@ class PyramidIntrospector:
         # Convert to proper JSON schema format with "type": "object"
         if http_request["path"] or http_request["query"] or http_request["body"]:
             # Create proper JSON schema structure
-            json_schema = {
+            json_schema: Dict[str, Any] = {
                 "type": "object",
                 "properties": {},
                 "required": [],
@@ -822,7 +814,9 @@ class PyramidIntrospector:
                 param_name = path_param["name"]
                 json_schema["properties"][param_name] = {
                     "type": path_param.get("type", "string"),
-                    "description": path_param.get("description", f"Path parameter: {param_name}"),
+                    "description": path_param.get(
+                        "description", f"Path parameter: {param_name}"
+                    ),
                 }
                 json_schema["required"].append(param_name)
 
@@ -831,15 +825,17 @@ class PyramidIntrospector:
                 param_name = query_param["name"]
                 param_schema = {
                     "type": query_param.get("type", "string"),
-                    "description": query_param.get("description", f"Query parameter: {param_name}"),
+                    "description": query_param.get(
+                        "description", f"Query parameter: {param_name}"
+                    ),
                 }
-                
+
                 # Add default value if present
                 if "default" in query_param:
                     param_schema["default"] = query_param["default"]
-                
+
                 json_schema["properties"][param_name] = param_schema
-                
+
                 # Only add to required if no default value
                 if "default" not in query_param and query_param.get("required", False):
                     json_schema["required"].append(param_name)
@@ -849,7 +845,9 @@ class PyramidIntrospector:
                 param_name = body_param["name"]
                 json_schema["properties"][param_name] = {
                     "type": body_param.get("type", "string"),
-                    "description": body_param.get("description", f"Request body parameter: {param_name}"),
+                    "description": body_param.get(
+                        "description", f"Request body parameter: {param_name}"
+                    ),
                 }
                 if body_param.get("required", False):
                     json_schema["required"].append(param_name)
