@@ -2,6 +2,52 @@
 
 ## ✅ Recently Completed
 
+### [2024-12-19] Fix Querystring Parameter Handling in MCP Tool Calls
+
+**Status**: DONE ✅
+**Assigned**: Assistant
+**Completed**: 2024-12-19
+**Estimated Time**: 2-3 hours (actual: ~2 hours)
+**Related Issue**: MCP tool calls with `querystring` parameter not properly passed to Pyramid subrequests
+
+#### Summary
+Successfully implemented special handling for `querystring` parameters in MCP tool calls, fixing the issue where MCP clients (like Claude) send querystring parameters as nested dictionaries that weren't being properly extracted and passed to Pyramid subrequests.
+
+#### Problem Description
+MCP clients send arguments like `{"querystring": {"page": 3, "limit": 50}}` but the `_create_subrequest` method was treating `querystring` as a regular parameter instead of extracting its contents and using them as actual URL query parameters.
+
+#### Solution Implemented
+Added special handling in `pyramid_mcp/introspection.py` `_create_subrequest` method to:
+- Detect `querystring` parameter in MCP tool arguments
+- Extract nested dictionary contents and add to actual query parameters  
+- Handle edge cases (empty dict, None, non-dict values) gracefully
+- Remove `querystring` key from other parameter processing
+
+#### Test Results
+- **Target Test**: `test_mcp_call_with_actual_querystring_values` ✅ PASSES
+- **Regression Test**: `test_mcp_call_with_empty_querystring` ✅ PASSES  
+- **Full Suite**: 250 tests passed, 1 xfailed (no regressions) ✅
+- **Code Quality**: All black, isort, flake8, mypy checks pass ✅
+
+#### Files Modified
+- `pyramid_mcp/introspection.py` - Added querystring parameter extraction logic
+- `tests/tests_cornice/test_cornice_querystring_issue.py` - Test file for validating fix
+
+#### Technical Implementation
+```python
+# Special handling for querystring parameter from MCP clients
+if 'querystring' in filtered_kwargs:
+    querystring_value = filtered_kwargs.pop('querystring')
+    if isinstance(querystring_value, dict):
+        # Extract nested parameters and add them to query_params
+        query_params.update(querystring_value)
+```
+
+#### Impact
+MCP tools now properly pass querystring parameters to Pyramid subrequests, enabling seamless integration with Cornice services that expect query parameters. This fixes the integration issue between Claude/MCP clients and pyramid-mcp when using querystring parameters.
+
+---
+
 ### [2024-12-28] Fix Remaining Test Failures and mypy Errors
 
 **Status**: DONE ✅
