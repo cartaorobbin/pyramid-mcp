@@ -6,6 +6,19 @@
 [![Tests](https://github.com/your-org/pyramid-mcp/workflows/tests/badge.svg)](https://github.com/your-org/pyramid-mcp/actions)
 [![Coverage](https://codecov.io/gh/your-org/pyramid-mcp/branch/main/graph/badge.svg)](https://codecov.io/gh/your-org/pyramid-mcp)
 
+## ⚠️ Development Status
+
+**🚧 This project is currently under active development and is not yet ready for production use.**
+
+- 🧪 **Experimental**: APIs and features may change without notice
+- 🔄 **Breaking Changes**: Expect breaking changes between releases
+- 📋 **Not Production Ready**: Use at your own risk in production environments
+- 🐛 **Known Issues**: Some features may be incomplete or have bugs
+
+**For Production Use**: Please wait for the 1.0.0 stable release or use the project for experimentation and development only.
+
+---
+
 Pyramid MCP is a library that exposes Pyramid web application endpoints as Model Context Protocol (MCP) tools. It's inspired by fastapi_mcp but designed specifically for the Pyramid web framework.
 
 ## Features

@@ -2,6 +2,32 @@
 
 ## 🎯 Current Active Tasks
 
+### [2024-12-28] Add Development Status Notice to README
+
+**Status**: DONE ✅
+**Assigned**: Assistant
+**Estimated Time**: 10 minutes
+**Related Issue**: User request to indicate project is still in development
+
+#### Plan
+- [x] Add prominent development status notice to README
+- [x] Position notice after badges but before description for visibility
+- [x] Include clear warning about production readiness
+- [x] Specify risks (experimental, breaking changes, bugs)
+- [x] Provide guidance for production use (wait for 1.0.0)
+
+#### Progress
+- [x] Added ⚠️ Development Status section
+- [x] Included clear warning about production use
+- [x] Listed specific risks and considerations
+- [x] Added recommendation to wait for stable release
+
+#### Results
+- ✅ **Clear communication**: Users now understand project is in development
+- ✅ **Risk awareness**: Specific warnings about experimental nature and breaking changes
+- ✅ **Production guidance**: Clear recommendation to wait for 1.0.0 stable release
+- ✅ **Prominent placement**: Notice positioned for maximum visibility
+
 **No active tasks currently in progress.**
 
 All test failures and mypy errors have been resolved. The codebase is now in a clean state with:
