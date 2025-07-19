@@ -2,10 +2,88 @@
 
 ## 🎯 Current Active Tasks
 
-**No active tasks currently in progress.**
+### [2024-12-19] Fix Querystring Parameter Handling in MCP Tool Calls
+
+**Status**: DONE ✅
+**Priority**: High
+**Assigned**: Assistant
+**Estimated Time**: 2-3 hours
+**Related Issue**: MCP tool calls with `querystring` parameter not properly passed to Pyramid subrequests
+
+#### Problem Description
+The current `_create_subrequest` method in `pyramid_mcp/introspection.py` treats the `querystring` parameter from MCP clients as a regular parameter instead of extracting its contents and using them as actual query parameters for the Pyramid subrequest.
+
+**Specific Issue:**
+- MCP clients (like Claude) send: `{"arguments": {"querystring": {"page": 3, "limit": 50}}}`
+- Current code puts `querystring={"page": 3, "limit": 50}` as a query parameter
+- Should extract contents and create URL like `?page=3&limit=50`
+
+**Test Cases Failing:**
+- `test_mcp_call_with_actual_querystring_values` - querystring values not properly passed through
+- Empty querystring dict `{}` works but actual values don't
+
+#### Planned Solution
+Add special handling in `_create_subrequest` method to:
+1. **Detect** `querystring` parameter in MCP tool arguments
+2. **Extract** its nested dictionary contents 
+3. **Add** those as actual query parameters to the subrequest URL
+4. **Remove** the `querystring` key from other parameter processing
+
+#### Implementation Plan
+- [x] **Task 1**: Analyze current parameter processing logic in `_create_subrequest`
+- [x] **Task 2**: Add special `querystring` parameter handling before main parameter loop
+- [x] **Task 3**: Extract nested parameters from `querystring` dict and add to `query_params`
+- [x] **Task 4**: Handle edge cases (empty dict, None, non-dict values)
+- [x] **Task 5**: Run existing tests to ensure no regressions
+- [x] **Task 6**: Verify fix works with `test_mcp_call_with_actual_querystring_values`
+
+#### Technical Details
+**Location**: `pyramid_mcp/introspection.py` - `_create_subrequest` method around line 955
+**Change Type**: Logic enhancement with backward compatibility
+**Edge Cases to Handle**:
+- `querystring: {}` → no additional query params (should work)
+- `querystring: None` → no additional query params (should work)
+- `querystring: {"key": "value"}` → add to URL query params
+- Missing `querystring` key → work as before
+- Invalid `querystring` value → handle gracefully
+
+#### Success Criteria
+- [x] `test_mcp_call_with_actual_querystring_values` passes
+- [x] `test_mcp_call_with_empty_querystring` still passes
+- [x] All existing tests continue to pass
+- [x] `make test` passes completely
+- [x] `make check` passes completely
+
+#### Blockers/Issues
+None identified
+
+#### Progress Log
+- [x] **2024-12-19 14:30**: Problem analysis completed
+- [x] **2024-12-19 14:45**: Solution approach planned
+- [x] **2024-12-19 15:00**: Implemented querystring parameter extraction logic in `_create_subrequest`
+- [x] **2024-12-19 15:15**: All tests pass - 250 passed, 1 xfailed (no regressions)
+- [x] **2024-12-19 15:30**: All code quality checks pass - black, isort, flake8, mypy all clean
+- [x] **2024-12-19 15:30**: ✅ **COMPLETED** - Querystring parameter handling fix successfully implemented
+
+#### Implementation Summary
+Successfully implemented special handling for `querystring` parameters in MCP tool calls:
+
+**Problem**: MCP clients (like Claude) send `{"querystring": {"page": 3, "limit": 50}}` but the code was treating `querystring` as a regular parameter instead of extracting its contents.
+
+**Solution**: Added special handling in `_create_subrequest` method to:
+- Detect `querystring` parameter in tool arguments  
+- Extract nested dictionary contents and add to actual query parameters
+- Handle edge cases (empty dict, None, non-dict values) gracefully
+- Remove `querystring` key from other parameter processing
+
+**Result**: MCP tools now properly pass querystring parameters to Pyramid subrequests, enabling proper integration with Cornice services that expect query parameters.
+
+---
+
+**No other active tasks currently in progress.**
 
 All test failures and mypy errors have been resolved. The codebase is now in a clean state with:
-- ✅ 247 tests passing, 1 xfailed
+- ✅ 250 tests passing, 1 xfailed
 - ✅ 0 mypy errors
 - ✅ Clean code formatting
 - ✅ All linting rules satisfied

@@ -958,6 +958,18 @@ class PyramidIntrospector:
         query_params = {}
         json_body = {}
 
+        # 🔧 SPECIAL HANDLING FOR QUERYSTRING PARAMETER
+        # MCP clients (like Claude) send querystring parameters as a nested dict
+        # e.g., {"querystring": {"page": 3, "limit": 50}}
+        # We need to extract the nested parameters and use them as actual query params
+        if "querystring" in filtered_kwargs:
+            querystring_value = filtered_kwargs.pop("querystring")
+            if isinstance(querystring_value, dict):
+                # Extract nested parameters and add them to query_params
+                # This handles both empty dict {} and dict with values
+                query_params.update(querystring_value)
+            # If querystring_value is None or not a dict, we ignore it gracefully
+
         for key, value in filtered_kwargs.items():
             if key in path_param_names:
                 path_values[key] = value
