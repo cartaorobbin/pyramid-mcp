@@ -9,6 +9,52 @@ for Cornice services.
 import pytest
 
 
+class SimpleSecurityPolicy:
+    """Simple security policy for testing Bearer authentication."""
+
+    def identity(self, request):
+        """Check if auth_token was provided via MCP arguments."""
+        # pyramid-mcp stores auth headers in request.mcp_auth_headers
+        auth_headers = getattr(request, "mcp_auth_headers", {})
+
+        if "Authorization" in auth_headers:
+            auth_header = auth_headers["Authorization"]
+            if auth_header.startswith("Bearer "):
+                token = auth_header[7:]  # Remove 'Bearer ' prefix
+                # For testing, any non-empty token creates a valid identity
+                if token:
+                    return {
+                        "user_id": "test_user",
+                        "username": "testuser",
+                        "token": token,
+                    }
+
+        return None
+
+    def authenticated_userid(self, request):
+        """Get the authenticated user ID."""
+        identity = self.identity(request)
+        return identity.get("user_id") if identity else None
+
+    def permits(self, request, context, permission):
+        """Check if current user has the given permission."""
+        if permission == "authenticated":
+            # Any valid auth_token grants authenticated permission
+            return self.identity(request) is not None
+        return True
+
+    def effective_principals(self, request):
+        """Get all effective principals for the current request."""
+        identity = self.identity(request)
+        if not identity:
+            return ["system.Everyone"]
+
+        principals = ["system.Everyone", "system.Authenticated"]
+        if "user_id" in identity:
+            principals.append(f"userid:{identity['user_id']}")
+        return principals
+
+
 @pytest.fixture
 def pyramid_app_with_services():
     """
@@ -30,6 +76,9 @@ def pyramid_app_with_services():
             }
 
         config = Configurator(settings=settings)
+
+        # Set up simple security policy for testing
+        config.set_security_policy(SimpleSecurityPolicy())
 
         # Include Cornice first, then pyramid_mcp
         config.include("cornice")

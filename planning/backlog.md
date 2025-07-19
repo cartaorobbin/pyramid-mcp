@@ -4,6 +4,77 @@ This file contains all planned TODO tasks for the pyramid-mcp project that are n
 
 ## 📋 FUTURE TASKS (Prioritized)
 
+### [HIGH PRIORITY] Configurable HTTP Content Types
+
+**Status**: TODO (Critical Bug Fix)
+**Assigned**: TBD  
+**Estimated Time**: 1 day
+**Related Issue**: User reported - Claude getting "Unsupported content type: application/json" errors
+
+#### Problem Description
+Currently pyramid-mcp hardcodes `Content-Type: application/json` for all POST/PUT/PATCH requests in `_create_subrequest()`. Many APIs require different content types:
+- Brazilian legal system APIs (CPF lookup) - require form data
+- XML-based SOAP APIs - require `application/xml`
+- Legacy APIs - require `application/x-www-form-urlencoded`
+- File upload APIs - require `multipart/form-data`
+
+#### Business Impact
+- Prevents integration with non-JSON APIs
+- Blocks real-world use cases like government API integrations
+- Forces users to create wrapper services just to change content types
+
+#### Technical Tasks
+- [ ] **Add content_type parameter to view introspection**
+  - Support: `mcp_content_type="application/x-www-form-urlencoded"`
+  - Support: `mcp_content_type="text/xml"`
+  - Support: `mcp_content_type="multipart/form-data"`
+- [ ] **Update `_create_subrequest()` to use configurable content type**
+  - Read content type from view configuration
+  - Default to `application/json` for backward compatibility
+  - Handle form encoding for `application/x-www-form-urlencoded`
+- [ ] **Add request body formatting based on content type**
+  - JSON formatting: `json.dumps(data)` (current behavior)
+  - Form encoding: `urllib.parse.urlencode(data)`
+  - XML formatting: Custom XML serialization or pass-through
+  - Multipart: Handle file uploads properly
+- [ ] **Add comprehensive tests**
+  - Test form-encoded requests work correctly
+  - Test XML content type handling
+  - Test backward compatibility (JSON still default)
+  - Test real-world APIs that require form data
+- [ ] **Update documentation**
+  - Add examples for different content types
+  - Document configuration options
+  - Add troubleshooting guide for content type issues
+
+#### Implementation Strategy
+1. **Phase 1**: Add basic content type configuration (form-encoded + JSON)
+2. **Phase 2**: Add XML and other content types
+3. **Phase 3**: Add multipart/form-data for file uploads
+
+#### Configuration Examples
+```python
+# Form-encoded requests (for many government APIs)
+@view_config(route_name='cpf_lookup', mcp_content_type='application/x-www-form-urlencoded')
+def cpf_lookup(request):
+    # pyramid-mcp will send form-encoded data instead of JSON
+    pass
+
+# XML requests (for SOAP APIs)  
+@view_config(route_name='soap_api', mcp_content_type='application/xml')
+def soap_api(request):
+    # pyramid-mcp will send XML data
+    pass
+```
+
+#### Success Criteria
+- ✅ Claude can successfully call Brazilian CPF lookup APIs
+- ✅ Form-encoded APIs work without "Unsupported content type" errors
+- ✅ Backward compatibility maintained (JSON still default)
+- ✅ Clear documentation for different content type configurations
+
+---
+
 ### [HIGH PRIORITY] Route Discovery Feature - Remaining Phases
 
 **Status**: TODO (Planned)

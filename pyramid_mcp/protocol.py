@@ -387,21 +387,36 @@ class MCPProtocolHandler:
     def _handle_call_tool(
         self, request: MCPRequest, pyramid_request: Request
     ) -> Dict[str, Any]:
-        """Handle MCP tools/call request."""
-        params = request.params or {}
-        tool_name = params.get("name")
+        """Handle tools/call requests."""
+        import logging
 
-        if not tool_name:
+        logger = logging.getLogger(__name__)
+
+        if not request.params:
             error = MCPError(
-                code=MCPErrorCode.INVALID_PARAMS.value,
-                message="Missing required parameter 'name'",
+                code=MCPErrorCode.INVALID_PARAMS.value, message="Missing parameters"
             )
             response = MCPResponse(id=request.id, error=error)
             return response.to_dict()
 
-        tool = self.tools.get(tool_name)
+        tool_name = request.params.get("name")
+        tool_args = request.params.get("arguments", {})
 
-        if not tool:
+        # 🐛 DEBUG: Log MCP tool call details
+        logger.info(f"📞 MCP Tool Call: {tool_name}")
+        logger.debug(f"📞 Tool arguments: {tool_args}")
+        logger.debug(f"📞 Available tools: {list(self.tools.keys())}")
+
+        if not tool_name:
+            error = MCPError(
+                code=MCPErrorCode.INVALID_PARAMS.value, message="Tool name is required"
+            )
+            response = MCPResponse(id=request.id, error=error)
+            return response.to_dict()
+
+        if tool_name not in self.tools:
+            logger.error(f"❌ Tool not found: {tool_name}")
+            logger.error(f"❌ Available tools: {list(self.tools.keys())}")
             error = MCPError(
                 code=MCPErrorCode.METHOD_NOT_FOUND.value,
                 message=f"Tool '{tool_name}' not found",
@@ -409,7 +424,14 @@ class MCPProtocolHandler:
             response = MCPResponse(id=request.id, error=error)
             return response.to_dict()
 
+        tool = self.tools[tool_name]
+        logger.debug(f"📞 Found tool: {tool.name}")
+        logger.debug(f"📞 Tool description: {tool.description}")
+        logger.debug(f"📞 Tool has security: {tool.security is not None}")
+
+        # Check if tool has a handler
         if not tool.handler:
+            logger.error(f"❌ Tool '{tool_name}' has no handler")
             error = MCPError(
                 code=MCPErrorCode.INTERNAL_ERROR.value,
                 message=f"Tool '{tool_name}' has no handler",
@@ -417,170 +439,211 @@ class MCPProtocolHandler:
             response = MCPResponse(id=request.id, error=error)
             return response.to_dict()
 
-        policy = pyramid_request.registry.queryUtility(ISecurityPolicy)
+        # Check if tool has security requirements and permissions
+        # For route-based tools, permissions are checked via Pyramid's security system
+        # For manual tools, permissions are checked here
 
-        try:
-            context = tool.context or pyramid_request.context
-            if not tool.permission or policy.permits(
-                pyramid_request, context, tool.permission
-            ):
-                tool_args = params.get("arguments", {})
+        # NOTE: Permission checking is delegated to the tool handler
+        # Route-based tools use Pyramid's built-in security system
+        # Manual tools can implement their own permission checks
 
-                # Process authentication parameters if tool has security specification
-                if tool.security:
-                    # Validate authentication credentials
-                    validation_error = validate_auth_credentials(
+        # Tools without permissions are accessible to everyone
+        # Tools with permissions need to be checked based on their type
+        has_permission = True
+        if tool.permission:
+            # Determine if this is a route-based tool or manual tool
+            # Route-based tools have handlers created by PyramidIntrospector
+            # Manual tools have their original function as the handler
+            is_route_based_tool = (
+                hasattr(tool.handler, "__name__")
+                and tool.handler.__name__ == "handler"
+                and hasattr(tool.handler, "__qualname__")
+                and "PyramidIntrospector._create_route_handler"
+                in tool.handler.__qualname__
+            )
+
+            if is_route_based_tool:
+                # For route-based tools, let the Pyramid view handle permission checking
+                has_permission = True
+                logger.debug(
+                    f"📞 Route-based tool - permission '{tool.permission}' will be checked by view"
+                )
+            else:
+                # For manual tools, check permission here using Pyramid's security system
+                try:
+                    security_policy = pyramid_request.registry.queryUtility(
+                        ISecurityPolicy
+                    )
+                    if security_policy:
+                        # Check if user has the required permission
+                        has_permission = security_policy.permits(
+                            pyramid_request, None, tool.permission
+                        )
+                        logger.debug(
+                            f"📞 Manual tool permission check: '{tool.permission}' -> {has_permission}"
+                        )
+                    else:
+                        # No security policy configured - deny access to protected tools
+                        has_permission = False
+                        logger.debug(
+                            f"📞 No security policy configured - denying access to protected tool"
+                        )
+                except Exception as e:
+                    logger.error(f"❌ Error checking permission: {str(e)}")
+                    has_permission = False
+        else:
+            logger.debug(f"📞 Tool has no permission requirement - allowing access")
+
+        if has_permission:
+            # Process authentication parameters if tool has security schema
+            if tool.security:
+                logger.debug(
+                    f"📞 Processing authentication for tool with security schema"
+                )
+
+                # Validate authentication credentials first
+                auth_validation_error = validate_auth_credentials(
+                    tool_args, tool.security
+                )
+                if auth_validation_error:
+                    logger.error(
+                        f"❌ Authentication validation failed: {auth_validation_error['message']}"
+                    )
+                    error = MCPError(
+                        code=MCPErrorCode.INVALID_PARAMS.value,
+                        message=auth_validation_error["message"],
+                        data={
+                            "authentication_error_type": auth_validation_error["type"],
+                            "tool_name": tool_name,
+                            "details": auth_validation_error.get("details", {}),
+                        },
+                    )
+                    response = MCPResponse(id=request.id, error=error)
+                    return response.to_dict()
+
+                # Extract authentication credentials from tool arguments
+                try:
+                    auth_credentials = extract_auth_credentials(
                         tool_args, tool.security
                     )
-                    if validation_error:
-                        # Map validation error types to appropriate MCP error codes
-                        error_type = validation_error.get(
-                            "type", "authentication_error"
-                        )
-                        error_message = validation_error.get(
-                            "message", "Authentication failed"
-                        )
-
-                        # Determine appropriate error code based on error type
-                        if error_type in ["missing_credentials", "empty_credentials"]:
-                            error_code = MCPErrorCode.INVALID_PARAMS.value
-                        elif error_type == "validation_error":
-                            error_code = MCPErrorCode.INVALID_PARAMS.value
-                        else:
-                            error_code = MCPErrorCode.INTERNAL_ERROR.value
-
-                        # Create security-safe error response
-                        # (don't expose sensitive details)
-                        error_data = {
-                            "authentication_error_type": error_type,
+                    logger.debug(
+                        f"🔐 Extracted auth credentials: {list(auth_credentials.keys())}"
+                    )
+                except Exception as e:
+                    logger.error(f"❌ Failed to extract auth credentials: {str(e)}")
+                    error = MCPError(
+                        code=MCPErrorCode.INTERNAL_ERROR.value,
+                        message=(
+                            "Failed to extract authentication parameters: " f"{str(e)}"
+                        ),
+                        data={
+                            "authentication_error_type": (
+                                "credential_extraction_error"
+                            ),
                             "tool_name": tool_name,
-                        }
+                        },
+                    )
+                    response = MCPResponse(id=request.id, error=error)
+                    return response.to_dict()
 
-                        # Add safe details for missing/empty credentials only
-                        if error_type == "missing_credentials":
-                            missing_fields = validation_error.get("details", {}).get(
-                                "missing_fields", []
-                            )
-                            error_data["missing_parameters"] = missing_fields
-                        elif error_type == "empty_credentials":
-                            empty_fields = validation_error.get("details", {}).get(
-                                "empty_fields", []
-                            )
-                            error_data["empty_parameters"] = empty_fields
-
-                        error = MCPError(
-                            code=error_code, message=error_message, data=error_data
-                        )
-                        response = MCPResponse(id=request.id, error=error)
-                        return response.to_dict()
-
-                    # Extract authentication credentials for use in HTTP headers
-                    try:
-                        auth_credentials = extract_auth_credentials(
-                            tool_args, tool.security
-                        )
-                    except Exception as e:
-                        error = MCPError(
-                            code=MCPErrorCode.INTERNAL_ERROR.value,
-                            message=(
-                                "Failed to extract authentication credentials: "
-                                f"{str(e)}"
-                            ),
-                            data={
-                                "authentication_error_type": "extraction_error",
-                                "tool_name": tool_name,
-                            },
-                        )
-                        response = MCPResponse(id=request.id, error=error)
-                        return response.to_dict()
-
-                    # Remove authentication parameters from tool arguments
-                    # This ensures credentials are not passed to the handler function
-                    try:
-                        tool_args = remove_auth_from_tool_args(tool_args, tool.security)
-                    except Exception as e:
-                        error = MCPError(
-                            code=MCPErrorCode.INTERNAL_ERROR.value,
-                            message=(
-                                "Failed to process authentication parameters: "
-                                f"{str(e)}"
-                            ),
-                            data={
-                                "authentication_error_type": (
-                                    "parameter_processing_error"
-                                ),
-                                "tool_name": tool_name,
-                            },
-                        )
-                        response = MCPResponse(id=request.id, error=error)
-                        return response.to_dict()
-
-                    # Create HTTP headers from authentication credentials
-                    try:
-                        auth_headers = create_auth_headers(
-                            auth_credentials, tool.security
-                        )
-                    except Exception as e:
-                        error = MCPError(
-                            code=MCPErrorCode.INTERNAL_ERROR.value,
-                            message=(
-                                f"Failed to create authentication headers: {str(e)}"
-                            ),
-                            data={
-                                "authentication_error_type": "header_creation_error",
-                                "tool_name": tool_name,
-                            },
-                        )
-                        response = MCPResponse(id=request.id, error=error)
-                        return response.to_dict()
-
-                    # Store auth headers in pyramid_request for handler access
-                    # Handlers can access these via pyramid_request.mcp_auth_headers
-                    pyramid_request.mcp_auth_headers = auth_headers
-                else:
-                    # No authentication required - set empty headers for consistency
-                    pyramid_request.mcp_auth_headers = {}
-
-                # Check if this is a route-based tool that needs pyramid_request
-                # (route-based tools have a signature that accepts pyramid_request)
-                import inspect
-
+                # Remove authentication parameters from tool arguments
+                # This ensures credentials are not passed to the handler function
                 try:
-                    sig = inspect.signature(tool.handler)
-                    # If handler has pyramid_request parameter, pass it
-                    if "pyramid_request" in sig.parameters:
-                        result = tool.handler(pyramid_request, **tool_args)
-                    else:
-                        result = tool.handler(**tool_args)
-                except (ValueError, TypeError):
-                    # Fallback for handlers without introspectable signature
-                    result = tool.handler(**tool_args)
+                    tool_args = remove_auth_from_tool_args(tool_args, tool.security)
+                    logger.debug(
+                        f"🔐 Removed auth params from tool args: {list(tool_args.keys())}"
+                    )
+                except Exception as e:
+                    logger.error(f"❌ Failed to remove auth parameters: {str(e)}")
+                    error = MCPError(
+                        code=MCPErrorCode.INTERNAL_ERROR.value,
+                        message=(
+                            "Failed to process authentication parameters: " f"{str(e)}"
+                        ),
+                        data={
+                            "authentication_error_type": ("parameter_processing_error"),
+                            "tool_name": tool_name,
+                        },
+                    )
+                    response = MCPResponse(id=request.id, error=error)
+                    return response.to_dict()
 
-                # Handle different result formats
-                if isinstance(result, dict) and "content" in result:
-                    # Result is already in MCP format
-                    mcp_result = result
+                # Create HTTP headers from authentication credentials
+                try:
+                    auth_headers = create_auth_headers(auth_credentials, tool.security)
+                    logger.debug(f"🔐 Created auth headers: {list(auth_headers.keys())}")
+                except Exception as e:
+                    logger.error(f"❌ Failed to create auth headers: {str(e)}")
+                    error = MCPError(
+                        code=MCPErrorCode.INTERNAL_ERROR.value,
+                        message=(f"Failed to create authentication headers: {str(e)}"),
+                        data={
+                            "authentication_error_type": "header_creation_error",
+                            "tool_name": tool_name,
+                        },
+                    )
+                    response = MCPResponse(id=request.id, error=error)
+                    return response.to_dict()
+
+                # Store auth headers in pyramid_request for handler access
+                # Handlers can access these via pyramid_request.mcp_auth_headers
+                pyramid_request.mcp_auth_headers = auth_headers
+                logger.debug(f"🔐 Stored auth headers in pyramid_request")
+            else:
+                # No authentication required - set empty headers for consistency
+                pyramid_request.mcp_auth_headers = {}
+                logger.debug(f"🔐 No auth required - set empty headers")
+
+            # Check if this is a route-based tool that needs pyramid_request
+            # (route-based tools have a signature that accepts pyramid_request)
+            import inspect
+
+            try:
+                sig = inspect.signature(tool.handler)
+                # If handler has pyramid_request parameter, pass it
+                if "pyramid_request" in sig.parameters:
+                    logger.debug(
+                        f"🚀 Calling route-based tool handler with pyramid_request"
+                    )
+                    result = tool.handler(pyramid_request, **tool_args)
                 else:
-                    # Wrap result in MCP format
-                    mcp_result = {"content": [{"type": "text", "text": str(result)}]}
+                    logger.debug(
+                        f"🚀 Calling manual tool handler without pyramid_request"
+                    )
+                    result = tool.handler(**tool_args)
+            except (ValueError, TypeError):
+                # Fallback for handlers without introspectable signature
+                logger.debug(f"🚀 Calling tool handler (fallback mode)")
+                result = tool.handler(**tool_args)
 
-                response = MCPResponse(id=request.id, result=mcp_result)
-                return response.to_dict()
+            # 🐛 DEBUG: Log tool execution result
+            logger.debug(f"✅ Tool execution completed")
+            logger.debug(f"✅ Result type: {type(result)}")
+            logger.debug(
+                f"✅ Result preview: {str(result)[:200]}{'...' if len(str(result)) > 200 else ''}"
+            )
 
-            error_msg = f"Access denied for tool '{tool_name}'"
-            error = MCPError(
-                code=MCPErrorCode.INVALID_PARAMS.value,
-                message=error_msg,
-            )
-            response = MCPResponse(id=request.id, error=error)
+            # Handle different result formats
+            if isinstance(result, dict) and "content" in result:
+                # Result is already in MCP format
+                mcp_result = result
+                logger.debug(f"✅ Result already in MCP format")
+            else:
+                # Wrap result in MCP format
+                mcp_result = {"content": [{"type": "text", "text": str(result)}]}
+                logger.debug(f"✅ Wrapped result in MCP format")
+
+            response = MCPResponse(id=request.id, result=mcp_result)
             return response.to_dict()
-        except Exception as e:
-            error = MCPError(
-                code=MCPErrorCode.INTERNAL_ERROR.value,
-                message=f"Tool execution failed: {str(e)}",
-            )
-            response = MCPResponse(id=request.id, error=error)
-            return response.to_dict()
+
+        error_msg = f"Access denied for tool '{tool_name}'"
+        logger.error(f"❌ {error_msg}")
+        error = MCPError(
+            code=MCPErrorCode.INVALID_PARAMS.value,
+            message=error_msg,
+        )
+        response = MCPResponse(id=request.id, error=error)
+        return response.to_dict()
 
     def _handle_list_resources(self, request: MCPRequest) -> Dict[str, Any]:
         """Handle MCP resources/list request."""

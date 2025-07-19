@@ -28,6 +28,88 @@
 - ✅ **Production guidance**: Clear recommendation to wait for 1.0.0 stable release
 - ✅ **Prominent placement**: Notice positioned for maximum visibility
 
+---
+
+### [2024-12-28] Add Comprehensive Debug Logging for Content Type Issues
+
+**Status**: DONE ✅
+**Assigned**: Assistant
+**Estimated Time**: 45 minutes
+**Related Issue**: User reported "Unsupported content type: application/json" errors
+
+#### Plan
+- [x] Add detailed logging to `_create_subrequest()` method
+- [x] Add logging to `_create_route_handler()` method  
+- [x] Add logging to MCP protocol handler `_handle_call_tool()` method
+- [x] Include specific warnings about hardcoded content types
+- [x] Log request parameters, headers, and execution flow
+- [x] Add content type error detection and warnings
+
+#### Progress
+- [x] Added comprehensive logging to `pyramid_mcp/introspection.py`
+- [x] Added detailed logging to `pyramid_mcp/protocol.py`
+- [x] Fixed linter errors and syntax issues
+- [x] Tested import functionality
+
+#### Technical Implementation
+**In `_create_subrequest()` method:**
+- 🔧 Debug logs for parameter processing (path, query, body)
+- 🔐 Auth header logging
+- 🚨 **Critical warning**: Hardcoded Content-Type detection
+- 🔧 Final subrequest details logging
+
+**In `_create_route_handler()` method:**
+- 🚀 Tool execution start/completion logging
+- ✅ Response processing logging
+- ❌ **Enhanced error handling** with content type error detection
+- 🚨 **Specific warnings** for content type related errors
+
+**In `_handle_call_tool()` method:**
+- 📞 MCP tool call tracing
+- 🔐 Authentication processing logging
+- 🚀 Handler execution type detection
+- ✅ Result processing logging
+
+#### Key Features Added
+- **Content Type Error Detection**: Automatically detects and warns about content type related errors
+- **Parameter Flow Tracking**: Traces how parameters flow from MCP → subrequest → target view
+- **Authentication Debugging**: Logs credential extraction and header creation
+- **Request/Response Tracing**: Full visibility into HTTP request creation and response handling
+
+#### Debug Output Examples
+```
+🔧 Creating subrequest - Route: /api/cpf-lookup, Method: POST
+🔧 MCP tool arguments: {'cpf': '171.439.818-85', 'auth_token': 'xyz123'}
+🚨 HARDCODED CONTENT TYPE: Setting Content-Type to 'application/json'
+🚨 This may cause 'Unsupported content type' errors with APIs expecting form data!
+```
+
+#### Usage for Debugging
+To enable debug logging:
+```python
+import logging
+logging.basicConfig(level=logging.DEBUG)
+# Or in Pyramid settings:
+settings['pyramid.logger.level'] = 'DEBUG'
+```
+
+#### Success Criteria
+- ✅ **Comprehensive visibility**: Full request flow is now traceable
+- ✅ **Content type warnings**: Hardcoded JSON content type is clearly identified
+- ✅ **Error detection**: Content type errors are automatically detected and flagged
+- ✅ **No performance impact**: Logging only activates when debug level is enabled
+- ✅ **Clean import**: No syntax errors or import issues
+
+#### Next Steps
+These logs will help users:
+1. **Identify the exact source** of "Unsupported content type" errors
+2. **See the hardcoded Content-Type: application/json** that causes the issue
+3. **Track parameter flow** from Claude → MCP → Pyramid subrequest
+4. **Debug authentication issues** with detailed credential processing logs
+5. **Prepare for the content type configuration feature** (in backlog)
+
+---
+
 **No active tasks currently in progress.**
 
 All test failures and mypy errors have been resolved. The codebase is now in a clean state with:

@@ -560,12 +560,26 @@ class PyramidIntrospector:
             if security_type:
                 security = self._convert_security_type_to_schema(security_type)
 
+            # Extract permission from view info or Cornice metadata
+            permission = None
+            # First check direct view permission
+            if "permission" in view and view["permission"]:
+                permission = view["permission"]
+            # Then check Cornice metadata
+            elif "cornice_metadata" in view:
+                cornice_metadata = view["cornice_metadata"]
+                method_specific = cornice_metadata.get("method_specific", {})
+                if method.upper() in method_specific:
+                    method_info = method_specific[method.upper()]
+                    permission = method_info.get("permission")
+
             # Create MCP tool
             tool = MCPTool(
                 name=tool_name,
                 description=description,
                 input_schema=input_schema,
                 handler=self._create_route_handler(route_info, view, method),
+                permission=permission,
                 security=security,
             )
 
@@ -876,6 +890,10 @@ class PyramidIntrospector:
         Returns:
             Handler function for MCP tool
         """
+        import logging
+
+        logger = logging.getLogger(__name__)
+
         route_pattern = route_info.get("pattern", "")
         route_name = route_info.get("name", "")
 
@@ -887,19 +905,88 @@ class PyramidIntrospector:
 
         def handler(pyramid_request: Any, **kwargs: Any) -> Dict[str, Any]:
             """MCP tool handler that delegates to Pyramid view via subrequest."""
+            # 🐛 DEBUG: Log tool execution start
+            logger.info(
+                f"🚀 Executing MCP tool for route: {route_name} ({method} {route_pattern})"
+            )
+            logger.debug(f"🚀 Tool arguments: {kwargs}")
+
             try:
                 # Create subrequest to call the actual route
+                logger.debug(f"🔧 Creating subrequest for {route_name}...")
                 subrequest = self._create_subrequest(
                     pyramid_request, kwargs, route_pattern, method, security
+                )
+
+                # 🐛 DEBUG: Log subrequest execution
+                logger.debug(
+                    f"🔧 Executing subrequest: {subrequest.method} {subrequest.url}"
+                )
+                logger.debug(
+                    f"🔧 Subrequest Content-Type: {getattr(subrequest, 'content_type', 'None')}"
                 )
 
                 # Execute the subrequest
                 response = pyramid_request.invoke_subrequest(subrequest)
 
+                # 🐛 DEBUG: Log response details
+                logger.debug(f"✅ Subrequest completed successfully")
+                logger.debug(f"✅ Response type: {type(response)}")
+                if hasattr(response, "status_code"):
+                    logger.debug(f"✅ Response status: {response.status_code}")
+                if hasattr(response, "content_type"):
+                    logger.debug(f"✅ Response Content-Type: {response.content_type}")
+
                 # Convert response to MCP format
-                return self._convert_response_to_mcp(response, view_info)
+                logger.debug(f"🔄 Converting response to MCP format...")
+                mcp_result = self._convert_response_to_mcp(response, view_info)
+                logger.debug(f"✅ MCP conversion completed successfully")
+
+                return mcp_result
 
             except Exception as e:
+                # 🐛 DEBUG: Log detailed error information
+                logger.error(f"❌ Error executing MCP tool for {route_name}: {str(e)}")
+                logger.error(f"❌ Error type: {type(e).__name__}")
+                logger.error(f"❌ Route: {route_name} ({method} {route_pattern})")
+                logger.error(f"❌ Arguments: {kwargs}")
+
+                # Log additional error context if available
+                if hasattr(e, "response"):
+                    response_obj = getattr(e, "response", None)
+                    if response_obj:
+                        logger.error(
+                            f"❌ HTTP Response Status: {getattr(response_obj, 'status_code', 'Unknown')}"
+                        )
+                        logger.error(
+                            f"❌ HTTP Response Text: {getattr(response_obj, 'text', 'N/A')}"
+                        )
+
+                # Check if this looks like a content type error
+                error_message = str(e).lower()
+                if any(
+                    phrase in error_message
+                    for phrase in [
+                        "unsupported content type",
+                        "content-type",
+                        "application/json",
+                        "form data",
+                        "urlencoded",
+                    ]
+                ):
+                    logger.error(f"🚨 CONTENT TYPE ERROR DETECTED!")
+                    logger.error(
+                        f"🚨 This appears to be related to the hardcoded 'application/json' content type"
+                    )
+                    logger.error(
+                        f"🚨 Target API may require 'application/x-www-form-urlencoded' or other content type"
+                    )
+
+                # Log stack trace for debugging
+                import traceback
+
+                logger.debug(f"❌ Full traceback: {traceback.format_exc()}")
+
                 # Return error in MCP format
                 return {
                     "error": f"Error calling view: {str(e)}",
@@ -931,9 +1018,19 @@ class PyramidIntrospector:
             Subrequest object ready for execution
         """
         import json
+        import logging
         import re
 
         from pyramid.request import Request
+
+        logger = logging.getLogger(__name__)
+
+        # 🐛 DEBUG: Log incoming parameters
+        logger.debug(
+            f"🔧 Creating subrequest - Route: {route_pattern}, Method: {method}"
+        )
+        logger.debug(f"🔧 MCP tool arguments: {kwargs}")
+        logger.debug(f"🔧 Security schema: {security}")
 
         # Get authentication headers from pyramid_request if they were processed
         # by MCP protocol handler
@@ -943,15 +1040,19 @@ class PyramidIntrospector:
             and pyramid_request.mcp_auth_headers
         ):
             auth_headers = pyramid_request.mcp_auth_headers
+            logger.debug(f"🔐 Found auth headers: {list(auth_headers.keys())}")
         else:
             auth_headers = {}
+            logger.debug("🔐 No auth headers found")
 
         # kwargs should already have auth parameters removed by MCP protocol handler
         filtered_kwargs = kwargs
+        logger.debug(f"🔧 Filtered kwargs (after auth removal): {filtered_kwargs}")
 
         # Extract path parameters from route pattern
         path_params = re.findall(r"\{([^}]+)\}", route_pattern)
         path_param_names = [param.split(":")[0] for param in path_params]
+        logger.debug(f"🔧 Path parameter names: {path_param_names}")
 
         # Separate path parameters from other parameters (using filtered kwargs)
         path_values = {}
@@ -964,20 +1065,36 @@ class PyramidIntrospector:
         # We need to extract the nested parameters and use them as actual query params
         if "querystring" in filtered_kwargs:
             querystring_value = filtered_kwargs.pop("querystring")
+            logger.debug(f"🔧 Found querystring parameter: {querystring_value}")
             if isinstance(querystring_value, dict):
                 # Extract nested parameters and add them to query_params
                 # This handles both empty dict {} and dict with values
                 query_params.update(querystring_value)
+                logger.debug(
+                    f"🔧 Extracted query params from querystring: {query_params}"
+                )
             # If querystring_value is None or not a dict, we ignore it gracefully
+            else:
+                logger.debug(
+                    f"🔧 Ignoring non-dict querystring value: {querystring_value}"
+                )
 
         for key, value in filtered_kwargs.items():
             if key in path_param_names:
                 path_values[key] = value
+                logger.debug(f"🔧 Path parameter: {key} = {value}")
             else:
                 if method.upper() in ["POST", "PUT", "PATCH"]:
                     json_body[key] = value
+                    logger.debug(f"🔧 Body parameter: {key} = {value}")
                 else:
                     query_params[key] = value
+                    logger.debug(f"🔧 Query parameter: {key} = {value}")
+
+        logger.debug(f"🔧 Final parameter distribution:")
+        logger.debug(f"   - Path values: {path_values}")
+        logger.debug(f"   - Query params: {query_params}")
+        logger.debug(f"   - JSON body: {json_body}")
 
         # Build the actual URL by replacing path parameters in the pattern
         url = route_pattern
@@ -991,10 +1108,14 @@ class PyramidIntrospector:
 
             query_string = urlencode(query_params)
             url = f"{url}?{query_string}"
+            logger.debug(f"🔧 Added query string: {query_string}")
+
+        logger.debug(f"🔧 Final URL: {url}")
 
         # Create the subrequest
         subrequest = Request.blank(url)
         subrequest.method = method.upper()
+        logger.debug(f"🔧 Created subrequest: {method.upper()} {url}")
 
         # 🌍 ENVIRON SHARING SUPPORT
         # Copy parent request environ to subrequest for better context preservation
@@ -1002,8 +1123,22 @@ class PyramidIntrospector:
 
         # Set request body for POST/PUT/PATCH requests
         if method.upper() in ["POST", "PUT", "PATCH"] and json_body:
-            subrequest.body = json.dumps(json_body).encode("utf-8")
+            # ⚠️ CRITICAL: This is where content type is hardcoded!
+            body_json = json.dumps(json_body)
+            subrequest.body = body_json.encode("utf-8")
             subrequest.content_type = "application/json"
+
+            # 🐛 DEBUG: Log the critical content type setting
+            logger.warning(
+                f"🚨 HARDCODED CONTENT TYPE: Setting Content-Type to 'application/json'"
+            )
+            logger.warning(f"🚨 Request body size: {len(body_json)} characters")
+            logger.warning(
+                f"🚨 Request body preview: {body_json[:200]}{'...' if len(body_json) > 200 else ''}"
+            )
+            logger.warning(
+                f"🚨 This may cause 'Unsupported content type' errors with APIs expecting form data!"
+            )
 
         # Copy important headers from original request
         if hasattr(pyramid_request, "headers"):
@@ -1013,10 +1148,22 @@ class PyramidIntrospector:
                     subrequest.headers[header_name] = pyramid_request.headers[
                         header_name
                     ]
+                    logger.debug(f"🔧 Copied header: {header_name}")
 
         # Add authentication headers from MCP security parameters
         for header_name, header_value in auth_headers.items():
             subrequest.headers[header_name] = header_value
+            logger.debug(f"🔐 Added auth header: {header_name}")
+
+        # 🐛 DEBUG: Log final subrequest details
+        logger.debug(f"🔧 Final subrequest details:")
+        logger.debug(f"   - Method: {subrequest.method}")
+        logger.debug(f"   - URL: {subrequest.url}")
+        logger.debug(
+            f"   - Content-Type: {getattr(subrequest, 'content_type', 'None')}"
+        )
+        logger.debug(f"   - Headers: {dict(subrequest.headers)}")
+        logger.debug(f"   - Body length: {len(getattr(subrequest, 'body', b''))} bytes")
 
         # 🔄 PYRAMID_TM TRANSACTION SHARING SUPPORT
         # Ensure subrequest shares the same transaction context as the parent request

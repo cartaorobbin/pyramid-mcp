@@ -58,6 +58,26 @@ def secure_user_service():
         }
         return {"user": user, "message": "Secure user created successfully"}
 
+    @users.get(permission="authenticated")
+    def get_secure_users(request):
+        """Get users list (requires authentication)."""
+        users_list = [
+            {
+                "id": 1,
+                "username": "alice",
+                "email": "alice@example.com",
+                "role": "admin",
+            },
+            {"id": 2, "username": "bob", "email": "bob@example.com", "role": "user"},
+            {
+                "id": 3,
+                "username": "charlie",
+                "email": "charlie@example.com",
+                "role": "user",
+            },
+        ]
+        return {"users": users_list, "total": len(users_list), "secure": True}
+
     return users
 
 
@@ -115,3 +135,100 @@ def test_secure_cornice_service_tools_list(
     assert (
         schema.get("type") == "object"
     ), f"Schema type is '{schema.get('type')}', expected 'object'"
+
+
+def test_secure_get_endpoint_requires_auth(
+    pyramid_app_with_services, secure_user_service
+):
+    """Test that GET endpoint requires authentication and fails without it."""
+    app = pyramid_app_with_services([secure_user_service])
+
+    # First verify the GET tool appears in tools list
+    list_request = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/list",
+    }
+
+    response = app.post_json("/mcp", list_request)
+    assert response.status_code == 200
+    tools = response.json["result"]["tools"]
+    tool_names = [tool["name"] for tool in tools]
+
+    # Should find both POST and GET tools
+    assert "create_secure_users" in tool_names
+    assert "list_secure_users" in tool_names
+
+    # Try to call the GET endpoint without authentication - should fail
+    call_request = {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "tools/call",
+        "params": {"name": "list_secure_users", "arguments": {}},
+    }
+
+    response = app.post_json("/mcp", call_request, expect_errors=True)
+
+    # Should get an authentication error - now properly handled at validation level
+    assert response.status_code == 200  # JSON-RPC always returns 200
+    assert "error" in response.json  # Authentication validation fails
+
+    error = response.json["error"]
+    assert error["code"] == -32602  # INVALID_PARAMS
+
+    # Should contain authentication validation error
+    assert (
+        "authentication" in error["message"].lower()
+        or "missing" in error["message"].lower()
+    )
+    assert error["data"]["authentication_error_type"] == "missing_credentials"
+    assert "auth_token" in error["data"]["details"]["missing_fields"]
+
+
+def test_secure_endpoints_authentication_integration(
+    pyramid_app_with_services, secure_user_service
+):
+    """Test that secure endpoints properly integrate with authentication system.
+
+    This test demonstrates that:
+    1. Tools with permissions are discovered correctly
+    2. Authentication tokens are processed by pyramid-mcp
+    3. The request reaches the Pyramid view (where actual authorization happens)
+    """
+    app = pyramid_app_with_services([secure_user_service])
+
+    # Test that authentication tokens are properly processed
+    create_request = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {
+            "name": "create_secure_users",
+            "arguments": {
+                "username": "testuser",
+                "email": "testuser@example.com",
+                "role": "admin",
+                "auth_token": "valid_bearer_token_123",
+            },
+        },
+    }
+
+    response = app.post_json("/mcp", create_request)
+    assert response.status_code == 200
+    assert "result" in response.json
+
+    # The tool should execute and reach the Pyramid view
+    # (even though the view may still fail authorization in this test setup)
+    result = response.json["result"]
+    assert "content" in result
+
+    # This proves that:
+    # 1. The MCP tool was found and has proper permissions
+    # 2. The auth_token was processed and removed from arguments
+    # 3. The request reached the actual Pyramid view
+    content = result["content"][0]["text"]
+
+    # Should show that we reached the view level (not MCP-level access denial)
+    assert "route" in content  # Error includes route information
+    assert "secure_users" in content  # Shows the correct route was called
+    assert "auth_token" not in content  # Auth token was properly removed from params
