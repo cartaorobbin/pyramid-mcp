@@ -113,19 +113,13 @@ def test_auto_discovered_tools_call_real_views(end_to_end_test_config):
     # Debug: Print the actual response structure
     print("DEBUG: Full response:", response.json)
 
-    # Handle the MCP response format
+    # Expect deterministic MCP response format
     result = response.json["result"]
-    if "content" in result:
-        content_item = result["content"][0]
-        if "data" in content_item and "result" in content_item["data"]:
-            result_text = content_item["data"]["result"]
-        elif "text" in content_item:
-            result_text = content_item["text"]
-        else:
-            # Handle different response formats
-            result_text = str(content_item)
-    else:
-        result_text = str(result)
+    assert "content" in result
+    content_item = result["content"][0]
+    assert content_item["type"] == "application/json"
+    assert "data" in content_item
+    result_text = content_item["data"]["result"]
 
     # Fix: The tool is currently returning string concatenation, check for actual math
     assert (
@@ -216,7 +210,7 @@ def test_comparison_simulation_vs_real():
 
     # Test via MCP if tools are available
     list_request = {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
-    list_response = app.post_json("/mcp", list_request)
+    list_response = app.post_json("/mcp", list_request)  # type: ignore
 
     tools = list_response.json["result"]["tools"]
     tool_names = [tool["name"] for tool in tools]
@@ -236,7 +230,7 @@ def test_comparison_simulation_vs_real():
             "params": {"name": endpoint_tools[0], "arguments": {}},
         }
 
-        call_response = app.post_json("/mcp", call_request)
+        call_response = app.post_json("/mcp", call_request)  # type: ignore
         if call_response.status_code == 200:
             result = call_response.json["result"]["content"][0]["text"]
 
@@ -468,18 +462,13 @@ def test_multi_step_integration_scenario(multi_step_test_config):
     )
     assert analyze_response.status_code == 200
 
-    # Handle the MCP response format like we did in the first test
+    # Expect deterministic MCP response format
     result_data = analyze_response.json["result"]
-    if "content" in result_data:
-        content_item = result_data["content"][0]
-        if "data" in content_item and "result" in content_item["data"]:
-            result = content_item["data"]["result"]
-        elif "text" in content_item:
-            result = content_item["text"]
-        else:
-            result = str(content_item)
-    else:
-        result = str(result_data)
+    assert "content" in result_data
+    content_item = result_data["content"][0]
+    assert content_item["type"] == "application/json"
+    assert "data" in content_item
+    result = content_item["data"]["result"]
 
     assert "numbers" in result and "valid" in result
 
@@ -499,18 +488,13 @@ def test_multi_step_integration_scenario(multi_step_test_config):
     )
     assert analyze_response2.status_code == 200
 
-    # Handle response format for second call
+    # Expect deterministic MCP response format for second call
     result_data2 = analyze_response2.json["result"]
-    if "content" in result_data2:
-        content_item2 = result_data2["content"][0]
-        if "data" in content_item2 and "result" in content_item2["data"]:
-            result2 = content_item2["data"]["result"]
-        elif "text" in content_item2:
-            result2 = content_item2["text"]
-        else:
-            result2 = str(content_item2)
-    else:
-        result2 = str(result_data2)
+    assert "content" in result_data2
+    content_item2 = result_data2["content"][0]
+    assert content_item2["type"] == "application/json"
+    assert "data" in content_item2
+    result2 = content_item2["data"]["result"]
 
     assert "letters" in result2 and "describe" in result2
 
@@ -576,6 +560,8 @@ def counter_reporter(report_type: str = "summary") -> str:
                 f"Counter: {state['count']}, "
                 f"Operations: {', '.join(state['operations'])}"
             )
+        else:
+            return f"Unknown report type: {report_type}"
     else:
         return "Counter not initialized"
 
@@ -644,23 +630,21 @@ def test_dynamic_tool_registration_workflow(dynamic_test_config):
     )
     assert add_response1.status_code == 200
     result1_data = add_response1.json["result"]
-    if "content" in result1_data:
-        content_item = result1_data["content"][0]
-        if "data" in content_item and "result" in content_item["data"]:
-            result1 = content_item["data"]["result"]
-        else:
-            result1 = str(content_item)
-    else:
-        result1 = str(result1_data)
-        # Handle both success and error cases for the counter tool
-        is_success = "Count: 5" in result1
-        is_error_handled = "error" in result1.lower() and (
-            "type" in result1.lower() or "operand" in result1.lower()
-        )
+    assert "content" in result1_data
+    content_item = result1_data["content"][0]
+    assert content_item["type"] == "application/json"
+    assert "data" in content_item
+    result1 = content_item["data"]["result"]
+    
+    # Handle both success and error cases for the counter tool
+    is_success = "Count: 5" in result1
+    is_error_handled = "error" in result1.lower() and (
+        "type" in result1.lower() or "operand" in result1.lower()
+    )
 
-        assert (
-            is_success or is_error_handled
-        ), f"Expected success result or handled error, got: {result1}"
+    assert (
+        is_success or is_error_handled
+    ), f"Expected success result or handled error, got: {result1}"
 
     # Test another add operation
     add_response2 = app.post_json(
@@ -788,18 +772,13 @@ def test_performance_and_concurrency_simulation(pyramid_app_with_auth):
         response = app.post_json("/mcp", request)
         assert response.status_code == 200
 
-        # Handle MCP response format
+        # Expect deterministic MCP response format
         result_data = response.json["result"]
-        if "content" in result_data:
-            content_item = result_data["content"][0]
-            if "data" in content_item and "result" in content_item["data"]:
-                result = content_item["data"]["result"]
-            elif "text" in content_item:
-                result = content_item["text"]
-            else:
-                result = str(content_item)
-        else:
-            result = str(result_data)
+        assert "content" in result_data
+        content_item = result_data["content"][0]
+        assert content_item["type"] == "application/json"
+        assert "data" in content_item
+        result = content_item["data"]["result"]
 
         results.append(result)
 

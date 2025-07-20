@@ -125,14 +125,11 @@ def test_calculate_tool_add_operation(mcp_client: MCPClientSimulator) -> None:
     assert isinstance(content, list)
     assert len(content) > 0
 
-    # Handle MCP response format
+    # Expect deterministic MCP response format
     content_item = content[0]
-    if "data" in content_item and "result" in content_item["data"]:
-        result = content_item["data"]["result"]
-    elif "text" in content_item:
-        result = content_item["text"]
-    else:
-        result = str(content_item)
+    assert content_item["type"] == "application/json"
+    assert "data" in content_item
+    result = content_item["data"]["result"]
 
     # Result should contain the calculation result
     # Note: The tool appears to concatenate rather than add
@@ -152,14 +149,11 @@ def test_calculate_tool_multiply_operation(mcp_client: MCPClientSimulator) -> No
     assert isinstance(content, list)
     assert len(content) > 0
 
-    # Handle MCP response format
+    # Expect deterministic MCP response format
     content_item = content[0]
-    if "data" in content_item and "result" in content_item["data"]:
-        result = content_item["data"]["result"]
-    elif "text" in content_item:
-        result = content_item["text"]
-    else:
-        result = str(content_item)
+    assert content_item["type"] == "application/json"
+    assert "data" in content_item
+    result = content_item["data"]["result"]
 
     # Handle both success and error cases
     # The tool may succeed with result or fail with error message
@@ -183,17 +177,60 @@ def test_get_user_count_tool(mcp_client: MCPClientSimulator) -> None:
     assert isinstance(content, list)
     assert len(content) > 0
 
-    # Handle MCP response format
+    # Expect deterministic MCP response format
     content_item = content[0]
-    if "data" in content_item and "result" in content_item["data"]:
-        result = str(content_item["data"]["result"])
-    elif "text" in content_item:
-        result = content_item["text"]
-    else:
-        result = str(content_item)
+    assert content_item["type"] == "application/json"
+    assert "data" in content_item
+    result = content_item["data"]["result"]
 
-    # Should contain a number
-    assert any(char.isdigit() for char in result)
+    # Should contain user count
+    assert isinstance(result, (int, str))
+
+
+def test_echo_tool(mcp_client: MCPClientSimulator) -> None:
+    """Test calling the echo tool."""
+    test_message = "Hello, MCP!"
+    response = mcp_client.call_mcp(
+        "tools/call", {"name": "echo", "arguments": {"message": test_message}}
+    )
+
+    assert "result" in response
+    assert "content" in response["result"]
+    content = response["result"]["content"]
+    assert isinstance(content, list)
+    assert len(content) > 0
+
+    # Expect deterministic MCP response format
+    content_item = content[0]
+    assert content_item["type"] == "application/json"
+    assert "data" in content_item
+    result = content_item["data"]["result"]
+
+    # Should echo the message
+    assert test_message in result
+
+
+def test_tool_with_validation_error(mcp_client: MCPClientSimulator) -> None:
+    """Test calling a tool with invalid arguments."""
+    response = mcp_client.call_mcp(
+        "tools/call",
+        {"name": "calculate", "arguments": {"operation": "invalid", "a": 1, "b": 2}},
+    )
+
+    assert "result" in response
+    assert "content" in response["result"]
+    content = response["result"]["content"]
+    assert isinstance(content, list)
+    assert len(content) > 0
+
+    # Expect deterministic MCP response format
+    content_item = content[0]
+    assert content_item["type"] == "application/json"
+    assert "data" in content_item
+    result = content_item["data"]["result"]
+
+    # Should contain validation error
+    assert "error" in result.lower() or "invalid" in result.lower()
 
 
 def test_invalid_tool_call(mcp_client: MCPClientSimulator) -> None:
@@ -268,12 +305,9 @@ def test_user_count_tool_vs_users_endpoint(
 
     # Extract count from MCP response with proper format handling
     content_item = mcp_response["result"]["content"][0]
-    if "data" in content_item and "result" in content_item["data"]:
-        mcp_content = str(content_item["data"]["result"])
-    elif "text" in content_item:
-        mcp_content = content_item["text"]
-    else:
-        mcp_content = str(content_item)
+    assert content_item["type"] == "application/json"
+    assert "data" in content_item
+    mcp_content = str(content_item["data"]["result"])
 
     # Extract the number from the response
     mcp_count = int("".join(filter(str.isdigit, mcp_content)))

@@ -84,31 +84,31 @@ def test_mcp_call_tool_calculation(testapp_with_mcp):
     tools = list_response.json["result"]["tools"]
     tool_names = [tool["name"] for tool in tools]
 
-    # If we have a calculate tool, test it
-    if "calculate" in tool_names:
-        request_data = {
-            "jsonrpc": "2.0",
-            "method": "tools/call",
-            "params": {
-                "name": "calculate",
-                "arguments": {"operation": "add", "a": 10, "b": 5},
-            },
-            "id": 3,
-        }
-
-        response = testapp_with_mcp.post_json("/mcp", request_data)
-
-        assert response.status_code == 200
-        data = response.json
-
-        assert "result" in data
-        assert "content" in data["result"]
-        assert len(data["result"]["content"]) == 1
-        assert data["result"]["content"][0]["type"] == "text"
-        assert "15" in data["result"]["content"][0]["text"]  # 10 + 5 = 15
-    else:
-        # If no calculate tool, just verify the endpoint works
+    # Skip if calculate tool is not available
+    if "calculate" not in tool_names:
         pytest.skip("No calculate tool available in fixture setup")
+
+    # Test the calculate tool deterministically
+    request_data = {
+        "jsonrpc": "2.0",
+        "method": "tools/call",
+        "params": {
+            "name": "calculate",
+            "arguments": {"operation": "add", "a": 10, "b": 5},
+        },
+        "id": 3,
+    }
+
+    response = testapp_with_mcp.post_json("/mcp", request_data)
+
+    assert response.status_code == 200
+    data = response.json
+
+    assert "result" in data
+    assert "content" in data["result"]
+    assert len(data["result"]["content"]) == 1
+    assert data["result"]["content"][0]["type"] == "text"
+    assert "15" in data["result"]["content"][0]["text"]  # 10 + 5 = 15
 
 
 def test_mcp_error_handling_via_http(testapp_with_mcp):
@@ -172,27 +172,28 @@ def test_mcp_tool_validation_error(testapp_with_mcp):
     tools = list_response.json["result"]["tools"]
     tool_names = [tool["name"] for tool in tools]
 
-    # If we have a calculate tool, test validation error
-    if "calculate" in tool_names:
-        request_data = {
-            "jsonrpc": "2.0",
-            "method": "tools/call",
-            "params": {
-                "name": "calculate",
-                "arguments": {"operation": "invalid_operation", "a": 10, "b": 5},
-            },
-            "id": 6,
-        }
-
-        response = testapp_with_mcp.post_json("/mcp", request_data)
-
-        assert response.status_code == 200
-        data = response.json
-
-        # Should return an error for invalid operation
-        assert "error" in data or ("result" in data and "error" in str(data["result"]))
-    else:
+    # Skip if calculate tool is not available
+    if "calculate" not in tool_names:
         pytest.skip("No calculate tool available for validation testing")
+
+    # Test validation error deterministically
+    request_data = {
+        "jsonrpc": "2.0",
+        "method": "tools/call",
+        "params": {
+            "name": "calculate",
+            "arguments": {"operation": "invalid_operation", "a": 10, "b": 5},
+        },
+        "id": 6,
+    }
+
+    response = testapp_with_mcp.post_json("/mcp", request_data)
+
+    assert response.status_code == 200
+    data = response.json
+
+    # Should return an error for invalid operation
+    assert "error" in data or ("result" in data and "error" in str(data["result"]))
 
 
 # =============================================================================
@@ -313,7 +314,7 @@ def test_custom_mount_path(pyramid_config_with_routes, mcp_settings_factory):
 
     # Test MCP at custom path
     request_data = {"jsonrpc": "2.0", "method": "initialize", "id": 1}
-    response = testapp.post_json("/api/mcp", request_data)
+    response = testapp.post_json("/api/mcp", request_data)  # type: ignore
 
     assert response.status_code == 200
     data = response.json
@@ -333,7 +334,7 @@ def test_server_info_configuration(pyramid_config_with_routes, mcp_settings_fact
 
     # Test server info
     request_data = {"jsonrpc": "2.0", "method": "initialize", "id": 1}
-    response = testapp.post_json("/mcp", request_data)
+    response = testapp.post_json("/mcp", request_data)  # type: ignore
 
     assert response.status_code == 200
     data = response.json
@@ -435,7 +436,7 @@ def test_route_discovery_end_to_end():
         "params": {"protocolVersion": "2024-11-05", "capabilities": {}},
     }
 
-    response = app.post_json("/mcp", mcp_init_request)
+    response = app.post_json("/mcp", mcp_init_request)  # type: ignore
     assert response.status_code == 200
     data = response.json
     assert data["result"]["serverInfo"]["name"] == "route-discovery-test"
@@ -443,7 +444,7 @@ def test_route_discovery_end_to_end():
     # Test MCP tools/list to see available tools
     mcp_list_request = {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}
 
-    response = app.post_json("/mcp", mcp_list_request)
+    response = app.post_json("/mcp", mcp_list_request)  # type: ignore
     assert response.status_code == 200
     data = response.json
 
@@ -463,24 +464,21 @@ def test_route_discovery_end_to_end():
         "params": {"name": "manual_integration_tool", "arguments": {"text": "test"}},
     }
 
-    response = app.post_json("/mcp", mcp_call_request)
+    response = app.post_json("/mcp", mcp_call_request)  # type: ignore
     assert response.status_code == 200
     data = response.json
 
-    # Handle MCP response format
+    # Expect exact MCP response format without conditional logic
     result_data = data["result"]
-    if "content" in result_data:
-        content_item = result_data["content"][0]
-        if "data" in content_item and "result" in content_item["data"]:
-            result = content_item["data"]["result"]
-        elif "text" in content_item:
-            result = content_item["text"]
-        else:
-            result = str(content_item)
-    else:
-        result = str(result_data)
-
-    assert "Integration: test" in result
+    assert "content" in result_data
+    content_items = result_data["content"]
+    assert len(content_items) == 1
+    
+    content_item = content_items[0]
+    # The actual response format is application/json with data field
+    assert content_item["type"] == "application/json"
+    assert "data" in content_item
+    assert "Integration: test" in str(content_item["data"])
 
 
 def test_route_discovery_with_filtering():
@@ -521,7 +519,7 @@ def test_route_discovery_with_filtering():
     # Get list of tools
     mcp_list_request = {"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
 
-    response = app.post_json("/mcp", mcp_list_request)
+    response = app.post_json("/mcp", mcp_list_request)  # type: ignore
     assert response.status_code == 200
 
     tools = response.json["result"]["tools"]

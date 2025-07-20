@@ -54,6 +54,7 @@ def ensure_fresh_docker_container():
     print("✅ Docker container rebuilt successfully")
 
 
+@pytest.mark.slow
 def test_stdio_transport_initialize():
     """Test that stdio transport can initialize the MCP protocol."""
     # Create a temporary ini file
@@ -124,6 +125,7 @@ mcp.security.permission = view
         Path(ini_path).unlink()
 
 
+@pytest.mark.slow
 def test_stdio_transport_list_tools():
     """Test that stdio transport can list available tools."""
     # Test tools/list request
@@ -174,6 +176,7 @@ def test_stdio_transport_list_tools():
         ), f"Tool {expected_tool} not found in {tool_names}"
 
 
+@pytest.mark.slow
 def test_stdio_transport_call_tool_success():
     """Test successful tool execution via stdio transport."""
     # Test tools/call request for a tool that doesn't require auth
@@ -234,6 +237,7 @@ def test_stdio_transport_call_tool_success():
         assert False, f"Expected either result or error in response: {response}"
 
 
+@pytest.mark.slow
 def test_stdio_transport_call_tool_auth_required():
     """Test tool execution that requires authentication via stdio transport."""
     # Test tools/call request for a tool that requires authentication
@@ -280,6 +284,7 @@ def test_stdio_transport_call_tool_auth_required():
     assert any(word in error_msg for word in expected_words)
 
 
+@pytest.mark.slow
 def test_stdio_transport_protocol_compliance():
     """Test that stdio transport maintains JSON-RPC 2.0 compliance."""
     # Test invalid request
@@ -326,6 +331,7 @@ def test_stdio_transport_protocol_compliance():
     assert response["error"]["code"] == -32601  # Method not found
 
 
+@pytest.mark.slow
 def test_stdio_transport_notifications_initialized():
     """Test that stdio transport properly handles notifications/initialized.
 
