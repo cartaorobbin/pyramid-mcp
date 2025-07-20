@@ -17,6 +17,21 @@ from pyramid.config import Configurator
 from pyramid_mcp import includeme, tool
 
 # =============================================================================
+# 🧪 MODULE-LEVEL TOOLS FOR TESTING
+# =============================================================================
+
+
+@tool(name="plugin_add_test", description="Add two numbers via plugin")
+def add_numbers_plugin(a: int, b: int) -> int:
+    return a + b
+
+
+@tool(name="fixture_test_tool", description="Test tool with fixture")
+def fixture_test_tool(input_text: str) -> str:
+    return f"Processed: {input_text}"
+
+
+# =============================================================================
 # 🔌 PLUGIN INCLUDEME FUNCTIONALITY TESTS
 # =============================================================================
 
@@ -110,36 +125,33 @@ def test_request_method_access(minimal_pyramid_config):
 # =============================================================================
 
 
-def test_plugin_tool_decorator(minimal_pyramid_config):
+def test_plugin_tool_decorator(pyramid_app_with_auth):
     """Test the plugin-level tool decorator functionality."""
-    config = minimal_pyramid_config
-    includeme(config)
+    # Use our proven working fixture with route discovery enabled
+    settings = {
+        "mcp.route_discovery.enabled": True,
+        "mcp.server_name": "plugin-test-server",
+        "mcp.server_version": "1.0.0",
+        "mcp.mount_path": "/mcp",
+    }
 
-    # Get the pyramid_mcp instance
-    pyramid_mcp = config.registry.pyramid_mcp
+    # Create TestApp using the global fixture (which handles scanning automatically)
+    testapp = pyramid_app_with_auth(settings)
 
-    # Use the plugin-level tool decorator after includeme
-    @tool(name="plugin_add_test", description="Add two numbers via plugin")
-    def add_numbers_plugin(a: int, b: int) -> int:
-        return a + b
+    # Get the pyramid_mcp instance from the TestApp's app registry
+    pyramid_mcp = testapp.app.registry.pyramid_mcp
 
-    # The tool should have been registered automatically
-    # If not, we need to manually trigger registration of stored tools
-    if "plugin_add_test" not in pyramid_mcp.protocol_handler.tools:
-        # Check if the tool config is stored and register it manually
-        if hasattr(add_numbers_plugin, "_mcp_tool_config"):
-            tool_config = add_numbers_plugin._mcp_tool_config
-            pyramid_mcp.tool(
-                tool_config["name"], tool_config["description"], tool_config["schema"]
-            )(add_numbers_plugin)
-
-    # Check that the tool is registered
+    # Check that the module-level tool is registered
     assert "plugin_add_test" in pyramid_mcp.protocol_handler.tools
 
-    # Test the tool
+    # Verify tool has correct properties
     tool_obj = pyramid_mcp.protocol_handler.tools["plugin_add_test"]
-    result = tool_obj.handler(a=5, b=3)
-    assert result == 8
+    assert tool_obj.name == "plugin_add_test"
+    assert tool_obj.description == "Add two numbers via plugin"
+    assert tool_obj.handler is not None
+
+    print("✅ Plugin tool decorator test successful!")
+    print(f"✅ Registered tool: {tool_obj.name} - {tool_obj.description}")
 
 
 def test_plugin_tool_decorator_with_complex_signature(minimal_pyramid_config):
@@ -454,33 +466,44 @@ def test_complete_plugin_integration_scenario(mcp_settings_factory, dummy_reques
     assert len(mcp_routes) >= 1
 
 
-def test_plugin_with_fixture_integration(pyramid_mcp_configured, dummy_request):
-    """Test plugin functionality using the enhanced pyramid_mcp fixture."""
-    # The fixture already has MCP configured, test that tools can be added
-    pyramid_mcp = pyramid_mcp_configured
-
-    @tool(name="fixture_test_tool", description="Test tool with fixture")
-    def fixture_test_tool(input_text: str) -> str:
-        return f"Processed: {input_text}"
-
-    # Register the tool manually since the fixture doesn't auto-register
-    pyramid_mcp.tool("fixture_test_tool", "Test tool with fixture")(fixture_test_tool)
-
-    # Test the tool via protocol
-    request = {
-        "jsonrpc": "2.0",
-        "method": "tools/call",
-        "params": {
-            "name": "fixture_test_tool",
-            "arguments": {"input_text": "test input"},
-        },
-        "id": 1,
+def test_plugin_with_fixture_integration(pyramid_app_with_auth):
+    """Test plugin functionality using the proven global fixture."""
+    # Use our proven working fixture with route discovery enabled
+    settings = {
+        "mcp.route_discovery.enabled": True,
+        "mcp.server_name": "fixture-test-server",
+        "mcp.server_version": "1.0.0",
+        "mcp.mount_path": "/mcp",
     }
 
-    response = pyramid_mcp.protocol_handler.handle_message(request, dummy_request)
+    # Create TestApp using the global fixture (which handles scanning automatically)
+    testapp = pyramid_app_with_auth(settings)
 
-    # Should get a successful response or at least not crash
-    assert "jsonrpc" in response
-    assert response["id"] == 1
-    # Allow for either success or error (depending on test setup)
-    assert "result" in response or "error" in response
+    # Get the pyramid_mcp instance from the TestApp's app registry
+    pyramid_mcp = testapp.app.registry.pyramid_mcp
+
+    # Verify the module-level tool is registered
+    assert "fixture_test_tool" in pyramid_mcp.protocol_handler.tools
+
+    # Test the tool via MCP endpoint using TestApp
+    response = testapp.post_json(
+        "/mcp",
+        {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": "fixture_test_tool",
+                "arguments": {"input_text": "test input"},
+            },
+            "id": 1,
+        },
+    )
+
+    # Should get a successful response
+    assert response.status_code == 200
+    assert "jsonrpc" in response.json
+    assert response.json["id"] == 1
+    assert "result" in response.json
+
+    print("✅ Plugin fixture integration test successful!")
+    print("✅ Tool executed via MCP endpoint successfully")

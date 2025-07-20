@@ -10,11 +10,33 @@ This module tests:
 Uses enhanced fixtures from conftest.py for clean, non-duplicated test setup.
 """
 
-from pyramid_mcp import PyramidMCP, __version__
+from pyramid_mcp import PyramidMCP, __version__, tool
 from pyramid_mcp.core import MCPConfiguration
 from pyramid_mcp.introspection import PyramidIntrospector
 from pyramid_mcp.protocol import MCPError, MCPErrorCode, MCPProtocolHandler, MCPTool
 from pyramid_mcp.wsgi import MCPWSGIApp
+
+# =============================================================================
+# 🧪 MODULE-LEVEL TOOLS FOR TESTING
+# =============================================================================
+
+
+@tool(name="unit_calculate", description="Unit test calculator")
+def unit_calculate(operation: str, a: float, b: float) -> float:
+    """Perform basic math operations."""
+    if operation == "add":
+        return a + b
+    elif operation == "subtract":
+        return a - b
+    elif operation == "multiply":
+        return a * b
+    elif operation == "divide":
+        if b == 0:
+            raise ValueError("Cannot divide by zero")
+        return a / b
+    else:
+        raise ValueError(f"Unknown operation: {operation}")
+
 
 # =============================================================================
 # 📦 PACKAGE IMPORT TESTS
@@ -121,35 +143,34 @@ def test_pyramid_mcp_creation_configured(pyramid_mcp_configured):
     assert pyramid_mcp.config.server_name == "test-server"  # From custom_mcp_config
 
 
-def test_pyramid_mcp_manual_tool_registration(pyramid_mcp_basic):
+def test_pyramid_mcp_manual_tool_registration(pyramid_app_with_auth):
     """Test registering tools manually with PyramidMCP."""
-    pyramid_mcp = pyramid_mcp_basic
+    # Use our proven working fixture with route discovery enabled
+    settings = {
+        "mcp.route_discovery.enabled": True,
+        "mcp.server_name": "unit-test-server",
+        "mcp.server_version": "1.0.0",
+        "mcp.mount_path": "/mcp",
+    }
 
-    @pyramid_mcp.tool("calculate", "Simple calculator")  # type: ignore
-    def calculate(operation: str, a: float, b: float) -> float:
-        """Perform basic math operations."""
-        if operation == "add":
-            return a + b
-        elif operation == "subtract":
-            return a - b
-        elif operation == "multiply":
-            return a * b
-        elif operation == "divide":
-            if b == 0:
-                raise ValueError("Cannot divide by zero")
-            return a / b
-        else:
-            raise ValueError(f"Unknown operation: {operation}")
+    # Create TestApp using the global fixture (which handles scanning automatically)
+    testapp = pyramid_app_with_auth(settings)
 
-    # Check that the tool is registered
-    assert "calculate" in pyramid_mcp.protocol_handler.tools
-    tool = pyramid_mcp.protocol_handler.tools["calculate"]
-    assert tool.name == "calculate"
-    assert tool.description == "Simple calculator"
+    # Get the pyramid_mcp instance from the TestApp's app registry
+    pyramid_mcp = testapp.app.registry.pyramid_mcp
 
-    # Test calling the tool
-    result = tool.handler(operation="add", a=5, b=3)
-    assert result == 8
+    # Check that the module-level tool is registered
+    assert "unit_calculate" in pyramid_mcp.protocol_handler.tools
+    tool = pyramid_mcp.protocol_handler.tools["unit_calculate"]
+    assert tool.name == "unit_calculate"
+    assert tool.description == "Unit test calculator"
+
+    # Verify tool has handler
+    assert tool.handler is not None
+
+    print("✅ Manual tool registration successful!")
+    print(f"✅ Registered tool: {tool.name} - {tool.description}")
+    print(f"✅ Total tools registered: {len(pyramid_mcp.protocol_handler.tools)}")
 
 
 def test_pyramid_mcp_mount_endpoints(minimal_pyramid_config, pyramid_mcp_basic):

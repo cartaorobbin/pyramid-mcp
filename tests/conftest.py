@@ -461,13 +461,9 @@ def testapp_with_jwt_auth(pyramid_config_with_jwt_auth, users_db):
     users_db[1] = {"id": 1, "name": "Test User", "email": "test@example.com"}
 
     # First make the WSGI app to ensure PyramidMCP is properly initialized
-    app = pyramid_config_with_jwt_auth.make_wsgi_app()
 
-    # Now access the PyramidMCP instance for decorator registration
-    pyramid_mcp = pyramid_config_with_jwt_auth.registry.pyramid_mcp
-
-    # Use the new decorator syntax with permission support
-    @pyramid_mcp.tool(  # type: ignore
+    # Tools are now registered using the standalone @tool decorator
+    @tool(
         name="get_protected_user",
         description="Get user info (requires authentication)",
         permission="authenticated",
@@ -481,7 +477,7 @@ def testapp_with_jwt_auth(pyramid_config_with_jwt_auth, users_db):
 
         return {"user": user, "protected": True, "authenticated": True}
 
-    @pyramid_mcp.tool(  # type: ignore
+    @tool(
         name="get_public_info",
         description="Get public information (no authentication required)",
     )
@@ -493,7 +489,81 @@ def testapp_with_jwt_auth(pyramid_config_with_jwt_auth, users_db):
             "public": True,
         }
 
+    app = pyramid_config_with_jwt_auth.make_wsgi_app()
     return TestApp(app)
+
+
+# =============================================================================
+# 🎯 GLOBAL PYRAMID FIXTURE: MAIN PYRAMID SETUP
+# =============================================================================
+
+
+@pytest.fixture
+def pyramid_app_with_auth():
+    """
+    GLOBAL fixture: Main pyramid setup that can be used by all test files.
+
+    This fixture returns a factory function that:
+    - Takes settings as parameter
+    - Creates Pyramid Configurator with provided settings
+    - Sets up security policy and authentication
+    - Includes pyramid_mcp
+    - Runs config.scan() to register @tool decorated functions
+    - Returns configured TestApp
+
+    This is the SINGLE point where Pyramid gets configured and scanning happens.
+    Usage: pyramid_app_with_auth(settings_dict)
+    """
+
+    def pyramid_factory(settings=None):
+        if settings is None:
+            settings = {}
+
+        # Set default settings if not provided
+        default_settings = {
+            "mcp.route_discovery.enabled": True,
+            "mcp.server_name": "test-server",
+            "mcp.server_version": "1.0.0",
+            "mcp.mount_path": "/mcp",
+            "jwt.secret": "test-secret-key",
+            "jwt.algorithm": "HS256",
+            "jwt.expiration_delta": 3600,
+        }
+        default_settings.update(settings)
+        settings = default_settings
+
+        # Create Pyramid configurator
+        config = Configurator(settings=settings)
+
+        # Set up JWT authentication policy
+        from pyramid.authentication import AuthTktAuthenticationPolicy
+        from pyramid.authorization import ACLAuthorizationPolicy
+
+        # For testing, use a simple authentication policy
+        # In real implementation, this would be JWT-based
+        authn_policy = AuthTktAuthenticationPolicy(
+            settings["jwt.secret"],
+            hashalg="sha512",
+        )
+        config.set_authentication_policy(authn_policy)
+        config.set_authorization_policy(ACLAuthorizationPolicy())
+
+        # Include pyramid_mcp
+        config.include("pyramid_mcp")
+
+        # 🔑 CRITICAL: Scan for @tool decorated functions
+        # Scan the entire tests package for @tool decorators
+        config.scan("tests", categories=["pyramid_mcp"])
+
+        # Get pyramid_mcp instance and discover tools
+        pyramid_mcp = config.registry.pyramid_mcp  # type: ignore
+        pyramid_mcp.discover_tools()
+
+        # Create and return TestApp
+        app = config.make_wsgi_app()
+        return TestApp(app)
+
+    return pyramid_factory
 
 
 # =============================================================================

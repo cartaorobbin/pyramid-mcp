@@ -55,7 +55,6 @@ class PyramidIntrospector:
             # Get all route introspectables
             route_category = introspector.get_category("routes") or []
             route_introspectables = [item["introspectable"] for item in route_category]
-
             # Get all view introspectables for cross-referencing
             view_category = introspector.get_category("views") or []
             view_introspectables = [item["introspectable"] for item in view_category]
@@ -541,24 +540,34 @@ class PyramidIntrospector:
             if not view_callable:
                 continue
 
-            # Generate tool name
-            tool_name = self._generate_tool_name(route_name, method, route_pattern)
+            # Check if this is an MCP tool view (created by @tool decorator)
+            if hasattr(view_callable, "__mcp_tool_name__"):
+                # Use MCP metadata from @tool decorator
+                tool_name = view_callable.__mcp_tool_name__
+                description = view_callable.__mcp_tool_description__ or "MCP tool"
+                input_schema = getattr(view_callable, "__mcp_tool_input_schema__", None)
+                security = getattr(view_callable, "__mcp_tool_security__", None)
 
-            # Generate tool description
-            description = self._generate_tool_description(
-                route_name, method, route_pattern, view_callable, view
-            )
+            else:
+                # Generate tool name for regular Pyramid views
+                tool_name = self._generate_tool_name(route_name, method, route_pattern)
 
-            # Generate input schema from route pattern and view signature
-            input_schema = self._generate_input_schema(
-                route_pattern, view_callable, method, view
-            )
+                # Generate tool description
+                description = self._generate_tool_description(
+                    route_name, method, route_pattern, view_callable, view
+                )
 
-            # Extract security configuration from view info using configurable parameter
-            security_type = view.get(config.security_parameter)
-            security = None
-            if security_type:
-                security = self._convert_security_type_to_schema(security_type)
+                # Generate input schema from route pattern and view signature
+                input_schema = self._generate_input_schema(
+                    route_pattern, view_callable, method, view
+                )
+
+                # Extract security configuration from view info using
+                # configurable parameter
+                security_type = view.get(config.security_parameter)
+                security = None
+                if security_type:
+                    security = self._convert_security_type_to_schema(security_type)
 
             # Extract permission from view info or Cornice metadata
             permission = None
@@ -907,7 +916,8 @@ class PyramidIntrospector:
             """MCP tool handler that delegates to Pyramid view via subrequest."""
             # 🐛 DEBUG: Log tool execution start
             logger.info(
-                f"🚀 Executing MCP tool for route: {route_name} ({method} {route_pattern})"
+                f"🚀 Executing MCP tool for route: {route_name} "
+                f"({method} {route_pattern})"
             )
             logger.debug(f"🚀 Tool arguments: {kwargs}")
 
@@ -923,14 +933,15 @@ class PyramidIntrospector:
                     f"🔧 Executing subrequest: {subrequest.method} {subrequest.url}"
                 )
                 logger.debug(
-                    f"🔧 Subrequest Content-Type: {getattr(subrequest, 'content_type', 'None')}"
+                    f"🔧 Subrequest Content-Type: "
+                    f"{getattr(subrequest, 'content_type', 'None')}"
                 )
 
                 # Execute the subrequest
                 response = pyramid_request.invoke_subrequest(subrequest)
 
                 # 🐛 DEBUG: Log response details
-                logger.debug(f"✅ Subrequest completed successfully")
+                logger.debug("✅ Subrequest completed successfully")
                 logger.debug(f"✅ Response type: {type(response)}")
                 if hasattr(response, "status_code"):
                     logger.debug(f"✅ Response status: {response.status_code}")
@@ -938,9 +949,9 @@ class PyramidIntrospector:
                     logger.debug(f"✅ Response Content-Type: {response.content_type}")
 
                 # Convert response to MCP format
-                logger.debug(f"🔄 Converting response to MCP format...")
+                logger.debug("🔄 Converting response to MCP format...")
                 mcp_result = self._convert_response_to_mcp(response, view_info)
-                logger.debug(f"✅ MCP conversion completed successfully")
+                logger.debug("✅ MCP conversion completed successfully")
 
                 return mcp_result
 
@@ -956,10 +967,12 @@ class PyramidIntrospector:
                     response_obj = getattr(e, "response", None)
                     if response_obj:
                         logger.error(
-                            f"❌ HTTP Response Status: {getattr(response_obj, 'status_code', 'Unknown')}"
+                            f"❌ HTTP Response Status: "
+                            f"{getattr(response_obj, 'status_code', 'Unknown')}"
                         )
                         logger.error(
-                            f"❌ HTTP Response Text: {getattr(response_obj, 'text', 'N/A')}"
+                            f"❌ HTTP Response Text: "
+                            f"{getattr(response_obj, 'text', 'N/A')}"
                         )
 
                 # Check if this looks like a content type error
@@ -974,12 +987,14 @@ class PyramidIntrospector:
                         "urlencoded",
                     ]
                 ):
-                    logger.error(f"🚨 CONTENT TYPE ERROR DETECTED!")
+                    logger.error("🚨 CONTENT TYPE ERROR DETECTED!")
                     logger.error(
-                        f"🚨 This appears to be related to the hardcoded 'application/json' content type"
+                        "🚨 This appears to be related to the hardcoded "
+                        "'application/json' content type"
                     )
                     logger.error(
-                        f"🚨 Target API may require 'application/x-www-form-urlencoded' or other content type"
+                        "🚨 Target API may require "
+                        "'application/x-www-form-urlencoded' or other content type"
                     )
 
                 # Log stack trace for debugging
@@ -1091,7 +1106,7 @@ class PyramidIntrospector:
                     query_params[key] = value
                     logger.debug(f"🔧 Query parameter: {key} = {value}")
 
-        logger.debug(f"🔧 Final parameter distribution:")
+        logger.debug("🔧 Final parameter distribution:")
         logger.debug(f"   - Path values: {path_values}")
         logger.debug(f"   - Query params: {query_params}")
         logger.debug(f"   - JSON body: {json_body}")
@@ -1130,14 +1145,17 @@ class PyramidIntrospector:
 
             # 🐛 DEBUG: Log the critical content type setting
             logger.warning(
-                f"🚨 HARDCODED CONTENT TYPE: Setting Content-Type to 'application/json'"
+                "🚨 HARDCODED CONTENT TYPE: Setting Content-Type to "
+                "'application/json'"
             )
             logger.warning(f"🚨 Request body size: {len(body_json)} characters")
             logger.warning(
-                f"🚨 Request body preview: {body_json[:200]}{'...' if len(body_json) > 200 else ''}"
+                f"🚨 Request body preview: {body_json[:200]}"
+                f"{'...' if len(body_json) > 200 else ''}"
             )
             logger.warning(
-                f"🚨 This may cause 'Unsupported content type' errors with APIs expecting form data!"
+                "🚨 This may cause 'Unsupported content type' errors with "
+                "APIs expecting form data!"
             )
 
         # Copy important headers from original request
@@ -1156,7 +1174,7 @@ class PyramidIntrospector:
             logger.debug(f"🔐 Added auth header: {header_name}")
 
         # 🐛 DEBUG: Log final subrequest details
-        logger.debug(f"🔧 Final subrequest details:")
+        logger.debug("🔧 Final subrequest details:")
         logger.debug(f"   - Method: {subrequest.method}")
         logger.debug(f"   - URL: {subrequest.url}")
         logger.debug(

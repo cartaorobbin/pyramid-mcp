@@ -1,0 +1,72 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Clean Test Pattern for Pyramid-MCP
+
+## Test File Structure Pattern
+
+When creating new test files, ALWAYS follow this pattern:
+
+### 1. Global Pyramid Fixture (conftest.py)
+```python
+@pytest.fixture  
+def pyramid_app_with_auth():
+    """
+    GLOBAL fixture: Main pyramid setup that can be used by all test files.
+    Returns a factory function that takes settings and returns TestApp.
+    """
+    def pyramid_factory(settings=None):
+        # Setup Pyramid with settings
+        # Include pyramid_mcp
+        # Run config.scan() for @tool decorators  
+        # Return TestApp
+        return TestApp(app)
+    return pyramid_factory
+```
+
+### 2. Test-Specific Fixture (per test file)
+```python
+@pytest.fixture
+def [testname]_test_config(pyramid_app_with_auth):
+    """
+    Test-specific fixture: Define tools and configure pyramid for THIS test file.
+    """
+    
+    # Define @tool functions needed for this test file
+    @tool(name="test_tool", description="Test tool")
+    def test_tool_func():
+        pass
+    
+    # Configure pyramid with test-specific settings
+    settings = {
+        "mcp.server_name": "specific-test-server",
+        # ... other settings
+    }
+    
+    # Return configured TestApp
+    return pyramid_app_with_auth(settings)
+```
+
+### 3. Tests Use Test-Specific Fixture
+```python
+def test_something([testname]_test_config):
+    """Tests use the test-specific fixture directly."""
+    response = [testname]_test_config.post_json('/mcp', {...})
+    assert response.status_code == 200
+```
+
+## Pattern Benefits
+- ✅ **Global fixture reusable** across all test files
+- ✅ **Test-specific setup** isolated per test file  
+- ✅ **Single point** for Pyramid config and scanning
+- ✅ **Clean separation** of concerns
+- ✅ **No test pollution** between files
+
+## Rules
+1. **NEVER** duplicate `pyramid_app_with_auth` in test files
+2. **ALWAYS** define `@tool` functions in test-specific fixture
+3. **ALWAYS** call `pyramid_app_with_auth(settings)` with specific settings
+4. **ALWAYS** use test-specific fixture name in tests
+5. **NEVER** mix fixture dependencies backwards

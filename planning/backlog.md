@@ -4,6 +4,21 @@ This file contains all planned TODO tasks for the pyramid-mcp project that are n
 
 ## 📋 FUTURE TASKS (Prioritized)
 
+### [HIGH PRIORITY] Unified Security Architecture - Manual Tools via Subrequest
+
+**Status**: IN PROGRESS (Moved to planning/general.md)
+**Assigned**: Assistant  
+**Started**: 2024-12-28
+**Related Issue**: Security architecture inconsistency
+
+#### Status
+This task has been moved to active development in `planning/general.md`. 
+
+**Current Phase**: Phase 1 - Temporary View Registration
+**Next**: Implementing `register_manual_tool_as_view()` method
+
+---
+
 ### [HIGH PRIORITY] Configurable HTTP Content Types
 
 **Status**: TODO (Critical Bug Fix)

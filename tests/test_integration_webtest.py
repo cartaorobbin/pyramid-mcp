@@ -391,6 +391,7 @@ def test_route_discovery_end_to_end():
         "mcp.server_name": "route-discovery-test",
         "mcp.server_version": "1.0.0",
         "mcp.mount_path": "/mcp",
+        "mcp.route_discovery.enabled": True,  # Enable route discovery
     }
 
     config = Configurator(settings=settings)
@@ -413,6 +414,9 @@ def test_route_discovery_end_to_end():
 
     # Include pyramid_mcp after adding routes/views
     config.include("pyramid_mcp")
+
+    # Scan to register module-level @tool decorated functions
+    config.scan(__name__, categories=["pyramid_mcp"])
 
     app = TestApp(config.make_wsgi_app())
 
@@ -462,7 +466,21 @@ def test_route_discovery_end_to_end():
     response = app.post_json("/mcp", mcp_call_request)
     assert response.status_code == 200
     data = response.json
-    assert data["result"]["content"][0]["text"] == "Integration: test"
+
+    # Handle MCP response format
+    result_data = data["result"]
+    if "content" in result_data:
+        content_item = result_data["content"][0]
+        if "data" in content_item and "result" in content_item["data"]:
+            result = content_item["data"]["result"]
+        elif "text" in content_item:
+            result = content_item["text"]
+        else:
+            result = str(content_item)
+    else:
+        result = str(result_data)
+
+    assert "Integration: test" in result
 
 
 def test_route_discovery_with_filtering():

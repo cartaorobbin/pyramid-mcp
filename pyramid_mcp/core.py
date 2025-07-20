@@ -10,17 +10,14 @@ import json
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Type
 
+import venusian  # type: ignore[import-untyped]
 from marshmallow import Schema
 from pyramid.config import Configurator
 from pyramid.request import Request
 from pyramid.response import Response
 
 from pyramid_mcp.introspection import PyramidIntrospector
-from pyramid_mcp.protocol import (
-    MCPProtocolHandler,
-    MCPTool,
-    create_json_schema_from_marshmallow,
-)
+from pyramid_mcp.protocol import MCPProtocolHandler, create_json_schema_from_marshmallow
 from pyramid_mcp.security import MCPSecurityType
 from pyramid_mcp.wsgi import MCPWSGIApp
 
@@ -94,9 +91,6 @@ class PyramidMCP:
         # Initialize introspection
         self.introspector = PyramidIntrospector(configurator)
 
-        # Storage for manually registered tools
-        self.manual_tools: Dict[str, MCPTool] = {}
-
         # Track if tools have been discovered
         self._tools_discovered = False
 
@@ -153,9 +147,7 @@ class PyramidMCP:
             # This would require more complex introspection
             pass
 
-        # Register manually added tools
-        for tool in self.manual_tools.values():
-            self.protocol_handler.register_tool(tool)
+        # Manual tools are now registered as Pyramid views via introspection
 
         self._tools_discovered = True
 
@@ -166,87 +158,6 @@ class PyramidMCP:
 
         mount_path = self.config.mount_path
         self._add_mcp_routes(mount_path)
-
-    def tool(
-        self,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        schema: Optional[Type[Schema]] = None,
-        permission: Optional[str] = None,
-        context: Optional[Any] = None,
-        security: Optional[MCPSecurityType] = None,
-    ) -> Callable:
-        """Decorator to register a function as an MCP tool.
-
-        Args:
-            name: Tool name (defaults to function name)
-            description: Tool description (defaults to function docstring)
-            schema: Marshmallow schema for input validation
-            permission: Pyramid permission requirement for this tool
-            context: Context or context factory to use for permission checking
-            security: Authentication parameter specification for this tool
-
-        Returns:
-            Decorated function
-
-        Example:
-            >>> @mcp.tool(description="Add two numbers")
-            >>> def add(a: int, b: int) -> int:
-            ...     return a + b
-
-            >>> @mcp.tool(description="Get user info", permission="authenticated")
-            >>> def get_user(id: int) -> dict:
-            ...     return {"id": id, "name": "User"}
-
-            >>> # With custom context
-            >>> @mcp.tool(permission="view", context=AuthenticatedContext)
-            >>> def secure_operation() -> str:
-            ...     return "Secure data"
-
-            >>> # With authentication parameters
-            >>> from pyramid_mcp.security import BearerAuth
-            >>> @mcp.tool(
-            ...     description="Secure API call",
-            ...     security=BearerAuth(
-            ...         description="API token",
-            ...         parameter_name="token"
-            ...     )
-            ... )
-            >>> def secure_api_call(token: str, data: str) -> str:
-            ...     return f"Secure API called with data: {data}"
-        """
-
-        def decorator(func: Callable) -> Callable:
-            tool_name = name or func.__name__
-            tool_description = description or func.__doc__
-
-            # Generate input schema
-            input_schema = None
-            if schema:
-                input_schema = create_json_schema_from_marshmallow(schema)
-            else:
-                # Try to generate schema from function signature
-                input_schema = self._generate_schema_from_signature(func)
-
-            # Create and register the tool
-            tool = MCPTool(
-                name=tool_name,
-                description=tool_description,
-                input_schema=input_schema,
-                handler=func,
-                permission=permission,
-                context=context,
-                security=security,
-            )
-
-            self.manual_tools[tool_name] = tool
-
-            # Always register the tool immediately when using decorator
-            self.protocol_handler.register_tool(tool)
-
-            return func
-
-        return decorator
 
     def make_mcp_server(self) -> MCPWSGIApp:
         """Create a standalone MCP WSGI server.
@@ -535,3 +446,180 @@ class MCPDescriptionPredicate:
     def __call__(self, context: Any, request: Any) -> bool:
         """Always return True - this is a non-filtering predicate."""
         return True
+
+
+class tool:
+    """A function decorator which allows a developer to register MCP tools
+    nearer to the tool function definition than using imperative configuration.
+
+    This decorator follows the same pattern as Pyramid's @view_config decorator,
+    using Venusian for deferred registration until config.scan() is called.
+
+    Args:
+        name: Tool name (defaults to function name)
+        description: Tool description (defaults to function docstring)
+        schema: Marshmallow schema for input validation
+        permission: Pyramid permission requirement for this tool
+        context: Context or context factory to use for permission checking
+        security: Authentication parameter specification for this tool
+
+    Usage:
+        >>> @tool(name="add", description="Add two numbers")
+        >>> def add_numbers(a: int, b: int) -> int:
+        ...     return a + b
+        >>>
+        >>> @tool(description="Get user info", permission="authenticated")
+        >>> def get_user(id: int) -> dict:
+        ...     return {"id": id, "name": "User"}
+    """
+
+    venusian = venusian  # for testing injection
+
+    def __init__(
+        self,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        schema: Optional[Type[Schema]] = None,
+        permission: Optional[str] = None,
+        context: Optional[Any] = None,
+        security: Optional[MCPSecurityType] = None,
+        **settings: Any,
+    ):
+        # Store all settings for later use in callback
+        if name is not None:
+            settings["name"] = name
+        if description is not None:
+            settings["description"] = description
+        if schema is not None:
+            settings["schema"] = schema
+        if permission is not None:
+            settings["permission"] = permission
+        if context is not None:
+            settings["context"] = context
+        if security is not None:
+            settings["security"] = security
+
+        self.__dict__.update(settings)
+
+    def __call__(self, wrapped: Callable) -> Callable:
+        settings = self.__dict__.copy()
+        depth = settings.pop("_depth", 0)
+
+        def callback(context: Any, name: str, ob: Callable[..., Any]) -> None:
+            """Venusian callback to register the tool when config.scan() is called."""
+            config = context.config
+
+            tool_name = settings.get("name") or wrapped.__name__
+            tool_description = settings.get("description") or wrapped.__doc__
+            schema = settings.get("schema")
+            permission = settings.get("permission")
+            context_factory = settings.get("context")
+            security = settings.get("security")
+
+            # Generate unique route name and path for this tool
+            # NOTE: Don't use "mcp_" prefix as introspection excludes those routes
+            route_name = f"tool_{tool_name}"
+            route_path = f"/mcp/tools/{tool_name}"
+
+            # Create view wrapper that handles MCP tool execution
+            def mcp_tool_view(request: Any) -> Dict[str, Any]:
+                """Pyramid view wrapper for MCP tool function."""
+                try:
+                    # Extract arguments from request
+                    # Support both query params (GET) and JSON body (POST)
+                    if (
+                        request.method == "POST"
+                        and request.content_type == "application/json"
+                    ):
+                        args_data = request.json_body or {}
+                    else:
+                        args_data = dict(request.params)
+
+                    # Call the original function with extracted arguments
+                    result = wrapped(**args_data)
+
+                    # Return result in proper format
+                    return {"result": result, "tool_name": tool_name}
+
+                except Exception as e:
+                    # Return error in proper format
+                    return {
+                        "error": f"Tool execution failed: {str(e)}",
+                        "tool_name": tool_name,
+                    }
+
+            # Add MCP metadata to the view function for introspection discovery
+            mcp_tool_view.__mcp_tool_name__ = tool_name  # type: ignore[attr-defined]
+            mcp_tool_view.__mcp_tool_description__ = tool_description  # type: ignore
+            mcp_tool_view.__mcp_tool_security__ = security  # type: ignore[attr-defined]
+            mcp_tool_view.__mcp_original_function__ = wrapped  # type: ignore
+
+            # Generate input schema for introspection
+            if schema:
+                input_schema = create_json_schema_from_marshmallow(schema)
+            else:
+                # Try to generate schema from function signature
+                input_schema = _generate_schema_from_signature(wrapped)
+
+            mcp_tool_view.__mcp_tool_input_schema__ = input_schema  # type: ignore
+
+            # Register route with optional context factory
+            if context_factory:
+                config.add_route(route_name, route_path, factory=context_factory)
+            else:
+                config.add_route(route_name, route_path)
+
+            # Register the view with Pyramid - let introspection discover it
+            config.add_view(
+                mcp_tool_view,
+                route_name=route_name,
+                renderer="json",
+                request_method=["GET", "POST"],
+                permission=permission,
+            )
+
+        # Attach venusian decorator for deferred registration
+        self.venusian.attach(wrapped, callback, category="pyramid_mcp", depth=depth + 1)
+
+        return wrapped
+
+
+def _generate_schema_from_signature(func: Callable) -> Dict[str, Any]:
+    """Generate JSON schema from function signature for standalone tool decorator."""
+    import inspect
+    from typing import get_type_hints
+
+    sig = inspect.signature(func)
+    type_hints = get_type_hints(func)
+
+    properties = {}
+    required = []
+
+    for param_name, param in sig.parameters.items():
+        if param_name == "self":
+            continue
+
+        param_type = type_hints.get(param_name, str)
+
+        # Convert Python types to JSON Schema types
+        if param_type == int:
+            json_type = "integer"
+        elif param_type == float:
+            json_type = "number"
+        elif param_type == bool:
+            json_type = "boolean"
+        else:
+            json_type = "string"
+
+        properties[param_name] = {"type": json_type}
+
+        # Add to required if no default value
+        if param.default == inspect.Parameter.empty:
+            required.append(param_name)
+
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": required,
+        "additionalProperties": False,
+    }

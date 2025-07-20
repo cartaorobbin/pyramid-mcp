@@ -25,19 +25,17 @@ Registering tools:
 """
 
 import logging
-from typing import Any, Callable, List, Optional, Type, cast
+from typing import Any, List, Optional, cast
 
-from marshmallow import Schema
 from pyramid.config import Configurator
-from pyramid.threadlocal import get_current_registry
 
 from pyramid_mcp.core import (
     MCPConfiguration,
     MCPDescriptionPredicate,
     MCPSecurityPredicate,
     PyramidMCP,
+    tool,
 )
-from pyramid_mcp.security import MCPSecurityType
 from pyramid_mcp.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -122,67 +120,7 @@ def includeme(config: Configurator) -> None:
     )
 
 
-def tool(
-    name: Optional[str] = None,
-    description: Optional[str] = None,
-    schema: Optional[Type[Schema]] = None,
-    permission: Optional[str] = None,
-    security: Optional[MCPSecurityType] = None,
-) -> Callable:
-    """
-    Decorator to register a function as an MCP tool using the current Pyramid registry.
-
-    This decorator can be used after including pyramid_mcp in your Pyramid application.
-    It will automatically register the decorated function with the MCP server.
-
-    Args:
-        name: Tool name (defaults to function name)
-        description: Tool description (defaults to function docstring)
-        schema: Marshmallow schema for input validation
-        permission: Pyramid permission requirement for this tool
-
-    Returns:
-        Decorated function
-
-    Example:
-        @tool(description="Add two numbers")
-        def add(a: int, b: int) -> int:
-            return a + b
-
-        @tool(description="Get user info", permission="authenticated")
-        def get_user(id: int) -> dict:
-            return {"id": id, "name": "User"}
-    """
-
-    def decorator(func: Callable) -> Callable:
-        tool_name = name or func.__name__
-        tool_description = description or func.__doc__
-
-        # Store the tool configuration on the function for later registration
-        setattr(
-            func,
-            "_mcp_tool_config",
-            {
-                "name": tool_name,
-                "description": tool_description,
-                "schema": schema,
-                "permission": permission,
-                "security": security,
-            },
-        )
-
-        # Try to register immediately if registry is available
-        registry = get_current_registry()
-        if registry is not None:
-            pyramid_mcp = getattr(cast(Any, registry), "pyramid_mcp", None)
-            if pyramid_mcp:
-                pyramid_mcp.tool(
-                    name, description, schema, permission, security=security
-                )(func)
-
-        return func
-
-    return decorator
+# The standalone tool function is imported at the top
 
 
 def _extract_mcp_config_from_settings(settings: dict) -> MCPConfiguration:
@@ -244,51 +182,11 @@ def _setup_mcp_complete(config: Configurator, pyramid_mcp: PyramidMCP) -> None:
     # This is called after all configuration is done via Pyramid's action system
     # At this point, all routes and views have been added and committed
 
+    # Scan for @tool decorated functions
+    config.scan(categories=["pyramid_mcp"])
+
     # Discover and register tools from routes (routes were already added in includeme)
     pyramid_mcp.discover_tools()
 
-    # Register any pending manual tools that weren't caught earlier
-    _register_pending_tools(pyramid_mcp)
-
-
-def _register_pending_tools(pyramid_mcp: PyramidMCP) -> None:
-    """Register any tools that were decorated but not immediately registered."""
-    import inspect
-    import sys
-
-    # Search through all loaded modules for functions with _mcp_tool_config
-    for module_name, module in list(sys.modules.items()):
-        # Skip built-in modules and standard library modules
-        # Allow test modules to register their tools for testing
-        if (
-            module_name.startswith("_")
-            or not hasattr(module, "__file__")
-            or module.__file__ is None
-        ):
-            continue
-
-        try:
-            # Only introspect modules we can safely access
-            # Get all functions in the module without triggering new imports
-            if hasattr(module, "__dict__"):
-                for name, obj in module.__dict__.items():
-                    # Only check functions, avoid descriptors that trigger imports
-                    if (
-                        inspect.isfunction(obj)
-                        and hasattr(obj, "_mcp_tool_config")
-                        and not name.startswith("_")
-                    ):
-                        config = obj._mcp_tool_config
-
-                        # Use the PyramidMCP.tool method to register the tool
-                        pyramid_mcp.tool(
-                            name=config.get("name"),
-                            description=config.get("description"),
-                            schema=config.get("schema"),
-                            permission=config.get("permission"),
-                            security=config.get("security"),
-                        )(obj)
-
-        except (AttributeError, TypeError, ImportError, ModuleNotFoundError):
-            # Skip modules that can't be introspected safely
-            continue
+    # Manual tools are now registered as Pyramid views directly via @tool decorator
+    logger.debug("Manual tools registered as Pyramid views for unified security")
