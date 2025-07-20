@@ -473,7 +473,7 @@ def test_route_discovery_end_to_end():
     assert "content" in result_data
     content_items = result_data["content"]
     assert len(content_items) == 1
-    
+
     content_item = content_items[0]
     # The actual response format is application/json with data field
     assert content_item["type"] == "application/json"

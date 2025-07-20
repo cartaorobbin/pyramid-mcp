@@ -635,7 +635,7 @@ def test_dynamic_tool_registration_workflow(dynamic_test_config):
     assert content_item["type"] == "application/json"
     assert "data" in content_item
     result1 = content_item["data"]["result"]
-    
+
     # Handle both success and error cases for the counter tool
     is_success = "Count: 5" in result1
     is_error_handled = "error" in result1.lower() and (
