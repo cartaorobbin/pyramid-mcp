@@ -10,7 +10,7 @@ import hashlib
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, Optional, Set, Union
+from typing import Any, Callable, Dict, Optional, Set, Union, cast
 
 from marshmallow import Schema, fields
 from pyramid.request import Request
@@ -245,7 +245,7 @@ class MCPProtocolHandler:
         # Track used tool names to prevent collisions
         self._used_tool_names: Set[str] = set()
 
-    def register_tool(self, tool: MCPTool, config=None) -> None:
+    def register_tool(self, tool: MCPTool, config: Optional[Any] = None) -> None:
         """Register an MCP tool.
 
         Args:
@@ -289,7 +289,7 @@ class MCPProtocolHandler:
             and "PyramidIntrospector._create_route_handler" in tool.handler.__qualname__
         )
 
-    def _create_manual_tool_view(self, config, tool: MCPTool) -> None:
+    def _create_manual_tool_view(self, config: Any, tool: MCPTool) -> None:
         """Create a Pyramid view for a manual tool."""
         import inspect
 
@@ -301,7 +301,7 @@ class MCPProtocolHandler:
         tool._internal_route_path = route_path
 
         # Create the view function
-        def tool_view(request):
+        def tool_view(request: Request) -> Dict[str, Any]:
             """Pyramid view for manual tool execution."""
             try:
                 # Extract args from request
@@ -377,12 +377,15 @@ class MCPProtocolHandler:
                 self._handle_notifications_initialized(request)
                 return self.NO_RESPONSE
             else:
-                return MCPResponseSchema().dump(  # type: ignore[no-any-return]
-                    {
-                        "id": request.id,
-                        "error_code": MCPErrorCode.METHOD_NOT_FOUND.value,
-                        "error_message": f"Method '{request.method}' not found",
-                    }
+                return cast(
+                    Dict[str, Any],
+                    MCPResponseSchema().dump(
+                        {
+                            "id": request.id,
+                            "error_code": MCPErrorCode.METHOD_NOT_FOUND.value,
+                            "error_message": f"Method '{request.method}' not found",
+                        }
+                    ),
                 )
 
         except Exception as e:
@@ -394,12 +397,15 @@ class MCPProtocolHandler:
             except Exception:
                 pass
 
-            return MCPResponseSchema().dump(  # type: ignore[no-any-return]
-                {
-                    "id": request_id,
-                    "error_code": MCPErrorCode.INTERNAL_ERROR.value,
-                    "error_message": str(e),
-                }
+            return cast(
+                Dict[str, Any],
+                MCPResponseSchema().dump(
+                    {
+                        "id": request_id,
+                        "error_code": MCPErrorCode.INTERNAL_ERROR.value,
+                        "error_message": str(e),
+                    }
+                ),
             )
 
     def _handle_initialize(self, request: MCPRequest) -> Dict[str, Any]:
@@ -409,15 +415,19 @@ class MCPProtocolHandler:
             "capabilities": self.capabilities,
             "serverInfo": {"name": self.server_name, "version": self.server_version},
         }
-        # type: ignore[no-any-return]
-        return MCPResponseSchema().dump({"id": request.id, "result": result})
+        return cast(
+            Dict[str, Any],
+            MCPResponseSchema().dump({"id": request.id, "result": result}),
+        )
 
     def _handle_list_tools(self, request: MCPRequest) -> Dict[str, Any]:
         """Handle MCP tools/list request."""
         tools_list = [tool.to_dict() for tool in self.tools.values()]
         result = {"tools": tools_list}
-        return MCPResponseSchema().dump({"id": request.id, "result": result})
-        # type: ignore[no-any-return]
+        return cast(
+            Dict[str, Any],
+            MCPResponseSchema().dump({"id": request.id, "result": result}),
+        )
 
     def _handle_call_tool(
         self, request: MCPRequest, pyramid_request: Request
@@ -429,34 +439,42 @@ class MCPProtocolHandler:
 
         # Validate basic parameters
         if not request.params:
-            return MCPResponseSchema().dump(  # type: ignore[no-any-return]
-                {
-                    "id": request.id,
-                    "error_code": MCPErrorCode.INVALID_PARAMS.value,
-                    "error_message": "Missing parameters",
-                }
+            return cast(
+                Dict[str, Any],
+                MCPResponseSchema().dump(
+                    {
+                        "id": request.id,
+                        "error_code": MCPErrorCode.INVALID_PARAMS.value,
+                        "error_message": "Missing parameters",
+                    }
+                ),
             )
 
         tool_name = request.params.get("name")
         tool_args = request.params.get("arguments", {})
-        # type: ignore[no-any-return]
 
         if not tool_name:
-            return MCPResponseSchema().dump(  # type: ignore[no-any-return]
-                {
-                    "id": request.id,
-                    "error_code": MCPErrorCode.INVALID_PARAMS.value,
-                    "error_message": "Tool name is required",
-                }
+            return cast(
+                Dict[str, Any],
+                MCPResponseSchema().dump(
+                    {
+                        "id": request.id,
+                        "error_code": MCPErrorCode.INVALID_PARAMS.value,
+                        "error_message": "Tool name is required",
+                    }
+                ),
             )
 
         if tool_name not in self.tools:
-            return MCPResponseSchema().dump(  # type: ignore[no-any-return]
-                {
-                    "id": request.id,
-                    "error_code": MCPErrorCode.METHOD_NOT_FOUND.value,
-                    "error_message": f"Tool '{tool_name}' not found",
-                }
+            return cast(
+                Dict[str, Any],
+                MCPResponseSchema().dump(
+                    {
+                        "id": request.id,
+                        "error_code": MCPErrorCode.METHOD_NOT_FOUND.value,
+                        "error_message": f"Tool '{tool_name}' not found",
+                    }
+                ),
             )
 
         tool = self.tools[tool_name]
@@ -507,17 +525,22 @@ class MCPProtocolHandler:
             # Transform and return directly using schema
             mcp_result = schema.dump(schema_data)
             logger.debug("✅ Transformed response to MCP context format")
-            return MCPResponseSchema().dump({"id": request.id, "result": mcp_result})
-        # type: ignore[no-any-return]
+            return cast(
+                Dict[str, Any],
+                MCPResponseSchema().dump({"id": request.id, "result": mcp_result}),
+            )
 
         except Exception as e:
             logger.error(f"❌ Error executing tool '{tool_name}': {str(e)}")
-            return MCPResponseSchema().dump(  # type: ignore[no-any-return]
-                {
-                    "id": request.id,
-                    "error_code": MCPErrorCode.INTERNAL_ERROR.value,
-                    "error_message": f"Tool execution failed: {str(e)}",
-                }
+            return cast(
+                Dict[str, Any],
+                MCPResponseSchema().dump(
+                    {
+                        "id": request.id,
+                        "error_code": MCPErrorCode.INTERNAL_ERROR.value,
+                        "error_message": f"Tool execution failed: {str(e)}",
+                    }
+                ),
             )
 
     def _create_unified_tool_subrequest(
@@ -638,16 +661,20 @@ class MCPProtocolHandler:
         # For now, return empty resources list
         # This can be extended to support MCP resources in the future
         result: Dict[str, Any] = {"resources": []}
-        return MCPResponseSchema().dump({"id": request.id, "result": result})
-        # type: ignore[no-any-return]
+        return cast(
+            Dict[str, Any],
+            MCPResponseSchema().dump({"id": request.id, "result": result}),
+        )
 
     def _handle_list_prompts(self, request: MCPRequest) -> Dict[str, Any]:
         """Handle MCP prompts/list request."""
         # For now, return empty prompts list
         # This can be extended to support MCP prompts in the future
         result: Dict[str, Any] = {"prompts": []}
-        return MCPResponseSchema().dump({"id": request.id, "result": result})
-        # type: ignore[no-any-return]
+        return cast(
+            Dict[str, Any],
+            MCPResponseSchema().dump({"id": request.id, "result": result}),
+        )
 
     def _handle_notifications_initialized(
         self, request: MCPRequest
