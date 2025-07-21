@@ -108,14 +108,14 @@ def test_mcp_call_tool_calculation(testapp_with_mcp):
     result_data = data["result"]
     assert result_data["type"] == "mcp/context"
     assert "representation" in result_data
-    
+
     # Extract content from representation
     representation = result_data["representation"]
     result_content = representation["content"]
-    
+
     # Extract result directly from content
     result_text = str(result_content)
-    
+
     # Verify the result contains "15"
     assert "15" in result_text  # 10 + 5 = 15
 
@@ -481,14 +481,14 @@ def test_route_discovery_end_to_end():
     result_data = data["result"]
     assert result_data["type"] == "mcp/context"
     assert "representation" in result_data
-    
+
     # Extract content from representation
     representation = result_data["representation"]
     result_content = representation["content"]
-    
+
     # Extract result directly from content
     result_text = str(result_content)
-    
+
     # Verify the result contains "Integration: test"
     assert "Integration: test" in result_text
 

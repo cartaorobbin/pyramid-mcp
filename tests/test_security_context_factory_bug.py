@@ -283,7 +283,7 @@ def test_mcp_tools_security_integration_FIXED(pyramid_app_with_auth):
     assert "error" in response.json
     error = response.json["error"]
     error_msg = error["message"].lower()
-    
+
     # Check for authorization error (specific expected message)
     assert "unauthorized" in error_msg
 
@@ -452,7 +452,7 @@ def test_mcp_tools_permission_parameter_limitation(pyramid_app_with_auth):
     assert "error" in response.json
     error = response.json["error"]
     error_msg = error["message"].lower()
-    
+
     # Check for authorization error (specific expected message)
     assert "unauthorized" in error_msg
 

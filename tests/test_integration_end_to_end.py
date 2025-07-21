@@ -12,8 +12,6 @@ This module tests:
 Uses enhanced fixtures from conftest.py for clean, non-duplicated test setup.
 """
 
-import json
-
 import pytest
 from pyramid.config import Configurator
 from pyramid.view import view_config
@@ -32,7 +30,7 @@ def calculator_tool(operation: str, a: float, b: float) -> str:
     # Convert to float to handle JSON string/number conversion
     a = float(a)
     b = float(b)
-    
+
     if operation == "add":
         return f"{a} + {b} = {a + b}"
     elif operation == "multiply":
@@ -129,7 +127,6 @@ def test_auto_discovered_tools_call_real_views(end_to_end_test_config):
     result_content = representation["content"]
 
     # Extract result directly from content
-    import json
 
     # result_content should be the actual tool result
     result_text = str(result_content)
@@ -561,7 +558,7 @@ def dynamic_counter(operation: str, value: int = 1) -> str:
     # Handle type conversion from JSON (strings) to integers
     if isinstance(value, str):
         value = int(value)
-        
+
     if not hasattr(dynamic_counter, "state"):
         dynamic_counter.state = {"count": 0, "operations": []}
 

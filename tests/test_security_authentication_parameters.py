@@ -536,7 +536,7 @@ def test_tool_without_auth_schema_excludes_auth_from_input_schema(
 
 
 def test_protocol_handler_validates_bearer_auth_successfully(
-    pyramid_mcp_with_auth_tool
+    pyramid_mcp_with_auth_tool,
 ):
     """Protocol handler should validate Bearer auth and execute tool successfully."""
     # Use TestApp HTTP interface instead of direct protocol handler
@@ -558,12 +558,12 @@ def test_protocol_handler_validates_bearer_auth_successfully(
     result = response.json
     assert "error" not in result
     assert "result" in result
-    
+
     # Expect new MCP context format
     mcp_result = result["result"]
     assert mcp_result["type"] == "mcp/context"
     assert "representation" in mcp_result
-    
+
     # Extract content from representation
     representation = mcp_result["representation"]
     assert representation["content"]
@@ -589,9 +589,7 @@ def test_secure_bearer_tool_rejects_empty_token():
     assert "Empty auth_token" in result["error"]
 
 
-def test_protocol_handler_validates_basic_auth_successfully(
-    pyramid_mcp_with_auth_tool
-):
+def test_protocol_handler_validates_basic_auth_successfully(pyramid_mcp_with_auth_tool):
     """Protocol handler should validate Basic auth and execute tool successfully."""
     # Use TestApp HTTP interface instead of direct protocol handler
     app = pyramid_mcp_with_auth_tool
@@ -616,12 +614,12 @@ def test_protocol_handler_validates_basic_auth_successfully(
     result = response.json
     assert "error" not in result
     assert "result" in result
-    
+
     # Expect new MCP context format
     mcp_result = result["result"]
     assert mcp_result["type"] == "mcp/context"
     assert "representation" in mcp_result
-    
+
     # Extract content from representation
     representation = mcp_result["representation"]
     assert representation["content"]
@@ -637,9 +635,7 @@ def test_secure_basic_tool_rejects_missing_username():
     assert "Missing username" in result["error"]
 
 
-def test_protocol_handler_allows_public_tool_without_auth(
-    pyramid_mcp_with_auth_tool
-):
+def test_protocol_handler_allows_public_tool_without_auth(pyramid_mcp_with_auth_tool):
     """Protocol handler should allow public tool without authentication."""
     # Use TestApp HTTP interface instead of direct protocol handler
     app = pyramid_mcp_with_auth_tool
@@ -657,20 +653,18 @@ def test_protocol_handler_allows_public_tool_without_auth(
     result = response.json
     assert "error" not in result
     assert "result" in result
-    
+
     # Expect new MCP context format
     mcp_result = result["result"]
     assert mcp_result["type"] == "mcp/context"
     assert "representation" in mcp_result
-    
+
     # Extract content from representation
     representation = mcp_result["representation"]
     assert representation["content"]
 
 
-def test_protocol_handler_provides_auth_headers_to_tool(
-    pyramid_mcp_with_auth_tool
-):
+def test_protocol_handler_provides_auth_headers_to_tool(pyramid_mcp_with_auth_tool):
     """Protocol handler should provide auth headers to tool via pyramid_request."""
     # Use TestApp HTTP interface instead of direct protocol handler
     app = pyramid_mcp_with_auth_tool
@@ -690,21 +684,19 @@ def test_protocol_handler_provides_auth_headers_to_tool(
     assert response.status_code == 200
     result = response.json
     assert "result" in result
-    
+
     # Expect new MCP context format
     mcp_result = result["result"]
     assert mcp_result["type"] == "mcp/context"
     assert "representation" in mcp_result
-    
+
     # Extract content from representation and check for auth token
     representation = mcp_result["representation"]
     result_content = representation["content"]
     assert "test_token_456" in str(result_content)
 
 
-def test_protocol_handler_provides_auth_params_to_tool(
-    pyramid_mcp_with_auth_tool
-):
+def test_protocol_handler_provides_auth_params_to_tool(pyramid_mcp_with_auth_tool):
     """Protocol handler should provide auth parameters to tool."""
     # Use TestApp HTTP interface instead of direct protocol handler
     app = pyramid_mcp_with_auth_tool
@@ -724,12 +716,12 @@ def test_protocol_handler_provides_auth_params_to_tool(
     assert response.status_code == 200
     result = response.json
     assert "result" in result
-    
+
     # Expect new MCP context format
     mcp_result = result["result"]
     assert mcp_result["type"] == "mcp/context"
     assert "representation" in mcp_result
-    
+
     # Extract content from representation and check for both values
     representation = mcp_result["representation"]
     result_content = representation["content"]

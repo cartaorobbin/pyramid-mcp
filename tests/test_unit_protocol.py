@@ -10,12 +10,13 @@ This module tests:
 Uses enhanced fixtures from conftest.py for clean, non-duplicated test setup.
 """
 
-from pyramid_mcp.protocol import MCPErrorCode, MCPProtocolHandler, MCPTool
 from pyramid_mcp import tool
+from pyramid_mcp.protocol import MCPErrorCode, MCPProtocolHandler, MCPTool
 
 # =============================================================================
 # 🛠️ MODULE-LEVEL TOOL DEFINITIONS (for Venusian scanning)
 # =============================================================================
+
 
 @tool(name="multiply", description="Multiply two numbers")
 def multiply(x: int, y: int) -> int:
@@ -24,9 +25,11 @@ def multiply(x: int, y: int) -> int:
     y = int(y)
     return x * y
 
+
 @tool(name="greet", description="Greet someone")
 def greet(name: str) -> str:
     return f"Hello, {name}!"
+
 
 # =============================================================================
 # 🔧 MCP PROTOCOL HANDLER TESTS
@@ -187,12 +190,9 @@ def test_call_tool_request(pyramid_app_with_auth):
     app = pyramid_app_with_auth(settings)
 
     # First, list tools to get the actual sanitized tool name
-    tools_response = app.post_json("/mcp", {
-        "jsonrpc": "2.0",
-        "method": "tools/list",
-        "id": 1,
-        "params": {}
-    })
+    tools_response = app.post_json(
+        "/mcp", {"jsonrpc": "2.0", "method": "tools/list", "id": 1, "params": {}}
+    )
     tools = tools_response.json["result"]["tools"]
     multiply_tool = next(tool for tool in tools if "multiply" in tool["name"])
     tool_name = multiply_tool["name"]
@@ -228,12 +228,9 @@ def test_call_tool_with_string_result(pyramid_app_with_auth):
     app = pyramid_app_with_auth(settings)
 
     # First, list tools to get the actual sanitized tool name
-    tools_response = app.post_json("/mcp", {
-        "jsonrpc": "2.0",
-        "method": "tools/list",
-        "id": 1,
-        "params": {}
-    })
+    tools_response = app.post_json(
+        "/mcp", {"jsonrpc": "2.0", "method": "tools/list", "id": 1, "params": {}}
+    )
     tools = tools_response.json["result"]["tools"]
     greet_tool = next(tool for tool in tools if "greet" in tool["name"])
     tool_name = greet_tool["name"]
@@ -486,14 +483,16 @@ def test_tools_list_all_have_input_schema(protocol_handler):
     tools_list = [tool.to_dict() for tool in protocol_handler.tools.values()]
 
     # Verify all tools have inputSchema
-    for tool in tools_list:
-        assert "inputSchema" in tool, f"Tool {tool.get('name')} missing inputSchema"
+    for tool_dict in tools_list:
+        assert (
+            "inputSchema" in tool_dict
+        ), f"Tool {tool_dict.get('name')} missing inputSchema"
         assert isinstance(
-            tool["inputSchema"], dict
-        ), f"Tool {tool.get('name')} inputSchema is not a dict"
+            tool_dict["inputSchema"], dict
+        ), f"Tool {tool_dict.get('name')} inputSchema is not a dict"
         assert (
-            "type" in tool["inputSchema"]
-        ), f"Tool {tool.get('name')} inputSchema missing type"
+            "type" in tool_dict["inputSchema"]
+        ), f"Tool {tool_dict.get('name')} inputSchema missing type"
         assert (
-            tool["inputSchema"]["type"] == "object"
-        ), f"Tool {tool.get('name')} inputSchema type is not 'object'"
+            tool_dict["inputSchema"]["type"] == "object"
+        ), f"Tool {tool_dict.get('name')} inputSchema type is not 'object'"

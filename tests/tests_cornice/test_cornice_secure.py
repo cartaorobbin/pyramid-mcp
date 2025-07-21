@@ -227,4 +227,6 @@ def test_secure_endpoints_authentication_integration(
     # Should show successful user creation (authentication worked)
     assert "user" in content  # User was created successfully
     assert "testuser" in str(content)  # Shows the correct user was created
-    assert "auth_token" not in str(content)  # Auth token was properly removed from params
+    assert "auth_token" not in str(
+        content
+    )  # Auth token was properly removed from params

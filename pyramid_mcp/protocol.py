@@ -13,17 +13,10 @@ from enum import Enum
 from typing import Any, Callable, Dict, Optional, Set, Union
 
 from marshmallow import Schema, fields
-from pyramid.interfaces import ISecurityPolicy
 from pyramid.request import Request
 
-from pyramid_mcp.security import (
-    MCPSecurityType,
-    create_auth_headers,
-    extract_auth_credentials,
-    merge_auth_into_schema,
-    remove_auth_from_tool_args,
-    validate_auth_credentials,
-)
+from pyramid_mcp.schemas import MCPResponseSchema
+from pyramid_mcp.security import MCPSecurityType, merge_auth_into_schema
 
 # Claude Desktop client validation pattern for tool names
 CLAUDE_TOOL_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
@@ -123,22 +116,6 @@ class MCPErrorCode(Enum):
 
 
 @dataclass
-class MCPError:
-    """Represents an MCP protocol error."""
-
-    code: int
-    message: str
-    data: Optional[Dict[str, Any]] = None
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
-        result = {"code": self.code, "message": self.message}
-        if self.data:
-            result["data"] = self.data
-        return result
-
-
-@dataclass
 class MCPRequest:
     """Represents an MCP JSON-RPC request."""
 
@@ -164,27 +141,6 @@ class MCPRequest:
             response_dict["params"] = self.params
         if self.id is not None:
             response_dict["id"] = self.id
-        return response_dict
-
-
-@dataclass
-class MCPResponse:
-    """Represents an MCP JSON-RPC response."""
-
-    jsonrpc: str = "2.0"
-    id: Optional[Union[str, int]] = None
-    result: Optional[Any] = None
-    error: Optional[MCPError] = None
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
-        response_dict: Dict[str, Any] = {"jsonrpc": self.jsonrpc}
-        if self.id is not None:
-            response_dict["id"] = self.id
-        if self.error:
-            response_dict["error"] = self.error.to_dict()
-        elif self.result is not None:
-            response_dict["result"] = self.result
         return response_dict
 
 
@@ -336,29 +292,32 @@ class MCPProtocolHandler:
     def _create_manual_tool_view(self, config, tool: MCPTool) -> None:
         """Create a Pyramid view for a manual tool."""
         import inspect
-        
+
         route_name = f"mcp_tool_{tool.name}"
         route_path = f"/mcp/tools/{tool.name}"
-        
+
         # Store route info in tool for subrequest
         tool._internal_route_name = route_name
         tool._internal_route_path = route_path
-        
+
         # Create the view function
         def tool_view(request):
             """Pyramid view for manual tool execution."""
             try:
                 # Extract args from request
-                if request.method == "POST" and request.content_type == "application/json":
+                if (
+                    request.method == "POST"
+                    and request.content_type == "application/json"
+                ):
                     args_data = request.json_body or {}
                 else:
                     args_data = dict(request.params)
-                
+
                 # Call the tool handler
                 handler = tool.handler
                 if not handler:
                     return {"error": "Tool handler not found", "tool_name": tool.name}
-                    
+
                 sig = inspect.signature(handler)
                 if "pyramid_request" in sig.parameters:
                     result = handler(request, **args_data)
@@ -369,8 +328,11 @@ class MCPProtocolHandler:
                 return {"mcp_result": result, "tool_name": tool.name}
 
             except Exception as e:
-                return {"error": f"Tool execution failed: {str(e)}", "tool_name": tool.name}
-        
+                return {
+                    "error": f"Tool execution failed: {str(e)}",
+                    "tool_name": tool.name,
+                }
+
         # Add route and view to Pyramid
         config.add_route(route_name, route_path)
         config.add_view(
@@ -379,7 +341,7 @@ class MCPProtocolHandler:
             request_method="POST",
             renderer="json",
             permission=tool.permission,
-            context=tool.context
+            context=tool.context,
         )
 
     def handle_message(
@@ -415,12 +377,13 @@ class MCPProtocolHandler:
                 self._handle_notifications_initialized(request)
                 return self.NO_RESPONSE
             else:
-                error = MCPError(
-                    code=MCPErrorCode.METHOD_NOT_FOUND.value,
-                    message=f"Method '{request.method}' not found",
+                return MCPResponseSchema().dump(  # type: ignore[no-any-return]
+                    {
+                        "id": request.id,
+                        "error_code": MCPErrorCode.METHOD_NOT_FOUND.value,
+                        "error_message": f"Method '{request.method}' not found",
+                    }
                 )
-                response = MCPResponse(id=request.id, error=error)
-                return response.to_dict()
 
         except Exception as e:
             # Try to extract request ID if possible
@@ -431,9 +394,13 @@ class MCPProtocolHandler:
             except Exception:
                 pass
 
-            error = MCPError(code=MCPErrorCode.INTERNAL_ERROR.value, message=str(e))
-            response = MCPResponse(id=request_id, error=error)
-            return response.to_dict()
+            return MCPResponseSchema().dump(  # type: ignore[no-any-return]
+                {
+                    "id": request_id,
+                    "error_code": MCPErrorCode.INTERNAL_ERROR.value,
+                    "error_message": str(e),
+                }
+            )
 
     def _handle_initialize(self, request: MCPRequest) -> Dict[str, Any]:
         """Handle MCP initialize request."""
@@ -442,15 +409,15 @@ class MCPProtocolHandler:
             "capabilities": self.capabilities,
             "serverInfo": {"name": self.server_name, "version": self.server_version},
         }
-        response = MCPResponse(id=request.id, result=result)
-        return response.to_dict()
+        # type: ignore[no-any-return]
+        return MCPResponseSchema().dump({"id": request.id, "result": result})
 
     def _handle_list_tools(self, request: MCPRequest) -> Dict[str, Any]:
         """Handle MCP tools/list request."""
         tools_list = [tool.to_dict() for tool in self.tools.values()]
         result = {"tools": tools_list}
-        response = MCPResponse(id=request.id, result=result)
-        return response.to_dict()
+        return MCPResponseSchema().dump({"id": request.id, "result": result})
+        # type: ignore[no-any-return]
 
     def _handle_call_tool(
         self, request: MCPRequest, pyramid_request: Request
@@ -462,42 +429,50 @@ class MCPProtocolHandler:
 
         # Validate basic parameters
         if not request.params:
-            error = MCPError(
-                code=MCPErrorCode.INVALID_PARAMS.value, message="Missing parameters"
+            return MCPResponseSchema().dump(  # type: ignore[no-any-return]
+                {
+                    "id": request.id,
+                    "error_code": MCPErrorCode.INVALID_PARAMS.value,
+                    "error_message": "Missing parameters",
+                }
             )
-            response = MCPResponse(id=request.id, error=error)
-            return response.to_dict()
 
         tool_name = request.params.get("name")
         tool_args = request.params.get("arguments", {})
+        # type: ignore[no-any-return]
 
         if not tool_name:
-            error = MCPError(
-                code=MCPErrorCode.INVALID_PARAMS.value, message="Tool name is required"
+            return MCPResponseSchema().dump(  # type: ignore[no-any-return]
+                {
+                    "id": request.id,
+                    "error_code": MCPErrorCode.INVALID_PARAMS.value,
+                    "error_message": "Tool name is required",
+                }
             )
-            response = MCPResponse(id=request.id, error=error)
-            return response.to_dict()
 
         if tool_name not in self.tools:
-            error = MCPError(
-                code=MCPErrorCode.METHOD_NOT_FOUND.value,
-                message=f"Tool '{tool_name}' not found",
+            return MCPResponseSchema().dump(  # type: ignore[no-any-return]
+                {
+                    "id": request.id,
+                    "error_code": MCPErrorCode.METHOD_NOT_FOUND.value,
+                    "error_message": f"Tool '{tool_name}' not found",
+                }
             )
-            response = MCPResponse(id=request.id, error=error)
-            return response.to_dict()
 
         tool = self.tools[tool_name]
         logger.info(f"📞 MCP Tool Call: {tool_name}")
         logger.debug(f"📞 Tool arguments: {tool_args}")
 
         try:
-            # Extract auth credentials from request body (only for tools with security schemas)
+            # Extract auth credentials from request body
+            # (only for tools with security schemas)
             auth_token = None
             if "auth_token" in tool_args and tool.security:
                 # Only remove auth_token if tool has security schema
                 auth_token = tool_args.pop("auth_token")
             elif "auth_token" in tool_args and not tool.security:
-                # For tools without security schema, peek at the token but don't remove it
+                # For tools without security schema, peek at the token
+                # but don't remove it
                 auth_token = tool_args.get("auth_token")
 
             # Create unified subrequest for both route-based and manual tools
@@ -517,6 +492,7 @@ class MCPProtocolHandler:
 
             # Transform response to MCP context format using schema
             from pyramid_mcp.schemas import MCPContextResultSchema
+
             schema = MCPContextResultSchema()
 
             # Prepare data for schema transformation
@@ -524,23 +500,25 @@ class MCPProtocolHandler:
                 "response": response,
                 "view_info": {
                     "tool_name": tool_name,
-                    "url": f"/_internal/mcp-tool/{tool_name}"
-                }
+                    "url": f"/_internal/mcp-tool/{tool_name}",
+                },
             }
 
-            # Transform and return directly (no MCPResponse wrapper)
+            # Transform and return directly using schema
             mcp_result = schema.dump(schema_data)
             logger.debug("✅ Transformed response to MCP context format")
-            return {"jsonrpc": "2.0", "id": request.id, "result": mcp_result}
+            return MCPResponseSchema().dump({"id": request.id, "result": mcp_result})
+        # type: ignore[no-any-return]
 
         except Exception as e:
             logger.error(f"❌ Error executing tool '{tool_name}': {str(e)}")
-            error = MCPError(
-                code=MCPErrorCode.INTERNAL_ERROR.value,
-                message=f"Tool execution failed: {str(e)}",
+            return MCPResponseSchema().dump(  # type: ignore[no-any-return]
+                {
+                    "id": request.id,
+                    "error_code": MCPErrorCode.INTERNAL_ERROR.value,
+                    "error_message": f"Tool execution failed: {str(e)}",
+                }
             )
-            response = MCPResponse(id=request.id, error=error)
-            return response.to_dict()
 
     def _create_unified_tool_subrequest(
         self, pyramid_request: Request, tool: MCPTool, tool_args: Dict[str, Any]
@@ -559,10 +537,11 @@ class MCPProtocolHandler:
             Subrequest configured for tool execution
         """
         import json
+
         from pyramid.request import Request
 
         # Get the tool's URL (either route-based or manual tool view)
-        if hasattr(tool, '_internal_route_path') and tool._internal_route_path:
+        if hasattr(tool, "_internal_route_path") and tool._internal_route_path:
             tool_url = tool._internal_route_path
         else:
             # Fallback for route-based tools without stored path
@@ -570,13 +549,13 @@ class MCPProtocolHandler:
 
         # Create subrequest
         subrequest = Request.blank(tool_url)
-        
+
         # Use the correct HTTP method for route-based tools
-        if hasattr(tool, '_internal_route_method') and tool._internal_route_method:
+        if hasattr(tool, "_internal_route_method") and tool._internal_route_method:
             subrequest.method = tool._internal_route_method
         else:
             subrequest.method = "POST"  # Default for manual tools
-        
+
         # Copy environment and context from parent request
         self._copy_request_context(pyramid_request, subrequest)
 
@@ -590,6 +569,7 @@ class MCPProtocolHandler:
             # Use query parameters for GET/DELETE
             if tool_args:
                 from urllib.parse import urlencode
+
                 # Filter out non-primitive values for query params
                 query_params = {}
                 for key, value in tool_args.items():
@@ -598,16 +578,21 @@ class MCPProtocolHandler:
                     elif isinstance(value, dict) and key == "querystring":
                         # Special handling for querystring parameter
                         query_params.update(value)
-                
+
                 if query_params:
                     query_string = urlencode(query_params)
-                    if '?' in tool_url:
+                    if "?" in tool_url:
                         tool_url += f"&{query_string}"
                     else:
                         tool_url += f"?{query_string}"
                     # Re-create subrequest with updated URL
                     subrequest = Request.blank(tool_url)
-                    subrequest.method = tool._internal_route_method if hasattr(tool, '_internal_route_method') and tool._internal_route_method else "GET"
+                    subrequest.method = (
+                        tool._internal_route_method
+                        if hasattr(tool, "_internal_route_method")
+                        and tool._internal_route_method
+                        else "GET"
+                    )
                     self._copy_request_context(pyramid_request, subrequest)
 
         return subrequest
@@ -653,16 +638,16 @@ class MCPProtocolHandler:
         # For now, return empty resources list
         # This can be extended to support MCP resources in the future
         result: Dict[str, Any] = {"resources": []}
-        response = MCPResponse(id=request.id, result=result)
-        return response.to_dict()
+        return MCPResponseSchema().dump({"id": request.id, "result": result})
+        # type: ignore[no-any-return]
 
     def _handle_list_prompts(self, request: MCPRequest) -> Dict[str, Any]:
         """Handle MCP prompts/list request."""
         # For now, return empty prompts list
         # This can be extended to support MCP prompts in the future
         result: Dict[str, Any] = {"prompts": []}
-        response = MCPResponse(id=request.id, result=result)
-        return response.to_dict()
+        return MCPResponseSchema().dump({"id": request.id, "result": result})
+        # type: ignore[no-any-return]
 
     def _handle_notifications_initialized(
         self, request: MCPRequest

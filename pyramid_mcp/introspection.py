@@ -591,7 +591,7 @@ class PyramidIntrospector:
                 permission=permission,
                 security=security,
             )
-            
+
             # Store original route pattern and method for route-based tools
             route_pattern = route_info.get("pattern", "")
             if route_pattern:
@@ -1177,11 +1177,13 @@ class PyramidIntrospector:
         for header_name, header_value in auth_headers.items():
             subrequest.headers[header_name] = header_value
             logger.debug(f"🔐 Added auth header: {header_name}")
-        
+
         # 🔑 CRITICAL: Transfer mcp_auth_headers attribute to subrequest
         # This is required for the security policy to find authentication in subrequests
         subrequest.mcp_auth_headers = auth_headers
-        logger.debug(f"🔐 Transferred mcp_auth_headers to subrequest: {list(auth_headers.keys())}")
+        logger.debug(
+            f"🔐 Transferred mcp_auth_headers to subrequest: {list(auth_headers.keys())}"
+        )
 
         # 🐛 DEBUG: Log final subrequest details
         logger.debug("🔧 Final subrequest details:")
@@ -1288,13 +1290,13 @@ class PyramidIntrospector:
         """
         from pyramid_mcp.schemas import MCPContextResultSchema
 
-        # Create MCP context using the schema - all response parsing logic 
+        # Create MCP context using the schema - all response parsing logic
         # is handled in the schema's @pre_dump method
         schema = MCPContextResultSchema()
-        
-        # If we have view_info, pass it along for better source naming
-        return schema.dump({"response": response, "view_info": view_info})  # type: ignore[return-value]
 
+        # If we have view_info, pass it along for better source naming
+        data = {"response": response, "view_info": view_info}
+        return schema.dump(data)  # type: ignore[no-any-return]
 
     def _normalize_path_pattern(self, pattern: str) -> str:
         """Normalize path pattern for matching.

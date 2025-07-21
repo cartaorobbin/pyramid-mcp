@@ -269,59 +269,112 @@ class MCPSchemaInfoSchema(Schema):
 
 class MCPSourceSchema(Schema):
     """Schema for MCP context source information."""
-    
-    kind = fields.Str(required=True, metadata={"description": "Source kind (e.g., 'rest_api', 'database', 'file')"})
-    name = fields.Str(required=True, metadata={"description": "Human-readable source name"})
-    url = fields.Str(allow_none=True, metadata={"description": "Source URL if applicable"})
-    fetched_at = fields.DateTime(format='iso', required=True, metadata={"description": "When the data was fetched"})
-    additional_info = fields.Dict(allow_none=True, metadata={"description": "Additional source-specific information"})
+
+    kind = fields.Str(
+        required=True,
+        metadata={"description": "Source kind (e.g., 'rest_api', 'database', 'file')"},
+    )
+    name = fields.Str(
+        required=True, metadata={"description": "Human-readable source name"}
+    )
+    url = fields.Str(
+        allow_none=True, metadata={"description": "Source URL if applicable"}
+    )
+    fetched_at = fields.DateTime(
+        format="iso",
+        required=True,
+        metadata={"description": "When the data was fetched"},
+    )
+    additional_info = fields.Dict(
+        allow_none=True,
+        metadata={"description": "Additional source-specific information"},
+    )
 
 
 class MCPRepresentationSchema(Schema):
     """Schema for MCP context representation."""
-    
-    format = fields.Str(required=True, metadata={"description": "Data format (e.g., 'raw_json', 'text', 'xml')"})
-    content = fields.Raw(required=True, metadata={"description": "The actual data content"})
-    encoding = fields.Str(allow_none=True, metadata={"description": "Content encoding if applicable"})
-    # metadata = fields.Dict(allow_none=True, metadata={"description": "Additional representation metadata"})
+
+    format = fields.Str(
+        required=True,
+        metadata={"description": "Data format (e.g., 'raw_json', 'text', 'xml')"},
+    )
+    content = fields.Raw(
+        required=True, metadata={"description": "The actual data content"}
+    )
+    encoding = fields.Str(
+        allow_none=True, metadata={"description": "Content encoding if applicable"}
+    )
 
 
 class MCPContextResultSchema(Schema):
     """Schema for the new MCP context result format."""
-    
-    type = fields.Str(required=True, dump_default="mcp/context", metadata={"description": "MCP result type"})
-    version = fields.Str(required=True, dump_default="1.0", metadata={"description": "MCP context version"})
-    source = fields.Nested(MCPSourceSchema, required=True, metadata={"description": "Information about the data source"})
-    representation = fields.Nested(MCPRepresentationSchema, required=True, metadata={"description": "The data representation"})
-    tags = fields.List(fields.Str(), allow_none=True, metadata={"description": "Tags for categorizing the context"})
-    llm_context_hint = fields.Str(allow_none=True, metadata={"description": "Hint for the LLM about how to use this context"})
-    confidence = fields.Float(allow_none=True, metadata={"description": "Confidence score for the data (0.0-1.0)"})
-    expires_at = fields.DateTime(format='iso', allow_none=True, metadata={"description": "When this context expires"})
+
+    type = fields.Str(
+        required=True,
+        dump_default="mcp/context",
+        metadata={"description": "MCP result type"},
+    )
+    version = fields.Str(
+        required=True,
+        dump_default="1.0",
+        metadata={"description": "MCP context version"},
+    )
+    source = fields.Nested(
+        MCPSourceSchema,
+        required=True,
+        metadata={"description": "Information about the data source"},
+    )
+    representation = fields.Nested(
+        MCPRepresentationSchema,
+        required=True,
+        metadata={"description": "The data representation"},
+    )
+    tags = fields.List(
+        fields.Str(),
+        allow_none=True,
+        metadata={"description": "Tags for categorizing the context"},
+    )
+    llm_context_hint = fields.Str(
+        allow_none=True,
+        metadata={"description": "Hint for the LLM about how to use this context"},
+    )
+    confidence = fields.Float(
+        allow_none=True,
+        metadata={"description": "Confidence score for the data (0.0-1.0)"},
+    )
+    expires_at = fields.DateTime(
+        format="iso",
+        allow_none=True,
+        metadata={"description": "When this context expires"},
+    )
 
     @pre_dump
     def transform_to_mcp_context(self, obj: Any, **kwargs: Any) -> Dict[str, Any]:
         """Transform input data to MCP context format before dumping.
-        
+
         This handles both:
         1. Pyramid HTTP responses (with response + view_info)
         2. Simple tool results (with content + metadata)
         """
         from datetime import datetime, timezone
-        
+
         fetched_at = datetime.now(timezone.utc)
-        
+
         # Case 1: Pyramid HTTP response format
         response = obj.get("response")
         view_info = obj.get("view_info")
-        
+
         if response is not None and view_info is not None:
             # Handle Pyramid HTTP response objects
-            if hasattr(response, 'headers') and response.headers.get("Content-Type") == "application/json":
+            if (
+                hasattr(response, "headers")
+                and response.headers.get("Content-Type") == "application/json"
+            ):
                 content_format = "raw_json"
                 content = response.json
             else:
                 content_format = "text"
-                content = response.text if hasattr(response, 'text') else str(response)
+                content = response.text if hasattr(response, "text") else str(response)
 
             ret = {
                 "type": "mcp/context",
@@ -332,12 +385,10 @@ class MCPContextResultSchema(Schema):
                     "kind": "rest_api",
                     "name": "PyramidAPI",
                     "fetched_at": fetched_at,
-                    "url": view_info.get("url") or "https://legal-entity-rest.io.geru.com.br",
+                    "url": view_info.get("url")
+                    or "https://legal-entity-rest.io.geru.com.br",
                 },
-                "representation": {
-                    "format": content_format,
-                    "content": content
-                }
+                "representation": {"format": content_format, "content": content},
             }
         else:
             # Case 2: Simple tool result format
@@ -346,13 +397,13 @@ class MCPContextResultSchema(Schema):
             source_name = obj.get("source_name", "MCP Tool")
             tags = obj.get("tags", ["tool_response"])
             llm_hint = obj.get("llm_context_hint", "Result from an MCP tool")
-            
+
             # Determine content format based on type
             if isinstance(content, dict):
                 content_format = "raw_json"
             else:
                 content_format = "text"
-            
+
             ret = {
                 "type": "mcp/context",
                 "version": "1.0",
@@ -363,11 +414,71 @@ class MCPContextResultSchema(Schema):
                     "name": source_name,
                     "fetched_at": fetched_at,
                 },
-                "representation": {
-                    "format": content_format,
-                    "content": content
-                }
+                "representation": {"format": content_format, "content": content},
             }
-            
+
         return ret
-        
+
+
+# =============================================================================
+# 🔧 MCP PROTOCOL SCHEMAS
+# =============================================================================
+# Core MCP protocol schemas for JSON-RPC messages
+
+
+class MCPErrorSchema(Schema):
+    """Marshmallow schema for MCP protocol error."""
+
+    code = fields.Int(required=True, metadata={"description": "Error code"})
+    message = fields.Str(required=True, metadata={"description": "Error message"})
+    data = fields.Dict(
+        allow_none=True, metadata={"description": "Additional error data"}
+    )
+
+
+class MCPResponseSchema(Schema):
+    """Marshmallow schema for MCP JSON-RPC response."""
+
+    jsonrpc = fields.Str(
+        required=True, dump_default="2.0", metadata={"description": "JSON-RPC version"}
+    )
+    id = fields.Raw(allow_none=True, metadata={"description": "Request ID"})
+    result = fields.Raw(allow_none=True, metadata={"description": "Response result"})
+    error = fields.Nested(
+        MCPErrorSchema, allow_none=True, metadata={"description": "Response error"}
+    )
+
+    @pre_dump
+    def format_mcp_response(self, obj: Any, **kwargs: Any) -> Dict[str, Any]:
+        """Format MCP response, handling both success and error cases."""
+        if isinstance(obj, dict):
+            data = obj.copy()
+        else:
+            # Convert object attributes to dict
+            data = {}
+            for field_name in self.fields:
+                if hasattr(obj, field_name):
+                    data[field_name] = getattr(obj, field_name)
+
+        # Ensure jsonrpc version is set
+        if "jsonrpc" not in data:
+            data["jsonrpc"] = "2.0"
+
+        # Handle error construction from separate error fields
+        if "error_code" in data or "error_message" in data:
+            error_data: Dict[str, Any] = {}
+
+            if "error_code" in data:
+                error_data["code"] = data.pop("error_code")
+            if "error_message" in data:
+                error_data["message"] = data.pop("error_message")
+            if "error_data" in data:
+                error_data["data"] = data.pop("error_data")
+
+            # Only create error if we have required fields
+            if "code" in error_data and "message" in error_data:
+                data["error"] = error_data
+                # Remove result if we have an error
+                data.pop("result", None)
+
+        return data

@@ -548,7 +548,7 @@ def pyramid_app_with_auth():
                     auth_header = auth_headers["Authorization"]
                     if auth_header.startswith("Bearer "):
                         token = auth_header[7:]  # Remove 'Bearer ' prefix
-                        
+
                         # For testing, validate token format
                         if token and self._is_valid_token(token):
                             return {
@@ -557,7 +557,7 @@ def pyramid_app_with_auth():
                                 "token": token,
                             }
                 return None
-            
+
             def _is_valid_token(self, token):
                 """Simple token validation for testing."""
                 # Reject obvious invalid tokens
@@ -574,15 +574,15 @@ def pyramid_app_with_auth():
             def permits(self, request, context, permission):
                 """Check if current user has the given permission."""
                 from pyramid.authorization import ACLHelper
-                from pyramid.security import Everyone, Authenticated
-                
-                # Get effective principals for current user  
+                from pyramid.security import Authenticated, Everyone
+
+                # Get effective principals for current user
                 principals = self.effective_principals(request)
-                
+
                 # For backward compatibility with "authenticated" permission
                 if permission == "authenticated":
                     return Authenticated in principals
-                
+
                 # Use context ACL if available
                 if hasattr(context, "__acl__"):
                     acl_helper = ACLHelper()
@@ -595,10 +595,10 @@ def pyramid_app_with_auth():
                             pyramid_principals.append(Authenticated)
                         else:
                             pyramid_principals.append(principal)
-                    
+
                     # Check ACL permissions
                     return acl_helper.permits(context, pyramid_principals, permission)
-                
+
                 # If no ACL and not "authenticated" permission, deny by default
                 return False
 

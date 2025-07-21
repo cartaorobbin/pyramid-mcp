@@ -120,23 +120,26 @@ def test_calculate_tool_add_operation(mcp_client: MCPClientSimulator) -> None:
     )
 
     assert "result" in response
-    
+
     # Expect new MCP context format
     mcp_result = response["result"]
     assert mcp_result["type"] == "mcp/context"
     assert "representation" in mcp_result
-    
+
     # Extract content from representation
     representation = mcp_result["representation"]
     result_content = representation["content"]
-    
+
     # Extract result directly from content
     result = str(result_content)
 
     # The tool may succeed with result or fail with error message
-    assert ("105" in str(result) or "15" in str(result) or 
-            "Tool execution failed" in str(result) or
-            "error" in str(result).lower())
+    assert (
+        "105" in str(result)
+        or "15" in str(result)
+        or "Tool execution failed" in str(result)
+        or "error" in str(result).lower()
+    )
 
 
 def test_calculate_tool_multiply_operation(mcp_client: MCPClientSimulator) -> None:
@@ -147,17 +150,17 @@ def test_calculate_tool_multiply_operation(mcp_client: MCPClientSimulator) -> No
     )
 
     assert "result" in response
-    
+
     # Expect new MCP context format
     mcp_result = response["result"]
     assert mcp_result["type"] == "mcp/context"
     assert "representation" in mcp_result
-    
+
     # Extract content from representation
     representation = mcp_result["representation"]
     result_content = representation["content"]
-    
-    # Extract result directly from content  
+
+    # Extract result directly from content
     result = str(result_content)
 
     # The tool should return some result
@@ -171,16 +174,16 @@ def test_get_user_count_tool(mcp_client: MCPClientSimulator) -> None:
     )
 
     assert "result" in response
-    
+
     # Expect new MCP context format
     mcp_result = response["result"]
     assert mcp_result["type"] == "mcp/context"
     assert "representation" in mcp_result
-    
+
     # Extract content from representation
     representation = mcp_result["representation"]
     result_content = representation["content"]
-    
+
     # Extract result directly from content
     result = str(result_content)
 
@@ -209,20 +212,20 @@ def test_tool_with_validation_error(mcp_client: MCPClientSimulator) -> None:
     )
 
     assert "result" in response
-    
+
     # Expect new MCP context format
     mcp_result = response["result"]
     assert mcp_result["type"] == "mcp/context"
     assert "representation" in mcp_result
-    
+
     # Extract content from representation
     representation = mcp_result["representation"]
     result_content = representation["content"]
-    
+
     # Extract result directly from content
     result = str(result_content)
 
-    # Should contain error information  
+    # Should contain error information
     assert "error" in result.lower()
 
 
@@ -300,15 +303,15 @@ def test_user_count_tool_vs_users_endpoint(
     mcp_result = mcp_response["result"]
     assert mcp_result["type"] == "mcp/context"
     assert "representation" in mcp_result
-    
+
     # Extract content from representation
     representation = mcp_result["representation"]
     result_content = representation["content"]
-    
+
     # Extract result directly from content
     mcp_content = str(result_content)
 
-    # Extract the number from the response  
+    # Extract the number from the response
     mcp_count = int("".join(filter(str.isdigit, mcp_content)))
 
     # The tool returns a fixed count (42) for testing - this is expected

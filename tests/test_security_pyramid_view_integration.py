@@ -179,14 +179,14 @@ def test_pyramid_view_with_basic_auth_integration(pyramid_app_with_views):
     # Extract the actual data from new MCP context format
     assert result["type"] == "mcp/context"
     assert "representation" in result
-    
+
     # Extract content from representation
     representation = result["representation"]
     result_content = representation["content"]
-    
+
     # Extract result directly from content
     result_text = str(result_content)
-    
+
     assert "/home/user" in result_text
     assert "basic" in result_text
     assert "extracted_from_headers" in result_text
@@ -250,14 +250,14 @@ def test_pyramid_view_with_bearer_auth_integration(pyramid_app_with_views):
     # Extract the actual data from new MCP context format
     assert result["type"] == "mcp/context"
     assert "representation" in result
-    
+
     # Extract content from representation
     representation = result["representation"]
     result_content = representation["content"]
-    
+
     # Extract result directly from content
     result_text = str(result_content)
-    
+
     assert "test_data" in result_text
     assert "bearer" in result_text
     assert "True" in result_text

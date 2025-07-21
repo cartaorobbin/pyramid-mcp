@@ -321,7 +321,6 @@ def test_plugin_tools_list_via_protocol(minimal_pyramid_config, dummy_request):
     assert "tools" in response["result"]
 
     # Check if our tool is in the list
-    tool_names = [tool["name"] for tool in response["result"]["tools"]]
     assert len(response["result"]["tools"]) >= 0
 
 

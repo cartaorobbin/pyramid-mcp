@@ -84,7 +84,7 @@ def test_cornice_service_with_schema_via_mcp(
     assert response.content_type == "application/json"
 
     # Assert MCP response structure
-    
+
     mcp_response = response.json
     assert mcp_response["id"] == 1
     assert mcp_response["jsonrpc"] == "2.0"
@@ -101,7 +101,7 @@ def test_cornice_service_with_schema_via_mcp(
 
     # Check if we got structured JSON in new MCP context format
     content = representation["content"]
-    
+
     # Extract result directly from content
     content_text = str(content)
 

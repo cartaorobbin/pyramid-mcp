@@ -13,7 +13,8 @@ Uses enhanced fixtures from conftest.py for clean, non-duplicated test setup.
 from pyramid_mcp import PyramidMCP, __version__, tool
 from pyramid_mcp.core import MCPConfiguration
 from pyramid_mcp.introspection import PyramidIntrospector
-from pyramid_mcp.protocol import MCPError, MCPErrorCode, MCPProtocolHandler, MCPTool
+from pyramid_mcp.protocol import MCPErrorCode, MCPProtocolHandler, MCPTool
+from pyramid_mcp.schemas import MCPErrorSchema
 from pyramid_mcp.wsgi import MCPWSGIApp
 
 # =============================================================================
@@ -54,7 +55,7 @@ def test_protocol_imports():
     """Test protocol module imports are available."""
     assert MCPProtocolHandler is not None
     assert MCPTool is not None
-    assert MCPError is not None
+    assert MCPErrorSchema is not None
     assert MCPErrorCode is not None
 
 

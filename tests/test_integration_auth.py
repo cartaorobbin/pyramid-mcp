@@ -29,13 +29,13 @@ from pyramid_mcp.security import BearerAuthSchema
 )
 def get_protected_user(id: int) -> dict:
     """Tool that requires authentication.
-    
+
     Note: auth_token is handled by the security layer and not passed to this function.
     """
     # Handle both int and string IDs since JSON might convert to string
     if isinstance(id, str):
         id = int(id)
-        
+
     test_users = {
         1: {"id": 1, "username": "alice", "role": "user"},
         2: {"id": 2, "username": "bob", "role": "admin"},
@@ -130,11 +130,11 @@ def test_mcp_calls_protected_route_with_jwt_succeeds(auth_test_config, valid_jwt
             "jsonrpc": "2.0",
             "method": "tools/call",
             "params": {
-                "name": "get_protected_user", 
+                "name": "get_protected_user",
                 "arguments": {
                     "id": 1,
-                    "auth_token": valid_jwt_token  # Auth passed as tool argument
-                }
+                    "auth_token": valid_jwt_token,  # Auth passed as tool argument
+                },
             },
             "id": 1,
         },
@@ -145,13 +145,13 @@ def test_mcp_calls_protected_route_with_jwt_succeeds(auth_test_config, valid_jwt
     result = response.json
 
     assert "result" in result
-    
+
     # Expect new MCP context format
     mcp_result = result["result"]
     assert mcp_result["type"] == "mcp/context"
     assert "representation" in mcp_result
     content = mcp_result["representation"]["content"]
-    
+
     # The content contains the tool result wrapped with metadata
     assert "result" in content
     tool_result = content["result"]
@@ -186,12 +186,15 @@ def test_mcp_calls_protected_route_without_jwt_fails(auth_test_config):
     # Assert: Call fails with authentication error
     assert response.status_code == 200  # MCP returns 200 with error in payload
     result = response.json
-    
+
     # Expect error response due to missing authentication - Pyramid handles this now
     assert "error" in result
     error = result["error"]
     assert error["code"] == -32603  # Internal error (from permission failure)
-    assert "unauthorized" in error["message"].lower() or "permission" in error["message"].lower()
+    assert (
+        "unauthorized" in error["message"].lower()
+        or "permission" in error["message"].lower()
+    )
 
 
 def test_mcp_calls_public_route_always_succeeds(auth_test_config):
@@ -221,13 +224,13 @@ def test_mcp_calls_public_route_always_succeeds(auth_test_config):
     assert response.status_code == 200
     result = response.json
     assert "result" in result
-    
+
     # Expect new MCP context format
     mcp_result = result["result"]
     assert mcp_result["type"] == "mcp/context"
     assert "representation" in mcp_result
     content = mcp_result["representation"]["content"]
-    
+
     # The content contains the tool result wrapped with metadata
     assert "result" in content
     tool_result = content["result"]
@@ -254,11 +257,11 @@ def test_mcp_calls_with_invalid_jwt_fails(auth_test_config):
             "jsonrpc": "2.0",
             "method": "tools/call",
             "params": {
-                "name": "get_protected_user", 
+                "name": "get_protected_user",
                 "arguments": {
                     "id": 1,
-                    "auth_token": "invalid.jwt.token"  # Invalid token as parameter
-                }
+                    "auth_token": "invalid.jwt.token",  # Invalid token as parameter
+                },
             },
             "id": 1,
         },
@@ -267,12 +270,15 @@ def test_mcp_calls_with_invalid_jwt_fails(auth_test_config):
     # Assert: Call fails - security policy rejects invalid token
     assert response.status_code == 200  # MCP returns 200 with error in payload
     result = response.json
-    
+
     # Expect error response from failed permission check
     assert "error" in result
     error = result["error"]
     assert error["code"] == -32603  # Internal error (from permission failure)
-    assert "unauthorized" in error["message"].lower() or "permission" in error["message"].lower()
+    assert (
+        "unauthorized" in error["message"].lower()
+        or "permission" in error["message"].lower()
+    )
 
 
 def test_mcp_calls_with_expired_jwt_fails(auth_test_config, expired_jwt_token):
@@ -291,11 +297,11 @@ def test_mcp_calls_with_expired_jwt_fails(auth_test_config, expired_jwt_token):
             "jsonrpc": "2.0",
             "method": "tools/call",
             "params": {
-                "name": "get_protected_user", 
+                "name": "get_protected_user",
                 "arguments": {
                     "id": 1,
-                    "auth_token": expired_jwt_token  # Expired token as parameter
-                }
+                    "auth_token": expired_jwt_token,  # Expired token as parameter
+                },
             },
             "id": 1,
         },
@@ -304,12 +310,15 @@ def test_mcp_calls_with_expired_jwt_fails(auth_test_config, expired_jwt_token):
     # Assert: Call fails due to expired token
     assert response.status_code == 200  # MCP returns 200 with error in payload
     result = response.json
-    
+
     # Expect error response from failed permission check
     assert "error" in result
     error = result["error"]
     assert error["code"] == -32603  # Internal error (from permission failure)
-    assert "unauthorized" in error["message"].lower() or "permission" in error["message"].lower()
+    assert (
+        "unauthorized" in error["message"].lower()
+        or "permission" in error["message"].lower()
+    )
 
 
 def test_mcp_tool_reflects_pyramid_view_permission(auth_test_config, valid_jwt_token):
@@ -367,22 +376,24 @@ def test_tool_decorator_with_permission_parameter(auth_test_config, valid_jwt_to
     assert "error" in result
     error = result["error"]
     assert error["code"] == -32603  # Internal error (from permission failure)
-    assert "unauthorized" in error["message"].lower() or "permission" in error["message"].lower()
+    assert (
+        "unauthorized" in error["message"].lower()
+        or "permission" in error["message"].lower()
+    )
 
     # Should succeed with JWT (passed as auth_token parameter)
     protected_request_with_auth = {
         "jsonrpc": "2.0",
         "method": "tools/call",
         "params": {
-            "name": "get_protected_user", 
-            "arguments": {
-                "id": 1,
-                "auth_token": valid_jwt_token
-            }
+            "name": "get_protected_user",
+            "arguments": {"id": 1, "auth_token": valid_jwt_token},
         },
         "id": 1,
     }
-    response = auth_test_config.post_json("/mcp", protected_request_with_auth, status=200)
+    response = auth_test_config.post_json(
+        "/mcp", protected_request_with_auth, status=200
+    )
     assert "result" in response.json
     assert response.json["result"]["type"] == "mcp/context"
 

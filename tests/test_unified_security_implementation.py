@@ -120,11 +120,11 @@ def test_tool_decorator_execution_via_mcp(unified_security_test_config):
     result_data = response.json["result"]
     assert result_data["type"] == "mcp/context"
     assert "representation" in result_data
-    
+
     # Extract content from representation
     representation = result_data["representation"]
     result_content = representation["content"]
-    
+
     # Extract result directly from content
     result = str(result_content)
 
