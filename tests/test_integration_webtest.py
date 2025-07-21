@@ -105,10 +105,19 @@ def test_mcp_call_tool_calculation(testapp_with_mcp):
     data = response.json
 
     assert "result" in data
-    assert "content" in data["result"]
-    assert len(data["result"]["content"]) == 1
-    assert data["result"]["content"][0]["type"] == "text"
-    assert "15" in data["result"]["content"][0]["text"]  # 10 + 5 = 15
+    result_data = data["result"]
+    assert result_data["type"] == "mcp/context"
+    assert "representation" in result_data
+    
+    # Extract content from representation
+    representation = result_data["representation"]
+    result_content = representation["content"]
+    
+    # Extract result directly from content
+    result_text = str(result_content)
+    
+    # Verify the result contains "15"
+    assert "15" in result_text  # 10 + 5 = 15
 
 
 def test_mcp_error_handling_via_http(testapp_with_mcp):
@@ -193,7 +202,7 @@ def test_mcp_tool_validation_error(testapp_with_mcp):
     data = response.json
 
     # Should return an error for invalid operation
-    assert "error" in data or ("result" in data and "error" in str(data["result"]))
+    assert "error" in data
 
 
 # =============================================================================
@@ -470,15 +479,18 @@ def test_route_discovery_end_to_end():
 
     # Expect exact MCP response format without conditional logic
     result_data = data["result"]
-    assert "content" in result_data
-    content_items = result_data["content"]
-    assert len(content_items) == 1
-
-    content_item = content_items[0]
-    # The actual response format is application/json with data field
-    assert content_item["type"] == "application/json"
-    assert "data" in content_item
-    assert "Integration: test" in str(content_item["data"])
+    assert result_data["type"] == "mcp/context"
+    assert "representation" in result_data
+    
+    # Extract content from representation
+    representation = result_data["representation"]
+    result_content = representation["content"]
+    
+    # Extract result directly from content
+    result_text = str(result_content)
+    
+    # Verify the result contains "Integration: test"
+    assert "Integration: test" in result_text
 
 
 def test_route_discovery_with_filtering():

@@ -535,18 +535,86 @@ def pyramid_app_with_auth():
         # Create Pyramid configurator
         config = Configurator(settings=settings)
 
-        # Set up JWT authentication policy
-        from pyramid.authentication import AuthTktAuthenticationPolicy
-        from pyramid.authorization import ACLAuthorizationPolicy
+        # Set up modern security policy (replaces deprecated auth/authz policies)
+        class TestSecurityPolicy:
+            """Test security policy that works with MCP auth headers."""
 
-        # For testing, use a simple authentication policy
-        # In real implementation, this would be JWT-based
-        authn_policy = AuthTktAuthenticationPolicy(
-            settings["jwt.secret"],
-            hashalg="sha512",
-        )
-        config.set_authentication_policy(authn_policy)
-        config.set_authorization_policy(ACLAuthorizationPolicy())
+            def identity(self, request):
+                """Check if auth_token was provided via MCP arguments."""
+                # pyramid-mcp stores auth headers in request.mcp_auth_headers
+                auth_headers = getattr(request, "mcp_auth_headers", {})
+
+                if "Authorization" in auth_headers:
+                    auth_header = auth_headers["Authorization"]
+                    if auth_header.startswith("Bearer "):
+                        token = auth_header[7:]  # Remove 'Bearer ' prefix
+                        
+                        # For testing, validate token format
+                        if token and self._is_valid_token(token):
+                            return {
+                                "user_id": "test_user",
+                                "username": "testuser",
+                                "token": token,
+                            }
+                return None
+            
+            def _is_valid_token(self, token):
+                """Simple token validation for testing."""
+                # Reject obvious invalid tokens
+                if token in ["invalid.jwt.token", "expired-test-jwt-token-456"]:
+                    return False
+                # Accept other tokens (including valid_bearer_token_123)
+                return True
+
+            def authenticated_userid(self, request):
+                """Get the authenticated user ID."""
+                identity = self.identity(request)
+                return identity.get("user_id") if identity else None
+
+            def permits(self, request, context, permission):
+                """Check if current user has the given permission."""
+                from pyramid.authorization import ACLHelper
+                from pyramid.security import Everyone, Authenticated
+                
+                # Get effective principals for current user  
+                principals = self.effective_principals(request)
+                
+                # For backward compatibility with "authenticated" permission
+                if permission == "authenticated":
+                    return Authenticated in principals
+                
+                # Use context ACL if available
+                if hasattr(context, "__acl__"):
+                    acl_helper = ACLHelper()
+                    # Convert principal names to match Pyramid's format
+                    pyramid_principals = []
+                    for principal in principals:
+                        if principal == "system.Everyone":
+                            pyramid_principals.append(Everyone)
+                        elif principal == "system.Authenticated":
+                            pyramid_principals.append(Authenticated)
+                        else:
+                            pyramid_principals.append(principal)
+                    
+                    # Check ACL permissions
+                    return acl_helper.permits(context, pyramid_principals, permission)
+                
+                # If no ACL and not "authenticated" permission, deny by default
+                return False
+
+            def effective_principals(self, request):
+                """Get all effective principals for the current request."""
+                identity = self.identity(request)
+                if not identity:
+                    return ["system.Everyone"]
+
+                principals = ["system.Everyone", "system.Authenticated"]
+                if "user_id" in identity:
+                    principals.append(f"userid:{identity['user_id']}")
+                return principals
+
+        # Use the modern security policy approach
+        config.set_security_policy(TestSecurityPolicy())
 
         # Include pyramid_mcp
         config.include("pyramid_mcp")

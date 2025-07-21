@@ -243,6 +243,7 @@ class MCPTool:
     # Internal fields for unified security architecture
     _internal_route_name: Optional[str] = None  # Route name for manual tools
     _internal_route_path: Optional[str] = None  # Route path for manual tools
+    _internal_route_method: Optional[str] = None  # HTTP method for route-based tools
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to MCP tool format."""
@@ -288,11 +289,12 @@ class MCPProtocolHandler:
         # Track used tool names to prevent collisions
         self._used_tool_names: Set[str] = set()
 
-    def register_tool(self, tool: MCPTool) -> None:
+    def register_tool(self, tool: MCPTool, config=None) -> None:
         """Register an MCP tool.
 
         Args:
             tool: The MCPTool to register
+            config: Pyramid configurator (for creating views for manual tools)
         """
         original_name = tool.name
 
@@ -310,12 +312,75 @@ class MCPProtocolHandler:
             )
             tool.name = sanitized_name
 
+        # For manual tools, create a Pyramid view at setup time
+        if config and tool.handler and not self._is_route_based_tool(tool):
+            self._create_manual_tool_view(config, tool)
+
         # Register the tool
         self.tools[sanitized_name] = tool
         self._used_tool_names.add(sanitized_name)
 
         # Update capabilities to indicate we have tools
         self.capabilities["tools"] = {}
+
+    def _is_route_based_tool(self, tool: MCPTool) -> bool:
+        """Check if a tool is route-based."""
+        return (
+            tool.handler is not None
+            and hasattr(tool.handler, "__name__")
+            and tool.handler.__name__ == "handler"
+            and hasattr(tool.handler, "__qualname__")
+            and "PyramidIntrospector._create_route_handler" in tool.handler.__qualname__
+        )
+
+    def _create_manual_tool_view(self, config, tool: MCPTool) -> None:
+        """Create a Pyramid view for a manual tool."""
+        import inspect
+        
+        route_name = f"mcp_tool_{tool.name}"
+        route_path = f"/mcp/tools/{tool.name}"
+        
+        # Store route info in tool for subrequest
+        tool._internal_route_name = route_name
+        tool._internal_route_path = route_path
+        
+        # Create the view function
+        def tool_view(request):
+            """Pyramid view for manual tool execution."""
+            try:
+                # Extract args from request
+                if request.method == "POST" and request.content_type == "application/json":
+                    args_data = request.json_body or {}
+                else:
+                    args_data = dict(request.params)
+                
+                # Call the tool handler
+                handler = tool.handler
+                if not handler:
+                    return {"error": "Tool handler not found", "tool_name": tool.name}
+                    
+                sig = inspect.signature(handler)
+                if "pyramid_request" in sig.parameters:
+                    result = handler(request, **args_data)
+                else:
+                    result = handler(**args_data)
+
+                # Return result for schema processing
+                return {"mcp_result": result, "tool_name": tool.name}
+
+            except Exception as e:
+                return {"error": f"Tool execution failed: {str(e)}", "tool_name": tool.name}
+        
+        # Add route and view to Pyramid
+        config.add_route(route_name, route_path)
+        config.add_view(
+            tool_view,
+            route_name=route_name,
+            request_method="POST",
+            renderer="json",
+            permission=tool.permission,
+            context=tool.context
+        )
 
     def handle_message(
         self,
@@ -390,11 +455,12 @@ class MCPProtocolHandler:
     def _handle_call_tool(
         self, request: MCPRequest, pyramid_request: Request
     ) -> Dict[str, Any]:
-        """Handle tools/call requests."""
+        """Handle tools/call requests using unified subrequest approach."""
         import logging
 
         logger = logging.getLogger(__name__)
 
+        # Validate basic parameters
         if not request.params:
             error = MCPError(
                 code=MCPErrorCode.INVALID_PARAMS.value, message="Missing parameters"
@@ -405,11 +471,6 @@ class MCPProtocolHandler:
         tool_name = request.params.get("name")
         tool_args = request.params.get("arguments", {})
 
-        # 🐛 DEBUG: Log MCP tool call details
-        logger.info(f"📞 MCP Tool Call: {tool_name}")
-        logger.debug(f"📞 Tool arguments: {tool_args}")
-        logger.debug(f"📞 Available tools: {list(self.tools.keys())}")
-
         if not tool_name:
             error = MCPError(
                 code=MCPErrorCode.INVALID_PARAMS.value, message="Tool name is required"
@@ -418,8 +479,6 @@ class MCPProtocolHandler:
             return response.to_dict()
 
         if tool_name not in self.tools:
-            logger.error(f"❌ Tool not found: {tool_name}")
-            logger.error(f"❌ Available tools: {list(self.tools.keys())}")
             error = MCPError(
                 code=MCPErrorCode.METHOD_NOT_FOUND.value,
                 message=f"Tool '{tool_name}' not found",
@@ -428,362 +487,128 @@ class MCPProtocolHandler:
             return response.to_dict()
 
         tool = self.tools[tool_name]
-        logger.debug(f"📞 Found tool: {tool.name}")
-        logger.debug(f"📞 Tool description: {tool.description}")
-        logger.debug(f"📞 Tool has security: {tool.security is not None}")
+        logger.info(f"📞 MCP Tool Call: {tool_name}")
+        logger.debug(f"📞 Tool arguments: {tool_args}")
 
-        # Check if tool has a handler
-        if not tool.handler:
-            logger.error(f"❌ Tool '{tool_name}' has no handler")
+        try:
+            # Extract auth credentials from request body (only for tools with security schemas)
+            auth_token = None
+            if "auth_token" in tool_args and tool.security:
+                # Only remove auth_token if tool has security schema
+                auth_token = tool_args.pop("auth_token")
+            elif "auth_token" in tool_args and not tool.security:
+                # For tools without security schema, peek at the token but don't remove it
+                auth_token = tool_args.get("auth_token")
+
+            # Create unified subrequest for both route-based and manual tools
+            subrequest = self._create_unified_tool_subrequest(
+                pyramid_request, tool, tool_args
+            )
+
+            # Add auth headers to subrequest
+            if auth_token:
+                auth_header = f"Bearer {auth_token}"
+                subrequest.headers["Authorization"] = auth_header
+                # Also set mcp_auth_headers for TestSecurityPolicy
+                subrequest.mcp_auth_headers = {"Authorization": auth_header}
+
+            # Execute subrequest - Pyramid handles auth, permissions, and execution
+            response = pyramid_request.invoke_subrequest(subrequest)
+
+            # Transform response to MCP context format using schema
+            from pyramid_mcp.schemas import MCPContextResultSchema
+            schema = MCPContextResultSchema()
+
+            # Prepare data for schema transformation
+            schema_data = {
+                "response": response,
+                "view_info": {
+                    "tool_name": tool_name,
+                    "url": f"/_internal/mcp-tool/{tool_name}"
+                }
+            }
+
+            # Transform and return directly (no MCPResponse wrapper)
+            mcp_result = schema.dump(schema_data)
+            logger.debug("✅ Transformed response to MCP context format")
+            return {"jsonrpc": "2.0", "id": request.id, "result": mcp_result}
+
+        except Exception as e:
+            logger.error(f"❌ Error executing tool '{tool_name}': {str(e)}")
             error = MCPError(
                 code=MCPErrorCode.INTERNAL_ERROR.value,
-                message=f"Tool '{tool_name}' has no handler",
+                message=f"Tool execution failed: {str(e)}",
             )
             response = MCPResponse(id=request.id, error=error)
             return response.to_dict()
 
-        # Check if tool has security requirements and permissions
-        # For route-based tools, permissions are checked via Pyramid's security system
-        # For manual tools, permissions are checked here
-
-        # NOTE: Permission checking is delegated to the tool handler
-        # Route-based tools use Pyramid's built-in security system
-        # Manual tools can implement their own permission checks
-
-        # Tools without permissions are accessible to everyone
-        # Tools with permissions need to be checked based on their type
-        has_permission = True
-        if tool.permission:
-            # Determine if this is a route-based tool or manual tool
-            # Route-based tools have handlers created by PyramidIntrospector
-            # Manual tools have their original function as the handler
-            is_route_based_tool = (
-                hasattr(tool.handler, "__name__")
-                and tool.handler.__name__ == "handler"
-                and hasattr(tool.handler, "__qualname__")
-                and "PyramidIntrospector._create_route_handler"
-                in tool.handler.__qualname__
-            )
-
-            if is_route_based_tool:
-                # For route-based tools, let the Pyramid view handle permission checking
-                has_permission = True
-                logger.debug(
-                    f"📞 Route-based tool - permission '{tool.permission}' "
-                    f"will be checked by view"
-                )
-            else:
-                # For manual tools, check permission here using Pyramid's
-                # security system
-                try:
-                    security_policy = pyramid_request.registry.queryUtility(
-                        ISecurityPolicy
-                    )
-                    if security_policy:
-                        # Check if user has the required permission
-                        has_permission = security_policy.permits(
-                            pyramid_request, None, tool.permission
-                        )
-                        logger.debug(
-                            f"📞 Manual tool permission check: "
-                            f"'{tool.permission}' -> {has_permission}"
-                        )
-                    else:
-                        # No security policy configured - deny access to protected tools
-                        has_permission = False
-                        logger.debug(
-                            "📞 No security policy configured - denying access "
-                            "to protected tool"
-                        )
-                except Exception as e:
-                    logger.error(f"❌ Error checking permission: {str(e)}")
-                    has_permission = False
-        else:
-            logger.debug("📞 Tool has no permission requirement - allowing access")
-
-        if has_permission:
-            # Process authentication parameters if tool has security schema
-            if tool.security:
-                logger.debug(
-                    "📞 Processing authentication for tool with security schema"
-                )
-
-                # Validate authentication credentials first
-                auth_validation_error = validate_auth_credentials(
-                    tool_args, tool.security
-                )
-                if auth_validation_error:
-                    logger.error(
-                        f"❌ Authentication validation failed: "
-                        f"{auth_validation_error['message']}"
-                    )
-                    error = MCPError(
-                        code=MCPErrorCode.INVALID_PARAMS.value,
-                        message=auth_validation_error["message"],
-                        data={
-                            "authentication_error_type": auth_validation_error["type"],
-                            "tool_name": tool_name,
-                            "details": auth_validation_error.get("details", {}),
-                        },
-                    )
-                    response = MCPResponse(id=request.id, error=error)
-                    return response.to_dict()
-
-                # Extract authentication credentials from tool arguments
-                try:
-                    auth_credentials = extract_auth_credentials(
-                        tool_args, tool.security
-                    )
-                    logger.debug(
-                        f"🔐 Extracted auth credentials: {list(auth_credentials.keys())}"
-                    )
-                except Exception as e:
-                    logger.error(f"❌ Failed to extract auth credentials: {str(e)}")
-                    error = MCPError(
-                        code=MCPErrorCode.INTERNAL_ERROR.value,
-                        message=(
-                            "Failed to extract authentication parameters: " f"{str(e)}"
-                        ),
-                        data={
-                            "authentication_error_type": (
-                                "credential_extraction_error"
-                            ),
-                            "tool_name": tool_name,
-                        },
-                    )
-                    response = MCPResponse(id=request.id, error=error)
-                    return response.to_dict()
-
-                # Remove authentication parameters from tool arguments
-                # This ensures credentials are not passed to the handler
-                # function
-                try:
-                    tool_args = remove_auth_from_tool_args(tool_args, tool.security)
-                    logger.debug(
-                        f"🔐 Removed auth params from tool args: "
-                        f"{list(tool_args.keys())}"
-                    )
-                except Exception as e:
-                    logger.error(f"❌ Failed to remove auth parameters: {str(e)}")
-                    error = MCPError(
-                        code=MCPErrorCode.INTERNAL_ERROR.value,
-                        message=(
-                            "Failed to process authentication parameters: " f"{str(e)}"
-                        ),
-                        data={
-                            "authentication_error_type": ("parameter_processing_error"),
-                            "tool_name": tool_name,
-                        },
-                    )
-                    response = MCPResponse(id=request.id, error=error)
-                    return response.to_dict()
-
-                # Create HTTP headers from authentication credentials
-                try:
-                    auth_headers = create_auth_headers(auth_credentials, tool.security)
-                    logger.debug(f"🔐 Created auth headers: {list(auth_headers.keys())}")
-                except Exception as e:
-                    logger.error(f"❌ Failed to create auth headers: {str(e)}")
-                    error = MCPError(
-                        code=MCPErrorCode.INTERNAL_ERROR.value,
-                        message=(f"Failed to create authentication headers: {str(e)}"),
-                        data={
-                            "authentication_error_type": "header_creation_error",
-                            "tool_name": tool_name,
-                        },
-                    )
-                    response = MCPResponse(id=request.id, error=error)
-                    return response.to_dict()
-
-                # Store auth headers in pyramid_request for handler access
-                # Handlers can access these via pyramid_request.mcp_auth_headers
-                pyramid_request.mcp_auth_headers = auth_headers
-                logger.debug("🔐 Stored auth headers in pyramid_request")
-            else:
-                # No authentication required - set empty headers for consistency
-                pyramid_request.mcp_auth_headers = {}
-                logger.debug("🔐 No auth required - set empty headers")
-
-            # UNIFIED SECURITY ARCHITECTURE: All tools now use subrequest approach
-            # This ensures consistent security enforcement for both route-based
-            # and manual tools
-
-            # Determine if this is a route-based tool or manual tool
-            is_route_based_tool = (
-                hasattr(tool.handler, "__name__")
-                and tool.handler.__name__ == "handler"
-                and hasattr(tool.handler, "__qualname__")
-                and "PyramidIntrospector._create_route_handler"
-                in tool.handler.__qualname__
-            )
-
-            if is_route_based_tool:
-                # Route-based tools already use subrequest internally
-                # Just call the handler which will create and execute subrequest
-                logger.debug(
-                    "🚀 Calling route-based tool handler (uses internal subrequest)"
-                )
-                import inspect
-
-                try:
-                    sig = inspect.signature(tool.handler)
-                    if "pyramid_request" in sig.parameters:
-                        result = tool.handler(pyramid_request, **tool_args)
-                    else:
-                        result = tool.handler(**tool_args)
-                except (ValueError, TypeError):
-                    # Fallback for handlers without introspectable signature
-                    result = tool.handler(**tool_args)
-            else:
-                # Manual tools: Use subrequest approach for unified security
-                logger.debug("🚀 Calling manual tool via subrequest (unified security)")
-                try:
-                    # Create subrequest for manual tool
-                    subrequest = self._create_manual_tool_subrequest(
-                        pyramid_request, tool, tool_args
-                    )
-
-                    # Execute the subrequest - this goes through Pyramid's security
-                    response = pyramid_request.invoke_subrequest(subrequest)
-
-                    # Extract result from subrequest response
-                    if hasattr(response, "json") and response.json:
-                        result = response.json.get("mcp_result", response.json)
-                    elif hasattr(response, "text"):
-                        # Try to parse as JSON
-                        import json
-
-                        try:
-                            response_data = json.loads(response.text)
-                            result = response_data.get("mcp_result", response_data)
-                        except (json.JSONDecodeError, ValueError):
-                            result = response.text
-                    else:
-                        result = str(response)
-
-                except Exception as e:
-                    logger.error(
-                        f"❌ Error executing manual tool via subrequest: {str(e)}"
-                    )
-                    # Fall back to direct call for now
-                    logger.debug("🔄 Falling back to direct tool execution")
-                    import inspect
-
-                    try:
-                        sig = inspect.signature(tool.handler)
-                        if "pyramid_request" in sig.parameters:
-                            result = tool.handler(pyramid_request, **tool_args)
-                        else:
-                            result = tool.handler(**tool_args)
-                    except (ValueError, TypeError):
-                        result = tool.handler(**tool_args)
-
-            # 🐛 DEBUG: Log tool execution result
-            logger.debug("✅ Tool execution completed")
-            logger.debug(f"✅ Result type: {type(result)}")
-            logger.debug(
-                f"✅ Result preview: {str(result)[:200]}"
-                f"{'...' if len(str(result)) > 200 else ''}"
-            )
-
-            # Handle different result formats
-            if isinstance(result, dict) and "content" in result:
-                # Result is already in MCP format
-                mcp_result = result
-                logger.debug("✅ Result already in MCP format")
-            else:
-                # Wrap result in MCP format
-                mcp_result = {"content": [{"type": "text", "text": str(result)}]}
-                logger.debug("✅ Wrapped result in MCP format")
-
-            response = MCPResponse(id=request.id, result=mcp_result)
-            return response.to_dict()
-
-        error_msg = f"Access denied for tool '{tool_name}'"
-        logger.error(f"❌ {error_msg}")
-        error = MCPError(
-            code=MCPErrorCode.INVALID_PARAMS.value,
-            message=error_msg,
-        )
-        response = MCPResponse(id=request.id, error=error)
-        return response.to_dict()
-
-    def _create_manual_tool_subrequest(
+    def _create_unified_tool_subrequest(
         self, pyramid_request: Request, tool: MCPTool, tool_args: Dict[str, Any]
     ) -> Request:
-        """Create a subrequest for manual tool execution.
+        """Create a subrequest for tool execution.
 
-        This creates a virtual subrequest that allows manual tools to use the same
-        security enforcement path as route-based tools, enabling unified security
-        architecture without requiring actual Pyramid routes.
+        Simple approach: just create a subrequest to the tool's URL.
+        Pyramid handles all authentication, permissions, and execution.
 
         Args:
             pyramid_request: Original pyramid request
-            tool: Manual tool to execute
+            tool: Tool to execute
             tool_args: Tool arguments
 
         Returns:
-            Subrequest configured for manual tool execution
+            Subrequest configured for tool execution
         """
         import json
-
         from pyramid.request import Request
 
-        # Create virtual URL for manual tool
-        # This doesn't need to be a real route - it's just for internal processing
-        virtual_url = f"/_internal/manual-tool/{tool.name}"
+        # Get the tool's URL (either route-based or manual tool view)
+        if hasattr(tool, '_internal_route_path') and tool._internal_route_path:
+            tool_url = tool._internal_route_path
+        else:
+            # Fallback for route-based tools without stored path
+            tool_url = f"/mcp/tools/{tool.name}"
 
         # Create subrequest
-        subrequest = Request.blank(virtual_url)
-        subrequest.method = "POST"
-
-        # Copy environment and context from parent request for security context
+        subrequest = Request.blank(tool_url)
+        
+        # Use the correct HTTP method for route-based tools
+        if hasattr(tool, '_internal_route_method') and tool._internal_route_method:
+            subrequest.method = tool._internal_route_method
+        else:
+            subrequest.method = "POST"  # Default for manual tools
+        
+        # Copy environment and context from parent request
         self._copy_request_context(pyramid_request, subrequest)
 
-        # Set up request body with tool arguments
-        body_data = json.dumps(tool_args).encode("utf-8")
-        subrequest.body = body_data
-        subrequest.content_type = "application/json"
-
-        # Set json_body manually by adding to the environ
-        subrequest.environ["pyramid_mcp.json_body"] = tool_args
-
-        # Copy authentication headers from parent request
-        auth_headers = getattr(pyramid_request, "mcp_auth_headers", {})
-        for header_name, header_value in auth_headers.items():
-            subrequest.headers[header_name] = header_value
-
-        # Set up a custom view for this subrequest that calls the tool handler
-        # We'll create a temporary view that handles the tool execution
-        subrequest._mcp_tool = tool
-        subrequest._mcp_tool_args = tool_args
-
-        # Create a simple response view for the subrequest
-        def manual_tool_view(request: Any) -> Dict[str, Any]:
-            """Internal view for manual tool execution via subrequest."""
-            import inspect
-
-            tool = request._mcp_tool
-            # Get tool args from environ if available, otherwise use stored args
-            tool_args = request.environ.get(
-                "pyramid_mcp.json_body", request._mcp_tool_args
-            )
-
-            try:
-                # Call the tool handler with appropriate signature
-                sig = inspect.signature(tool.handler)
-                if "pyramid_request" in sig.parameters:
-                    result = tool.handler(request, **tool_args)
-                else:
-                    result = tool.handler(**tool_args)
-
-                return {"mcp_result": result}
-
-            except Exception as e:
-                return {"error": {"message": str(e), "type": type(e).__name__}}
-
-        # Attach the view to the subrequest
-        subrequest.view_callable = manual_tool_view
+        # Set up request body/params based on HTTP method
+        if subrequest.method.upper() in ["POST", "PUT", "PATCH"]:
+            # Use JSON body for POST/PUT/PATCH
+            subrequest.content_type = "application/json"
+            body_data = json.dumps(tool_args).encode("utf-8")
+            subrequest.body = body_data
+        else:
+            # Use query parameters for GET/DELETE
+            if tool_args:
+                from urllib.parse import urlencode
+                # Filter out non-primitive values for query params
+                query_params = {}
+                for key, value in tool_args.items():
+                    if isinstance(value, (str, int, float, bool)):
+                        query_params[key] = str(value)
+                    elif isinstance(value, dict) and key == "querystring":
+                        # Special handling for querystring parameter
+                        query_params.update(value)
+                
+                if query_params:
+                    query_string = urlencode(query_params)
+                    if '?' in tool_url:
+                        tool_url += f"&{query_string}"
+                    else:
+                        tool_url += f"?{query_string}"
+                    # Re-create subrequest with updated URL
+                    subrequest = Request.blank(tool_url)
+                    subrequest.method = tool._internal_route_method if hasattr(tool, '_internal_route_method') and tool._internal_route_method else "GET"
+                    self._copy_request_context(pyramid_request, subrequest)
 
         return subrequest
 
@@ -800,17 +625,8 @@ class MCPProtocolHandler:
         if hasattr(pyramid_request, "registry"):
             subrequest.registry = pyramid_request.registry
 
-        # Copy security-related attributes
-        security_attrs = [
-            "unauthenticated_userid",
-            "authenticated_userid",
-            "effective_principals",
-            "identity",
-            "has_permission",
-        ]
-        for attr in security_attrs:
-            if hasattr(pyramid_request, attr):
-                setattr(subrequest, attr, getattr(pyramid_request, attr))
+        # Copy registry and security policy (let security policy compute the rest)
+        subrequest.registry = pyramid_request.registry
 
         # Copy transaction manager if available (for pyramid_tm integration)
         if hasattr(pyramid_request, "tm"):

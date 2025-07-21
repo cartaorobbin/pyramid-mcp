@@ -169,20 +169,15 @@ def test_secure_get_endpoint_requires_auth(
 
     response = app.post_json("/mcp", call_request, expect_errors=True)
 
-    # Should get an authentication error - now properly handled at validation level
+    # Should get an authentication error - handled at permission check level
     assert response.status_code == 200  # JSON-RPC always returns 200
-    assert "error" in response.json  # Authentication validation fails
+    assert "error" in response.json  # Permission check fails
 
     error = response.json["error"]
-    assert error["code"] == -32602  # INVALID_PARAMS
+    assert error["code"] == -32603  # INTERNAL_ERROR (permission denied)
 
-    # Should contain authentication validation error
-    assert (
-        "authentication" in error["message"].lower()
-        or "missing" in error["message"].lower()
-    )
-    assert error["data"]["authentication_error_type"] == "missing_credentials"
-    assert "auth_token" in error["data"]["details"]["missing_fields"]
+    # Should contain authentication/permission error
+    assert "unauthorized" in error["message"].lower()
 
 
 def test_secure_endpoints_authentication_integration(
@@ -220,15 +215,16 @@ def test_secure_endpoints_authentication_integration(
     # The tool should execute and reach the Pyramid view
     # (even though the view may still fail authorization in this test setup)
     result = response.json["result"]
-    assert "content" in result
+    assert result["type"] == "mcp/context"
+    assert "representation" in result
 
     # This proves that:
     # 1. The MCP tool was found and has proper permissions
     # 2. The auth_token was processed and removed from arguments
-    # 3. The request reached the actual Pyramid view
-    content = result["content"][0]["text"]
+    # 3. The request reached the actual Pyramid view and succeeded
+    content = result["representation"]["content"]
 
-    # Should show that we reached the view level (not MCP-level access denial)
-    assert "route" in content  # Error includes route information
-    assert "secure_users" in content  # Shows the correct route was called
-    assert "auth_token" not in content  # Auth token was properly removed from params
+    # Should show successful user creation (authentication worked)
+    assert "user" in content  # User was created successfully
+    assert "testuser" in str(content)  # Shows the correct user was created
+    assert "auth_token" not in str(content)  # Auth token was properly removed from params

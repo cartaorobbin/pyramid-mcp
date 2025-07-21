@@ -116,13 +116,17 @@ def test_tool_decorator_execution_via_mcp(unified_security_test_config):
     assert response.status_code == 200
     assert "result" in response.json
 
-    # Expect deterministic MCP response format
+    # Expect new MCP context format
     result_data = response.json["result"]
-    assert "content" in result_data
-    content_item = result_data["content"][0]
-    assert content_item["type"] == "application/json"
-    assert "data" in content_item
-    result = content_item["data"]["result"]
+    assert result_data["type"] == "mcp/context"
+    assert "representation" in result_data
+    
+    # Extract content from representation
+    representation = result_data["representation"]
+    result_content = representation["content"]
+    
+    # Extract result directly from content
+    result = str(result_content)
 
     assert "Processed: hello_world" in result
 

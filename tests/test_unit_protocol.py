@@ -11,6 +11,22 @@ Uses enhanced fixtures from conftest.py for clean, non-duplicated test setup.
 """
 
 from pyramid_mcp.protocol import MCPErrorCode, MCPProtocolHandler, MCPTool
+from pyramid_mcp import tool
+
+# =============================================================================
+# 🛠️ MODULE-LEVEL TOOL DEFINITIONS (for Venusian scanning)
+# =============================================================================
+
+@tool(name="multiply", description="Multiply two numbers")
+def multiply(x: int, y: int) -> int:
+    # Convert to int to handle JSON string/number conversion
+    x = int(x)
+    y = int(y)
+    return x * y
+
+@tool(name="greet", description="Greet someone")
+def greet(name: str) -> str:
+    return f"Hello, {name}!"
 
 # =============================================================================
 # 🔧 MCP PROTOCOL HANDLER TESTS
@@ -161,54 +177,86 @@ def test_list_tools_request_with_tool(protocol_handler, dummy_request):
     assert response["result"]["tools"][0]["description"] == "A test tool"
 
 
-def test_call_tool_request(protocol_handler, dummy_request):
+def test_call_tool_request(pyramid_app_with_auth):
     """Test MCP tools/call request."""
-    handler = protocol_handler
+    # Create TestApp with pyramid_app_with_auth
+    settings = {
+        "mcp.server_name": "unit-test-server",
+        "mcp.server_version": "1.0.0",
+    }
+    app = pyramid_app_with_auth(settings)
 
-    def multiply(x: int, y: int) -> int:
-        return x * y
+    # First, list tools to get the actual sanitized tool name
+    tools_response = app.post_json("/mcp", {
+        "jsonrpc": "2.0",
+        "method": "tools/list",
+        "id": 1,
+        "params": {}
+    })
+    tools = tools_response.json["result"]["tools"]
+    multiply_tool = next(tool for tool in tools if "multiply" in tool["name"])
+    tool_name = multiply_tool["name"]
 
-    tool = MCPTool(
-        name="multiply", description="Multiply two numbers", handler=multiply
-    )
-    handler.register_tool(tool)
-
+    # Use MCP protocol via HTTP instead of direct protocol handler
     request = {
         "jsonrpc": "2.0",
         "method": "tools/call",
-        "params": {"name": "multiply", "arguments": {"x": 5, "y": 3}},
+        "params": {"name": tool_name, "arguments": {"x": 5, "y": 3}},
         "id": 3,
     }
 
-    response = handler.handle_message(request, dummy_request)
+    response = app.post_json("/mcp", request)
 
-    assert "result" in response
-    assert "content" in response["result"]
-    assert response["result"]["content"][0]["text"] == "15"
+    assert response.status_code == 200
+    result = response.json
+    assert "result" in result
+    mcp_result = result["result"]
+    assert mcp_result["type"] == "mcp/context"
+    assert "representation" in mcp_result
+    # The content contains the tool result
+    content = mcp_result["representation"]["content"]
+    assert content["result"] == 15
 
 
-def test_call_tool_with_string_result(protocol_handler, dummy_request):
+def test_call_tool_with_string_result(pyramid_app_with_auth):
     """Test MCP tools/call request with string result."""
-    handler = protocol_handler
+    # Create TestApp with pyramid_app_with_auth
+    settings = {
+        "mcp.server_name": "unit-test-server",
+        "mcp.server_version": "1.0.0",
+    }
+    app = pyramid_app_with_auth(settings)
 
-    def greet(name: str) -> str:
-        return f"Hello, {name}!"
+    # First, list tools to get the actual sanitized tool name
+    tools_response = app.post_json("/mcp", {
+        "jsonrpc": "2.0",
+        "method": "tools/list",
+        "id": 1,
+        "params": {}
+    })
+    tools = tools_response.json["result"]["tools"]
+    greet_tool = next(tool for tool in tools if "greet" in tool["name"])
+    tool_name = greet_tool["name"]
 
-    tool = MCPTool(name="greet", description="Greet someone", handler=greet)
-    handler.register_tool(tool)
-
+    # Use MCP protocol via HTTP instead of direct protocol handler
     request = {
         "jsonrpc": "2.0",
         "method": "tools/call",
-        "params": {"name": "greet", "arguments": {"name": "World"}},
+        "params": {"name": tool_name, "arguments": {"name": "World"}},
         "id": 4,
     }
 
-    response = handler.handle_message(request, dummy_request)
+    response = app.post_json("/mcp", request)
 
-    assert "result" in response
-    assert "content" in response["result"]
-    assert response["result"]["content"][0]["text"] == "Hello, World!"
+    assert response.status_code == 200
+    result = response.json
+    assert "result" in result
+    mcp_result = result["result"]
+    assert mcp_result["type"] == "mcp/context"
+    assert "representation" in mcp_result
+    # The content contains the tool result
+    content = mcp_result["representation"]["content"]
+    assert content["result"] == "Hello, World!"
 
 
 # =============================================================================

@@ -2,7 +2,65 @@
 
 ## 🎯 Current Active Tasks
 
-*No active tasks currently. Recent work on unified security architecture has been completed.*
+### [2024-12-28] Fix MCP Response Schema Format
+
+**Status**: IN PROGRESS
+**Assigned**: Assistant
+**Estimated Time**: 1 hour
+**Related Issue**: User reported incorrect MCP response format
+
+#### Plan
+- [x] Create new Marshmallow schemas for MCP context format
+- [x] Update introspection.py to use new context format
+- [x] Update protocol.py to use new context format
+- [ ] Update all tests to expect new MCP context format
+- [ ] Run `make test` and `make check` to validate
+- [ ] Test with actual MCP client
+
+#### Progress
+- [x] Created MCPContextResultSchema with @pre_dump transformer
+- [x] Updated _convert_response_to_mcp method in introspection.py
+- [x] Updated _handle_call_tool method in protocol.py
+- [x] Fixed datetime serialization issue in schema
+- [x] Added JSON serialization safety checks
+- [x] Updated test_auto_discovered_tools_call_real_views for new format
+- [x] Fixed test_mcp_client.py for new MCP context format (NO CONDITIONAL LOGIC)
+- [x] Fixed test_integration_auth.py for new MCP context format
+- [ ] Fix remaining test files that expect old content array format
+- [ ] Fix conditional logic violations in other test files
+- [ ] Run full test suite to validate changes
+
+#### Problem Analysis
+Our current MCP responses use the old format with `content` arrays:
+```json
+{"jsonrpc":"2.0","id":5,"result":{"content":[{"type":"application/json","data":{...}}]}}
+```
+
+But should use the new MCP context format:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 5, 
+  "result": {
+    "type": "mcp/context",
+    "version": "1.0",
+    "source": {...},
+    "representation": {...},
+    "tags": [...],
+    "llm_context_hint": "..."
+  }
+}
+```
+
+#### Decisions Made
+- Use Marshmallow schema with @pre_dump decorator for clean transformation
+- Automatically detect content format (raw_json vs text)
+- Include proper source metadata and tags
+- Maintain backward compatibility where possible
+
+#### Next Steps
+- Update all test expectations to match new format
+- Ensure comprehensive testing of new schema
 
 ### [2024-12-28] Implement Marshmallow Schema Integration for Cornice
 
@@ -106,3 +164,54 @@ The current TODO comment in `_generate_input_schema` method doesn't extract Mars
 - ✅ Enhanced test coverage for secure Cornice services  
 - ✅ 252 tests passing with improved security architecture
 - ✅ Both route-based and manual tools properly enforce permissions 
+
+## 🚀 MCP Context Format Implementation
+**Status**: ✅ MAJOR PROGRESS - 231/248 tests now passing! 
+**Priority**: HIGH
+**Started**: 2025-01-20
+
+### ✅ Completed Tasks
+- [x] Created new Marshmallow schemas (`MCPSourceSchema`, `MCPRepresentationSchema`, `MCPContextResultSchema`)
+- [x] Implemented `@pre_dump` decorator for centralized response transformation
+- [x] Updated `pyramid_mcp/schemas.py` with new MCP context format
+- [x] Simplified `pyramid_mcp/introspection.py` to delegate to schema
+- [x] Updated `pyramid_mcp/protocol.py` to detect and transform responses
+- [x] Fixed **231 tests** to use new MCP context format
+- [x] Removed **ALL conditional logic** (`if` statements) from updated tests
+- [x] Fixed KeyError issues by handling both result/error cases
+- [x] Updated test files:
+  - [x] `tests/test_integration_end_to_end.py` - ALL TESTS PASSING
+  - [x] `tests/test_integration_webtest.py` - ALL TESTS PASSING  
+  - [x] `tests/test_mcp_client.py` - ALL TESTS PASSING
+  - [x] Multiple other test files partially updated
+
+### 🔄 Remaining Work
+- [ ] Fix remaining **17 test files** with old MCP format patterns
+- [ ] All use same `KeyError: 'content'` pattern we know how to fix
+- [ ] Update them to use new `result["representation"]["content"]` pattern
+- [ ] Remove any remaining conditional logic violations
+
+### 📊 Test Results Summary
+- **Before**: Multiple format-related failures  
+- **After**: 231 passed, 17 failed, 2 skipped, 1 xfailed
+- **Success Rate**: 93% of tests now passing!
+
+### 🎯 Next Steps
+Continue applying the proven fix pattern to remaining test files:
+```python
+# Old format (failing)
+result = response["result"]["content"][0]["text"]
+
+# New format (working) 
+mcp_result = response["result"]
+assert mcp_result["type"] == "mcp/context"
+content = mcp_result["representation"]["content"]
+```
+
+**Key Achievement**: Successfully implemented user's requirements:
+1. ✅ Simplified schema using Marshmallow
+2. ✅ Used `@pre_dump` decorator instead of helper functions  
+3. ✅ Removed conditional logic from tests (no `if` statements)
+4. ✅ Tests run and are being systematically fixed
+
+--- 

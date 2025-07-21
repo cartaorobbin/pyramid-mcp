@@ -591,6 +591,12 @@ class PyramidIntrospector:
                 permission=permission,
                 security=security,
             )
+            
+            # Store original route pattern and method for route-based tools
+            route_pattern = route_info.get("pattern", "")
+            if route_pattern:
+                tool._internal_route_path = route_pattern
+                tool._internal_route_method = method.upper()
 
             tools.append(tool)
 
@@ -920,7 +926,6 @@ class PyramidIntrospector:
                 f"({method} {route_pattern})"
             )
             logger.debug(f"🚀 Tool arguments: {kwargs}")
-
             try:
                 # Create subrequest to call the actual route
                 logger.debug(f"🔧 Creating subrequest for {route_name}...")
@@ -1172,6 +1177,11 @@ class PyramidIntrospector:
         for header_name, header_value in auth_headers.items():
             subrequest.headers[header_name] = header_value
             logger.debug(f"🔐 Added auth header: {header_name}")
+        
+        # 🔑 CRITICAL: Transfer mcp_auth_headers attribute to subrequest
+        # This is required for the security policy to find authentication in subrequests
+        subrequest.mcp_auth_headers = auth_headers
+        logger.debug(f"🔐 Transferred mcp_auth_headers to subrequest: {list(auth_headers.keys())}")
 
         # 🐛 DEBUG: Log final subrequest details
         logger.debug("🔧 Final subrequest details:")
@@ -1274,141 +1284,17 @@ class PyramidIntrospector:
             view_info: Optional view information for content type detection
 
         Returns:
-            MCP-compatible response
+            MCP-compatible response in new context format
         """
-        import json
+        from pyramid_mcp.schemas import MCPContextResultSchema
 
-        from pyramid.response import Response
+        # Create MCP context using the schema - all response parsing logic 
+        # is handled in the schema's @pre_dump method
+        schema = MCPContextResultSchema()
+        
+        # If we have view_info, pass it along for better source naming
+        return schema.dump({"response": response, "view_info": view_info})  # type: ignore[return-value]
 
-        # Helper function to check if we should return structured JSON
-        def should_return_structured_json(
-            response_data: Any, content_type: Optional[str] = None
-        ) -> bool:
-            """Determine if response should be returned as structured JSON."""
-            # Check if response is a dictionary (likely JSON)
-            if isinstance(response_data, dict):
-                return True
-
-            # Check if content type indicates JSON
-            if content_type and "application/json" in content_type.lower():
-                return True
-
-            # Check view info for JSON renderer or content type
-            if view_info and isinstance(view_info, dict):
-                # Check cornice metadata for JSON content type
-                cornice_metadata = view_info.get("cornice_metadata", {})
-                if cornice_metadata.get("content_type") == "application/json":
-                    return True
-
-                # Check method-specific metadata
-                method_specific = cornice_metadata.get("method_specific", {})
-                for method_data in method_specific.values():
-                    if method_data.get("content_type") == "application/json":
-                        return True
-                    if method_data.get("renderer") == "json":
-                        return True
-
-                # Check renderer information
-                renderer = view_info.get("renderer", {})
-                if isinstance(renderer, dict) and renderer.get("type") == "json":
-                    return True
-
-            return False
-
-        # Handle different response types
-        if isinstance(response, dict):
-            # Direct dictionary response (most common for JSON APIs)
-            if should_return_structured_json(response):
-                return {"content": [{"type": "application/json", "data": response}]}
-            else:
-                return {
-                    "content": [
-                        {"type": "text", "text": json.dumps(response, indent=2)}
-                    ]
-                }
-        elif isinstance(response, str):
-            # String response
-            return {"content": [{"type": "text", "text": response}]}
-        elif isinstance(response, Response):
-            # Pyramid Response object
-            try:
-                # Get the content type from the response
-                content_type = (
-                    response.content_type if hasattr(response, "content_type") else None
-                )
-
-                # Get the body content
-                if hasattr(response, "text"):
-                    content = response.text
-                elif hasattr(response, "body"):
-                    body = response.body
-                    if isinstance(body, bytes):
-                        content = body.decode("utf-8")
-                    else:
-                        content = str(body)
-                else:
-                    content = str(response)
-
-                # Try to parse as JSON
-                try:
-                    parsed = json.loads(content)
-                    # Check if we should return structured JSON
-                    if should_return_structured_json(parsed, content_type):
-                        return {
-                            "content": [{"type": "application/json", "data": parsed}]
-                        }
-                    else:
-                        return {
-                            "content": [
-                                {"type": "text", "text": json.dumps(parsed, indent=2)}
-                            ]
-                        }
-                except json.JSONDecodeError:
-                    return {"content": [{"type": "text", "text": str(content)}]}
-
-            except Exception:
-                return {"content": [{"type": "text", "text": str(response)}]}
-        elif hasattr(response, "json") and callable(response.json):
-            # Response object with json() method
-            try:
-                parsed_json = response.json()
-                # Check if we should return structured JSON
-                if should_return_structured_json(parsed_json):
-                    return {
-                        "content": [{"type": "application/json", "data": parsed_json}]
-                    }
-                else:
-                    json_data = json.dumps(parsed_json, indent=2)
-                    return {"content": [{"type": "text", "text": json_data}]}
-            except Exception:
-                return {"content": [{"type": "text", "text": str(response)}]}
-        elif hasattr(response, "text"):
-            # Response object with text attribute
-            return {"content": [{"type": "text", "text": str(response.text)}]}
-        elif hasattr(response, "body"):
-            # Response object with body attribute
-            try:
-                body = response.body
-                if isinstance(body, bytes):
-                    body = body.decode("utf-8")
-                # Try to parse as JSON for content type detection
-                try:
-                    parsed = json.loads(body)
-                    # Check if we should return structured JSON
-                    if should_return_structured_json(parsed):
-                        return {
-                            "content": [{"type": "application/json", "data": parsed}]
-                        }
-                    else:
-                        json_data = json.dumps(parsed, indent=2)
-                        return {"content": [{"type": "text", "text": json_data}]}
-                except json.JSONDecodeError:
-                    return {"content": [{"type": "text", "text": str(body)}]}
-            except Exception:
-                return {"content": [{"type": "text", "text": str(response)}]}
-        else:
-            # Fallback to string representation
-            return {"content": [{"type": "text", "text": str(response)}]}
 
     def _normalize_path_pattern(self, pattern: str) -> str:
         """Normalize path pattern for matching.

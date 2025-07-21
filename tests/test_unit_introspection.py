@@ -420,8 +420,9 @@ def test_tool_handler_creation(test_pyramid_request):
     handler1 = introspector._create_route_handler(route_info, view_info, "GET")
     result1 = handler1(test_pyramid_request)
     assert isinstance(result1, dict)  # Should return MCP response format
-    assert "content" in result1  # Should have content key
-    assert isinstance(result1["content"], list)  # Content should be a list
+    assert result1["type"] == "mcp/context"  # Should have correct type
+    assert "representation" in result1  # Should have representation key
+    assert "content" in result1["representation"]  # Content should be in representation
 
     # Test JSON handler creation
     handler2 = introspector._create_route_handler(route_info2, view_info2, "POST")
@@ -446,10 +447,11 @@ def test_tool_handler_with_parameters(test_pyramid_request):
     # Test handler with parameters
     result = handler(test_pyramid_request, id="123")
     assert isinstance(result, dict)  # Should return MCP response format
-    assert "content" in result  # Should have content key
+    assert result["type"] == "mcp/context"  # Should have correct type
+    assert "representation" in result  # Should have representation key
     # Check that the parameter value is in the response content
-    content_text = result["content"][0]["text"]
-    assert "123" in content_text  # Should contain the parameter value
+    content_text = result["representation"]["content"]
+    assert "123" in str(content_text)  # Should contain the parameter value
 
 
 # =============================================================================

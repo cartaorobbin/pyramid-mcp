@@ -143,9 +143,14 @@ def test_mcp_call_with_actual_querystring_values(cornice_querystring_issue_app):
     # Debug: Print the actual response structure
     print("MCP Response:", response.json["result"])
 
-    # Parse the response to verify the actual querystring values were used
-    result_content = response.json["result"]["content"][0]
-    print("Content structure:", result_content)
+    # Parse the response to verify the actual querystring values were used in new MCP context format
+    mcp_result = response.json["result"]
+    assert mcp_result["type"] == "mcp/context"
+    assert "representation" in mcp_result
+    
+    # Extract content from representation
+    result_content = mcp_result["representation"]["content"]
+    print("MCP Response:", mcp_result)
 
     # The response should contain the actual values we sent, not the defaults
     # This will show us what the actual auto-generated tool returns

@@ -279,14 +279,13 @@ def test_mcp_tools_security_integration_FIXED(pyramid_app_with_auth):
     assert response.status_code == 200
     # ✅ FIXED: Tools with permission now properly deny anonymous access
 
-    # Check for error in the MCP response format
-    result = response.json["result"]["content"][0]["text"]
-    error_msg = result.lower()
-    assert "error" in error_msg and (
-        "unauthorized" in error_msg
-        or "access denied" in error_msg
-        or "permission" in error_msg
-    )
+    # Check for error response (security denied the request)
+    assert "error" in response.json
+    error = response.json["error"]
+    error_msg = error["message"].lower()
+    
+    # Check for authorization error (specific expected message)
+    assert "unauthorized" in error_msg
 
     # ✅ SUCCESS: Security is working properly!
     # Anonymous users are properly denied access to permission-required tools
@@ -449,14 +448,13 @@ def test_mcp_tools_permission_parameter_limitation(pyramid_app_with_auth):
     response = app.post_json("/mcp", call_request)
     assert response.status_code == 200
 
-    # Check for error in the MCP response format
-    result = response.json["result"]["content"][0]["text"]
-    error_msg = result.lower()
-    assert "error" in error_msg and (
-        "unauthorized" in error_msg
-        or "access denied" in error_msg
-        or "permission" in error_msg
-    )
+    # Check for error response (security denied the request)
+    assert "error" in response.json
+    error = response.json["error"]
+    error_msg = error["message"].lower()
+    
+    # Check for authorization error (specific expected message)
+    assert "unauthorized" in error_msg
 
 
 if __name__ == "__main__":

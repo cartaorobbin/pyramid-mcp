@@ -140,7 +140,7 @@ class PyramidMCP:
 
                 # Register discovered tools
                 for tool in tools:
-                    self.protocol_handler.register_tool(tool)
+                    self.protocol_handler.register_tool(tool, self.config)
 
         elif self.wsgi_app:
             # For WSGI apps, we need a different approach
