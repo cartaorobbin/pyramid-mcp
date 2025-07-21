@@ -9,7 +9,7 @@ of HTTP requests with path parameters, query parameters, request body, and heade
 from typing import Any, Dict
 
 import marshmallow.fields as fields
-from marshmallow import Schema, missing, pre_dump
+from marshmallow import Schema, missing, pre_dump, validate
 
 
 class PathParameterSchema(Schema):
@@ -424,6 +424,15 @@ class MCPContextResultSchema(Schema):
 # 🔧 MCP PROTOCOL SCHEMAS
 # =============================================================================
 # Core MCP protocol schemas for JSON-RPC messages
+
+
+class MCPRequestSchema(Schema):
+    """Schema for MCP JSON-RPC request validation and serialization."""
+
+    jsonrpc = fields.Str(validate=validate.Equal("2.0"), missing="2.0")
+    method = fields.Str(required=True)
+    params = fields.Dict(allow_none=True, missing=None)
+    id = fields.Raw(allow_none=True, missing=None)
 
 
 class MCPErrorSchema(Schema):

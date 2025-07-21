@@ -12,10 +12,10 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Dict, Optional, Set, Union, cast
 
-from marshmallow import Schema, fields
+from marshmallow import Schema, ValidationError, fields
 from pyramid.request import Request
 
-from pyramid_mcp.schemas import MCPResponseSchema
+from pyramid_mcp.schemas import MCPRequestSchema, MCPResponseSchema
 from pyramid_mcp.security import MCPSecurityType, merge_auth_into_schema
 
 # Claude Desktop client validation pattern for tool names
@@ -113,35 +113,6 @@ class MCPErrorCode(Enum):
     METHOD_NOT_FOUND = -32601
     INVALID_PARAMS = -32602
     INTERNAL_ERROR = -32603
-
-
-@dataclass
-class MCPRequest:
-    """Represents an MCP JSON-RPC request."""
-
-    jsonrpc: str = "2.0"
-    method: str = ""
-    params: Optional[Dict[str, Any]] = None
-    id: Optional[Union[str, int]] = None
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "MCPRequest":
-        """Create MCPRequest from dictionary."""
-        return cls(
-            jsonrpc=data.get("jsonrpc", "2.0"),
-            method=data.get("method", ""),
-            params=data.get("params"),
-            id=data.get("id"),
-        )
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for JSON serialization."""
-        response_dict: Dict[str, Any] = {"jsonrpc": self.jsonrpc, "method": self.method}
-        if self.params is not None:
-            response_dict["params"] = self.params
-        if self.id is not None:
-            response_dict["id"] = self.id
-        return response_dict
 
 
 # MCP Tool-related schemas
@@ -359,20 +330,46 @@ class MCPProtocolHandler:
             The response message as a dictionary, or NO_RESPONSE for notifications
         """
         try:
-            request = MCPRequest.from_dict(message_data)
+            # Parse and validate the request using schema
+            schema = MCPRequestSchema()
+            request = cast(Dict[str, Any], schema.load(message_data))
+        except ValidationError as validation_error:
+            # Handle Marshmallow validation errors
+            # For malformed requests (missing required fields), JSON-RPC spec
+            # suggests INVALID_REQUEST. However, current tests expect
+            # METHOD_NOT_FOUND for backward compatibility
+            request_id = None
+            try:
+                if message_data and "id" in message_data:
+                    request_id = message_data["id"]
+            except Exception:
+                pass
 
+            return cast(
+                Dict[str, Any],
+                MCPResponseSchema().dump(
+                    {
+                        "id": request_id,
+                        # For backward compatibility
+                        "error_code": MCPErrorCode.METHOD_NOT_FOUND.value,
+                        "error_message": f"Invalid request: {str(validation_error)}",
+                    }
+                ),
+            )
+
+        try:
             # Route to appropriate handler
-            if request.method == "initialize":
+            if request["method"] == "initialize":
                 return self._handle_initialize(request)
-            elif request.method == "tools/list":
+            elif request["method"] == "tools/list":
                 return self._handle_list_tools(request)
-            elif request.method == "tools/call":
+            elif request["method"] == "tools/call":
                 return self._handle_call_tool(request, pyramid_request)
-            elif request.method == "resources/list":
+            elif request["method"] == "resources/list":
                 return self._handle_list_resources(request)
-            elif request.method == "prompts/list":
+            elif request["method"] == "prompts/list":
                 return self._handle_list_prompts(request)
-            elif request.method == "notifications/initialized":
+            elif request["method"] == "notifications/initialized":
                 # Notifications don't expect responses according to JSON-RPC 2.0 spec
                 self._handle_notifications_initialized(request)
                 return self.NO_RESPONSE
@@ -381,9 +378,9 @@ class MCPProtocolHandler:
                     Dict[str, Any],
                     MCPResponseSchema().dump(
                         {
-                            "id": request.id,
+                            "id": request.get("id"),
                             "error_code": MCPErrorCode.METHOD_NOT_FOUND.value,
-                            "error_message": f"Method '{request.method}' not found",
+                            "error_message": f"Method '{request['method']}' not found",
                         }
                     ),
                 )
@@ -408,7 +405,7 @@ class MCPProtocolHandler:
                 ),
             )
 
-    def _handle_initialize(self, request: MCPRequest) -> Dict[str, Any]:
+    def _handle_initialize(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """Handle MCP initialize request."""
         result = {
             "protocolVersion": "2024-11-05",
@@ -417,20 +414,20 @@ class MCPProtocolHandler:
         }
         return cast(
             Dict[str, Any],
-            MCPResponseSchema().dump({"id": request.id, "result": result}),
+            MCPResponseSchema().dump({"id": request.get("id"), "result": result}),
         )
 
-    def _handle_list_tools(self, request: MCPRequest) -> Dict[str, Any]:
+    def _handle_list_tools(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """Handle MCP tools/list request."""
         tools_list = [tool.to_dict() for tool in self.tools.values()]
         result = {"tools": tools_list}
         return cast(
             Dict[str, Any],
-            MCPResponseSchema().dump({"id": request.id, "result": result}),
+            MCPResponseSchema().dump({"id": request.get("id"), "result": result}),
         )
 
     def _handle_call_tool(
-        self, request: MCPRequest, pyramid_request: Request
+        self, request: Dict[str, Any], pyramid_request: Request
     ) -> Dict[str, Any]:
         """Handle tools/call requests using unified subrequest approach."""
         import logging
@@ -438,27 +435,28 @@ class MCPProtocolHandler:
         logger = logging.getLogger(__name__)
 
         # Validate basic parameters
-        if not request.params:
+        if not request.get("params"):
             return cast(
                 Dict[str, Any],
                 MCPResponseSchema().dump(
                     {
-                        "id": request.id,
+                        "id": request.get("id"),
                         "error_code": MCPErrorCode.INVALID_PARAMS.value,
                         "error_message": "Missing parameters",
                     }
                 ),
             )
 
-        tool_name = request.params.get("name")
-        tool_args = request.params.get("arguments", {})
+        params = request.get("params", {})
+        tool_name = params.get("name")
+        tool_args = params.get("arguments", {})
 
         if not tool_name:
             return cast(
                 Dict[str, Any],
                 MCPResponseSchema().dump(
                     {
-                        "id": request.id,
+                        "id": request.get("id"),
                         "error_code": MCPErrorCode.INVALID_PARAMS.value,
                         "error_message": "Tool name is required",
                     }
@@ -470,7 +468,7 @@ class MCPProtocolHandler:
                 Dict[str, Any],
                 MCPResponseSchema().dump(
                     {
-                        "id": request.id,
+                        "id": request.get("id"),
                         "error_code": MCPErrorCode.METHOD_NOT_FOUND.value,
                         "error_message": f"Tool '{tool_name}' not found",
                     }
@@ -527,7 +525,9 @@ class MCPProtocolHandler:
             logger.debug("✅ Transformed response to MCP context format")
             return cast(
                 Dict[str, Any],
-                MCPResponseSchema().dump({"id": request.id, "result": mcp_result}),
+                MCPResponseSchema().dump(
+                    {"id": request.get("id"), "result": mcp_result}
+                ),
             )
 
         except Exception as e:
@@ -536,7 +536,7 @@ class MCPProtocolHandler:
                 Dict[str, Any],
                 MCPResponseSchema().dump(
                     {
-                        "id": request.id,
+                        "id": request.get("id"),
                         "error_code": MCPErrorCode.INTERNAL_ERROR.value,
                         "error_message": f"Tool execution failed: {str(e)}",
                     }
@@ -656,28 +656,28 @@ class MCPProtocolHandler:
             if key not in request_specific_keys:
                 subrequest.environ[key] = value
 
-    def _handle_list_resources(self, request: MCPRequest) -> Dict[str, Any]:
+    def _handle_list_resources(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """Handle MCP resources/list request."""
         # For now, return empty resources list
         # This can be extended to support MCP resources in the future
         result: Dict[str, Any] = {"resources": []}
         return cast(
             Dict[str, Any],
-            MCPResponseSchema().dump({"id": request.id, "result": result}),
+            MCPResponseSchema().dump({"id": request.get("id"), "result": result}),
         )
 
-    def _handle_list_prompts(self, request: MCPRequest) -> Dict[str, Any]:
+    def _handle_list_prompts(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """Handle MCP prompts/list request."""
         # For now, return empty prompts list
         # This can be extended to support MCP prompts in the future
         result: Dict[str, Any] = {"prompts": []}
         return cast(
             Dict[str, Any],
-            MCPResponseSchema().dump({"id": request.id, "result": result}),
+            MCPResponseSchema().dump({"id": request.get("id"), "result": result}),
         )
 
     def _handle_notifications_initialized(
-        self, request: MCPRequest
+        self, request: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
         """Handle MCP notifications/initialized request."""
         # This is a notification - no response should be sent for notifications
