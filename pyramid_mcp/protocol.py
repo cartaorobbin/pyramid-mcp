@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Dict, Optional, Set, Union, cast
 
-from marshmallow import Schema, ValidationError, fields
+from marshmallow import ValidationError, fields
 from pyramid.request import Request
 
 from pyramid_mcp.schemas import MCPRequestSchema, MCPResponseSchema
@@ -113,47 +113,6 @@ class MCPErrorCode(Enum):
     METHOD_NOT_FOUND = -32601
     INVALID_PARAMS = -32602
     INTERNAL_ERROR = -32603
-
-
-# MCP Tool-related schemas
-class MCPToolInputSchema(Schema):
-    """Schema for MCP tool input parameter."""
-
-    type = fields.Str(required=True)
-    description = fields.Str(allow_none=True)
-    properties = fields.Dict(allow_none=True)
-    required = fields.List(fields.Str(), allow_none=True)
-
-
-class MCPToolSchema(Schema):
-    """Schema for MCP tool definition."""
-
-    name = fields.Str(required=True)
-    description = fields.Str(allow_none=True)
-    inputSchema = fields.Nested(MCPToolInputSchema, allow_none=True)
-
-
-class MCPCapabilitiesSchema(Schema):
-    """Schema for MCP server capabilities."""
-
-    tools = fields.Dict(allow_none=True)
-    resources = fields.Dict(allow_none=True)
-    prompts = fields.Dict(allow_none=True)
-
-
-class MCPServerInfoSchema(Schema):
-    """Schema for MCP server information."""
-
-    name = fields.Str(required=True)
-    version = fields.Str(required=True)
-
-
-class MCPInitializeResultSchema(Schema):
-    """Schema for MCP initialize response."""
-
-    protocolVersion = fields.Str(required=True)
-    capabilities = fields.Nested(MCPCapabilitiesSchema, required=True)
-    serverInfo = fields.Nested(MCPServerInfoSchema, required=True)
 
 
 @dataclass
