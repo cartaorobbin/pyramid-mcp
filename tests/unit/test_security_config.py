@@ -1,10 +1,23 @@
-"""Test configurable security parameter feature."""
+"""
+Unit tests for pyramid_mcp configurable security parameter functionality.
 
-from pyramid.config import Configurator
+This module tests:
+- Configurable security parameter in MCPConfiguration
+- Security parameter extraction from settings
+- Introspector security parameter usage
+- Security type conversion with custom parameters
 
-from pyramid_mcp import MCPConfiguration
-from pyramid_mcp.core import PyramidMCP
+No tool definitions to avoid configuration conflicts.
+"""
+
+from pyramid_mcp.core import MCPConfiguration
 from pyramid_mcp.introspection import PyramidIntrospector
+from pyramid_mcp import PyramidMCP
+
+
+# =============================================================================
+# 🔐 CONFIGURABLE SECURITY PARAMETER TESTS
+# =============================================================================
 
 
 def test_default_security_parameter():
@@ -90,11 +103,10 @@ def test_convert_security_type_basic_variations():
 
 
 def test_convert_security_type_unknown():
-    """Test conversion of unknown security types."""
+    """Test conversion of unknown security types returns None."""
     introspector = PyramidIntrospector()
 
-    # Test unknown security type
-    result = introspector._convert_security_type_to_schema("unknown_auth")
+    result = introspector._convert_security_type_to_schema("unknown_auth_type")
     assert result is None
 
 
@@ -125,8 +137,7 @@ def test_end_to_end_with_custom_security_parameter():
 
 
 def test_mcp_security_parameter_backward_compatibility():
-    """Test that existing mcp_security parameter still works (backward
-    compatibility)."""
+    """Test that existing mcp_security parameter still works (backward compatibility)."""
 
     # Test that default configuration uses mcp_security
     config = MCPConfiguration()
@@ -167,6 +178,7 @@ def test_multiple_views_with_different_security_parameters():
 def test_plugin_includeme_with_custom_security_parameter():
     """Test that includeme works with custom security parameter setting."""
     from pyramid_mcp import includeme
+    from pyramid.config import Configurator
 
     # Create configurator with custom security parameter
     config = Configurator(
@@ -235,4 +247,4 @@ def test_special_characters_in_security_parameter():
     }
 
     config = _extract_mcp_config_from_settings(settings)
-    assert config.security_parameter == "custom_security_param_123"
+    assert config.security_parameter == "custom_security_param_123" 

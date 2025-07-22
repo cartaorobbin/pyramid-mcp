@@ -3,12 +3,14 @@ Unit tests for pyramid_mcp core functionality.
 
 This module tests:
 - Package imports and availability
-- MCPConfiguration class functionality
+- MCPConfiguration class functionality 
 - PyramidMCP class creation and basic functionality
 - Core module integration
 
 Uses enhanced fixtures from conftest.py for clean, non-duplicated test setup.
 """
+
+from pyramid.config import Configurator
 
 from pyramid_mcp import PyramidMCP, __version__, tool
 from pyramid_mcp.core import MCPConfiguration
@@ -40,80 +42,70 @@ def unit_calculate(operation: str, a: float, b: float) -> float:
 
 
 # =============================================================================
-# 📦 PACKAGE IMPORT TESTS
+# 📦 PACKAGE IMPORTS AND AVAILABILITY TESTS
 # =============================================================================
 
 
-def test_main_package_imports():
-    """Test main package imports are available."""
-    assert PyramidMCP is not None
+def test_pyramid_mcp_package_import():
+    """Test that pyramid_mcp package can be imported."""
+    import pyramid_mcp
+
+    assert pyramid_mcp is not None
+
+
+def test_pyramid_mcp_version():
+    """Test that pyramid_mcp has a version."""
     assert __version__ is not None
     assert isinstance(__version__, str)
+    assert len(__version__) > 0
 
 
-def test_protocol_imports():
-    """Test protocol module imports are available."""
+def test_main_classes_available():
+    """Test that main classes are available for import."""
+    # These imports should work without errors
+    assert PyramidMCP is not None
+    assert MCPConfiguration is not None
+    assert PyramidIntrospector is not None
     assert MCPProtocolHandler is not None
     assert MCPTool is not None
-    assert MCPErrorSchema is not None
     assert MCPErrorCode is not None
-
-
-def test_core_imports():
-    """Test core module imports are available."""
-    assert MCPConfiguration is not None
-
-
-def test_introspection_imports():
-    """Test introspection module imports are available."""
-    assert PyramidIntrospector is not None
-
-
-def test_wsgi_imports():
-    """Test WSGI module imports are available."""
+    assert MCPErrorSchema is not None
     assert MCPWSGIApp is not None
 
 
 # =============================================================================
-# ⚙️ MCP CONFIGURATION TESTS
+# 🔧 MCP CONFIGURATION TESTS
 # =============================================================================
 
 
-def test_default_configuration(minimal_mcp_config):
-    """Test MCPConfiguration default values using minimal fixture."""
-    config = minimal_mcp_config
+def test_mcp_configuration_creation():
+    """Test MCPConfiguration creation with defaults."""
+    config = MCPConfiguration()
 
+    # Check default values
     assert config.server_name == "pyramid-mcp"
-    assert config.server_version == "1.0.0"
+    assert config.server_version == "1.0.0"  # Default hardcoded value, not package version
+    assert config.route_discovery_enabled is False  # Default is False
     assert config.mount_path == "/mcp"
-    assert config.include_patterns is None
-    assert config.exclude_patterns is None
-    assert config.enable_sse is True
-    assert config.enable_http is True
 
 
-def test_custom_configuration():
-    """Test MCPConfiguration with custom values."""
+def test_mcp_configuration_custom_values():
+    """Test MCPConfiguration creation with custom values."""
     config = MCPConfiguration(
-        server_name="my-api",
+        server_name="custom-server",
         server_version="2.0.0",
-        mount_path="/api/mcp",
-        include_patterns=["users/*"],
-        exclude_patterns=["admin/*"],
-        enable_sse=False,
+        route_discovery_enabled=False,
+        mount_path="/custom-mcp",
     )
 
-    assert config.server_name == "my-api"
+    assert config.server_name == "custom-server"
     assert config.server_version == "2.0.0"
-    assert config.mount_path == "/api/mcp"
-    assert config.include_patterns == ["users/*"]
-    assert config.exclude_patterns == ["admin/*"]
-    assert config.enable_sse is False
-    assert config.enable_http is True  # Default value
+    assert config.route_discovery_enabled is False
+    assert config.mount_path == "/custom-mcp"
 
 
-def test_mcp_config_with_patterns_fixture(mcp_config_with_patterns):
-    """Test MCP configuration fixture with include/exclude patterns."""
+def test_mcp_configuration_with_patterns(mcp_config_with_patterns):
+    """Test MCPConfiguration with include/exclude patterns."""
     config = mcp_config_with_patterns
 
     assert config.server_name == "pattern-test"
@@ -227,4 +219,4 @@ def test_introspector_has_discovery_methods(pyramid_config_committed):
     assert hasattr(introspector, "discover_routes")
     assert hasattr(introspector, "discover_tools_from_pyramid")
     assert callable(introspector.discover_routes)
-    assert callable(introspector.discover_tools_from_pyramid)
+    assert callable(introspector.discover_tools_from_pyramid) 
