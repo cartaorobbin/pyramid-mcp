@@ -3,12 +3,10 @@ Unit tests for pyramid_mcp MCP protocol functionality.
 
 This module tests:
 - MCPProtocolHandler creation and basic functionality
-- MCP tool registration and management  
+- MCP tool registration and management
 - MCP JSON-RPC request/response handling
 - MCP error handling and edge cases
 - Tool name validation and sanitization for Claude Desktop compatibility
-
-Uses enhanced fixtures from conftest.py for clean, non-duplicated test setup.
 """
 
 from pyramid_mcp import tool
@@ -364,7 +362,9 @@ def test_handle_notifications_initialized(protocol_handler, test_pyramid_request
     assert response is handler.NO_RESPONSE
 
 
-def test_handle_notifications_initialized_with_id(protocol_handler, test_pyramid_request):
+def test_handle_notifications_initialized_with_id(
+    protocol_handler, test_pyramid_request
+):
     """Test that notifications with IDs still return NO_RESPONSE."""
     handler = protocol_handler
 
@@ -383,7 +383,6 @@ def test_handle_notifications_initialized_with_id(protocol_handler, test_pyramid
 
 def test_tool_to_dict_always_includes_input_schema(protocol_handler):
     """Test that tool.to_dict() always includes inputSchema."""
-    handler = protocol_handler
 
     # Test tool with no explicit input schema
     def simple_tool() -> str:
@@ -420,9 +419,9 @@ def test_tools_list_all_have_input_schema(protocol_handler, test_pyramid_request
     tools = response["result"]["tools"]
 
     # All tools should have inputSchema
-    for tool in tools:
-        assert "inputSchema" in tool
-        assert isinstance(tool["inputSchema"], dict)
+    for tool_dict in tools:
+        assert "inputSchema" in tool_dict
+        assert isinstance(tool_dict["inputSchema"], dict)
 
 
 # =============================================================================
@@ -509,7 +508,7 @@ def test_sanitize_valid_names_unchanged():
     """Test that valid names are not changed."""
     valid_names = [
         "simple_tool",
-        "tool123", 
+        "tool123",
         "my-tool",
         "CamelCaseTool",
         "x",
@@ -538,7 +537,9 @@ def test_sanitize_invalid_characters():
 
     for original, expected in test_cases:
         sanitized = sanitize_tool_name(original)
-        assert sanitized == expected, f"'{original}' sanitized to '{sanitized}', expected '{expected}'"
+        assert (
+            sanitized == expected
+        ), f"'{original}' sanitized to '{sanitized}', expected '{expected}'"
 
 
 def test_sanitize_empty_string():
@@ -557,7 +558,9 @@ def test_sanitize_numeric_start():
 
     for original, expected in test_cases:
         sanitized = sanitize_tool_name(original)
-        assert sanitized == expected, f"'{original}' sanitized to '{sanitized}', expected '{expected}'"
+        assert (
+            sanitized == expected
+        ), f"'{original}' sanitized to '{sanitized}', expected '{expected}'"
 
 
 def test_sanitize_too_long():
@@ -565,7 +568,7 @@ def test_sanitize_too_long():
     # Create a name that's too long
     long_name = "a" * 70
     sanitized = sanitize_tool_name(long_name)
-    
+
     # Should be 64 characters or less
     assert len(sanitized) <= 64
     assert validate_tool_name(sanitized)
@@ -574,7 +577,7 @@ def test_sanitize_too_long():
 def test_sanitize_collision_prevention():
     """Test that sanitization prevents name collisions."""
     used_names = {"tool_name"}
-    
+
     # This should get a different name due to collision
     sanitized = sanitize_tool_name("tool.name", used_names)
     assert sanitized != "tool_name"
@@ -586,8 +589,12 @@ def test_sanitize_multiple_collisions():
     """Test handling multiple collisions."""
     # Start with a base name that will collide
     base_name = "tool"
-    used_names = {"tool", "tool_1234567", "tool_1234567_000"}  # Force multiple collisions
-    
+    used_names = {
+        "tool",
+        "tool_1234567",
+        "tool_1234567_000",
+    }  # Force multiple collisions
+
     sanitized = sanitize_tool_name(base_name, used_names)
     assert sanitized not in used_names
     assert validate_tool_name(sanitized)
@@ -597,15 +604,17 @@ def test_sanitize_edge_cases():
     """Test edge cases in sanitization."""
     edge_cases = [
         ("@@@", "___"),  # All invalid chars -> underscores
-        ("   ", "___"),  # All spaces -> underscores  
+        ("   ", "___"),  # All spaces -> underscores
         ("123", "tool_123"),  # All numbers
         ("_underscore", "_underscore"),  # Valid, should be unchanged
         ("-dash", "-dash"),  # Valid, should be unchanged
     ]
-    
+
     for original, expected in edge_cases:
         sanitized = sanitize_tool_name(original)
-        assert sanitized == expected, f"'{original}' sanitized to '{sanitized}', expected '{expected}'"
+        assert (
+            sanitized == expected
+        ), f"'{original}' sanitized to '{sanitized}', expected '{expected}'"
         assert validate_tool_name(sanitized)
 
 
@@ -617,13 +626,13 @@ def test_sanitize_edge_cases():
 def test_register_tool_with_valid_name():
     """Test registering a tool with a valid name."""
     handler = MCPProtocolHandler("test", "1.0")
-    
+
     def test_func():
         return "test"
-    
+
     tool = MCPTool(name="valid_tool_name", handler=test_func)
     handler.register_tool(tool)
-    
+
     assert "valid_tool_name" in handler.tools
     assert handler.tools["valid_tool_name"].name == "valid_tool_name"
 
@@ -631,14 +640,14 @@ def test_register_tool_with_valid_name():
 def test_register_tool_with_invalid_name():
     """Test that registering a tool with invalid name sanitizes it."""
     handler = MCPProtocolHandler("test", "1.0")
-    
+
     def test_func():
         return "test"
-    
+
     # Tool with invalid name
     tool = MCPTool(name="invalid tool name", handler=test_func)
     handler.register_tool(tool)
-    
+
     # Should be sanitized
     assert "invalid tool name" not in handler.tools
     assert "invalid_tool_name" in handler.tools
@@ -648,20 +657,20 @@ def test_register_tool_with_invalid_name():
 def test_register_multiple_tools_with_collision():
     """Test registering multiple tools that would have naming collisions."""
     handler = MCPProtocolHandler("test", "1.0")
-    
+
     def test_func1():
         return "test1"
-        
+
     def test_func2():
         return "test2"
-    
+
     # Both tools would sanitize to the same name
     tool1 = MCPTool(name="tool name", handler=test_func1)
     tool2 = MCPTool(name="tool.name", handler=test_func2)
-    
+
     handler.register_tool(tool1)
     handler.register_tool(tool2)
-    
+
     # Should have different names after sanitization
     assert len(handler.tools) == 2
     tool_names = list(handler.tools.keys())
@@ -671,24 +680,24 @@ def test_register_multiple_tools_with_collision():
 def test_register_tool_preserves_functionality():
     """Test that name sanitization doesn't break tool functionality."""
     handler = MCPProtocolHandler("test", "1.0")
-    
+
     def add_func(a: int, b: int) -> int:
         return a + b
-    
+
     # Tool with name that needs sanitization
     tool = MCPTool(name="add two numbers", description="Add function", handler=add_func)
     handler.register_tool(tool)
-    
+
     # Find the sanitized name
     sanitized_name = None
     for name in handler.tools:
         if "add" in name and "two" in name:
             sanitized_name = name
             break
-    
+
     assert sanitized_name is not None
     registered_tool = handler.tools[sanitized_name]
-    
+
     # Functionality should be preserved
     assert registered_tool.description == "Add function"
     assert registered_tool.handler == add_func
@@ -697,16 +706,19 @@ def test_register_tool_preserves_functionality():
 def test_register_tool_extremely_long_name():
     """Test registering a tool with an extremely long name."""
     handler = MCPProtocolHandler("test", "1.0")
-    
+
     def test_func():
         return "test"
-    
+
     # Very long name
-    long_name = "this_is_a_very_long_tool_name_that_exceeds_the_maximum_allowed_length_for_claude_desktop_compatibility" * 2
+    long_name = (
+        "this_is_a_very_long_tool_name_that_exceeds_the_maximum_allowed_"
+        "length_for_claude_desktop_compatibility" * 2
+    )
     tool = MCPTool(name=long_name, handler=test_func)
-    
+
     handler.register_tool(tool)
-    
+
     # Should be registered with a sanitized name
     assert len(handler.tools) == 1
     registered_name = list(handler.tools.keys())[0]
@@ -717,10 +729,10 @@ def test_register_tool_extremely_long_name():
 def test_register_tool_with_unicode_characters():
     """Test registering tools with unicode characters."""
     handler = MCPProtocolHandler("test", "1.0")
-    
+
     def test_func():
         return "test"
-    
+
     unicode_names = [
         "tööl",  # Umlaut
         "tool™",  # Trademark symbol
@@ -728,14 +740,14 @@ def test_register_tool_with_unicode_characters():
         "tool→arrow",  # Arrow
         "🔧tool",  # Emoji
     ]
-    
+
     for name in unicode_names:
         tool = MCPTool(name=name, handler=test_func)
         handler.register_tool(tool)
-    
+
     # All should be registered with sanitized names
     assert len(handler.tools) == len(unicode_names)
-    
+
     # All registered names should be valid
     for registered_name in handler.tools.keys():
-        assert validate_tool_name(registered_name) 
+        assert validate_tool_name(registered_name)

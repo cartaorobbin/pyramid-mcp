@@ -19,9 +19,8 @@ from pyramid_mcp.security import (
     validate_auth_credentials,
 )
 
-
 # =============================================================================
-# 🔧 SECURITY SCHEMA FIXTURES  
+# 🔧 SECURITY SCHEMA FIXTURES
 # =============================================================================
 
 
@@ -167,9 +166,9 @@ def test_validate_auth_credentials_bearer_success():
     """Test successful Bearer auth credential validation."""
     schema = BearerAuthSchema()
     tool_args = {"auth_token": "valid_token_123"}
-    
+
     error = validate_auth_credentials(tool_args, schema)
-    
+
     # Should return None for successful validation
     assert error is None
 
@@ -178,9 +177,9 @@ def test_validate_auth_credentials_basic_success():
     """Test successful Basic auth credential validation."""
     schema = BasicAuthSchema()
     tool_args = {"username": "testuser", "password": "testpass"}
-    
+
     error = validate_auth_credentials(tool_args, schema)
-    
+
     # Should return None for successful validation
     assert error is None
 
@@ -189,9 +188,9 @@ def test_validate_auth_credentials_bearer_failure():
     """Test Bearer auth credential validation failure."""
     schema = BearerAuthSchema()
     tool_args = {"auth_token": ""}  # Empty token
-    
+
     error = validate_auth_credentials(tool_args, schema)
-    
+
     # Should return error dict for empty token
     assert error is not None
     assert error["type"] == "empty_credentials"
@@ -201,9 +200,9 @@ def test_validate_auth_credentials_basic_failure():
     """Test Basic auth credential validation failure."""
     schema = BasicAuthSchema()
     tool_args = {"username": "testuser"}  # Missing password
-    
+
     error = validate_auth_credentials(tool_args, schema)
-    
+
     # Should return error dict for missing password
     assert error is not None
     assert error["type"] == "missing_credentials"
@@ -212,6 +211,6 @@ def test_validate_auth_credentials_basic_failure():
 def test_validate_auth_credentials_with_none():
     """Test validation with None schema should pass."""
     credentials = {"some_field": "some_value"}
-    
+
     # Should not raise any exception
-    validate_auth_credentials(credentials, None) 
+    validate_auth_credentials(credentials, None)

@@ -17,7 +17,6 @@ from webtest import TestApp  # type: ignore
 from pyramid_mcp import tool
 from pyramid_mcp.security import BearerAuthSchema
 
-
 # =============================================================================
 # 🔧 CONTEXT FACTORY UNIQUE TOOLS
 # =============================================================================
@@ -108,24 +107,30 @@ class AdminContext:
 @pytest.fixture
 def public_context_factory():
     """Factory that creates public contexts."""
+
     def factory(request):
         return PublicContext(request)
+
     return factory
 
 
 @pytest.fixture
 def authenticated_context_factory():
     """Factory that creates authenticated contexts."""
+
     def factory(request):
         return AuthenticatedContext(request)
+
     return factory
 
 
 @pytest.fixture
 def admin_context_factory():
     """Factory that creates admin contexts."""
+
     def factory(request):
         return AdminContext(request)
+
     return factory
 
 
@@ -135,16 +140,16 @@ def admin_context_factory():
 
 
 def test_context_factory_security_works_for_regular_views(
-    public_context_factory,
-    authenticated_context_factory,
-    admin_context_factory
+    public_context_factory, authenticated_context_factory, admin_context_factory
 ):
     """Test that context factory security works correctly for regular Pyramid views."""
     config = Configurator()
 
     # Add context factory routes
     config.add_route("public_endpoint", "/public", factory=public_context_factory)
-    config.add_route("auth_endpoint", "/auth-required", factory=authenticated_context_factory)
+    config.add_route(
+        "auth_endpoint", "/auth-required", factory=authenticated_context_factory
+    )
     config.add_route("admin_endpoint", "/admin-only", factory=admin_context_factory)
 
     def public_view(request):
@@ -295,7 +300,7 @@ def test_multiple_context_factories_in_single_app():
     def test_view(request):
         context = request.context
         return {
-            "message": f"View accessed",
+            "message": "View accessed",
             "context_type": context.__class__.__name__,
             # ACL removed because it contains non-JSON-serializable objects
         }
@@ -373,4 +378,4 @@ def test_context_factory_request_storage():
     assert auth_context.request is request
 
     admin_context = AdminContext(request)
-    assert admin_context.request is request 
+    assert admin_context.request is request

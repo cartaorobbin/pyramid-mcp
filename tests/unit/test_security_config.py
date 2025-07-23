@@ -10,10 +10,9 @@ This module tests:
 No tool definitions to avoid configuration conflicts.
 """
 
+from pyramid_mcp import PyramidMCP
 from pyramid_mcp.core import MCPConfiguration
 from pyramid_mcp.introspection import PyramidIntrospector
-from pyramid_mcp import PyramidMCP
-
 
 # =============================================================================
 # 🔐 CONFIGURABLE SECURITY PARAMETER TESTS
@@ -137,7 +136,10 @@ def test_end_to_end_with_custom_security_parameter():
 
 
 def test_mcp_security_parameter_backward_compatibility():
-    """Test that existing mcp_security parameter still works (backward compatibility)."""
+    """Test that existing mcp_security parameter still works.
+
+    This ensures backward compatibility.
+    """
 
     # Test that default configuration uses mcp_security
     config = MCPConfiguration()
@@ -177,8 +179,9 @@ def test_multiple_views_with_different_security_parameters():
 
 def test_plugin_includeme_with_custom_security_parameter():
     """Test that includeme works with custom security parameter setting."""
-    from pyramid_mcp import includeme
     from pyramid.config import Configurator
+
+    from pyramid_mcp import includeme
 
     # Create configurator with custom security parameter
     config = Configurator(
@@ -247,4 +250,4 @@ def test_special_characters_in_security_parameter():
     }
 
     config = _extract_mcp_config_from_settings(settings)
-    assert config.security_parameter == "custom_security_param_123" 
+    assert config.security_parameter == "custom_security_param_123"

@@ -2,21 +2,18 @@
 Unit tests for pyramid_mcp introspection functionality.
 
 This module tests:
-- PyramidIntrospector route discovery functionality
-- MCP tool generation from Pyramid routes
-- Pattern matching and filtering logic
-- JSON schema generation for route parameters
-- Route exclusion and inclusion logic
+- Route discovery from Pyramid applications
+- Tool generation from routes with proper schemas
+- Pattern matching for route inclusion/exclusion
+- Input schema generation from view functions
+- Tool handler creation and execution
 - MCP description feature via view_config parameter
 
 Uses enhanced fixtures from conftest.py for clean, non-duplicated test setup.
 """
 
-from typing import Any
-
 from pyramid.config import Configurator
 from pyramid.response import Response
-from pyramid.view import view_config
 
 from pyramid_mcp.core import MCPConfiguration
 from pyramid_mcp.introspection import PyramidIntrospector
@@ -56,10 +53,10 @@ def test_route_info_structure(pyramid_config_committed):
     introspector = PyramidIntrospector(pyramid_config_committed)
 
     routes_info = introspector.discover_routes()
-    
+
     # Should have at least one route
     assert len(routes_info) > 0
-    
+
     # Check structure of first route
     route = routes_info[0]
     required_fields = ["name", "pattern", "request_methods"]  # Use plural, not singular
@@ -70,18 +67,18 @@ def test_route_info_structure(pyramid_config_committed):
 def test_discover_routes_with_custom_config():
     """Test route discovery with custom configuration."""
     config = Configurator()
-    
+
     # Add a simple route
     def test_view(request):
         return Response("test")
-    
+
     config.add_route("test_route", "/test")
     config.add_view(test_view, route_name="test_route")
     config.commit()
-    
+
     introspector = PyramidIntrospector(config)
     routes_info = introspector.discover_routes()
-    
+
     # Should find our test route
     route_names = [route["name"] for route in routes_info]
     assert "test_route" in route_names
@@ -96,7 +93,7 @@ def test_discover_tools_from_pyramid(pyramid_config_committed):
 
     # Should discover tools from our test routes
     assert len(tools) > 0
-    
+
     # Check that tools have expected properties
     for tool in tools:
         assert hasattr(tool, "name")
@@ -107,31 +104,31 @@ def test_discover_tools_from_pyramid(pyramid_config_committed):
 def test_discover_tools_with_patterns():
     """Test tool discovery with include/exclude patterns."""
     config = Configurator()
-    
+
     # Add routes that match/don't match patterns
     def api_view(request):
         return Response("api")
-        
+
     def admin_view(request):
         return Response("admin")
-    
+
     config.add_route("api_users", "/api/users")
-    config.add_route("admin_dashboard", "/admin/dashboard") 
+    config.add_route("admin_dashboard", "/admin/dashboard")
     config.add_view(api_view, route_name="api_users")
     config.add_view(admin_view, route_name="admin_dashboard")
     config.commit()
-    
+
     # Test with patterns
     mcp_config = MCPConfiguration(
         route_discovery_enabled=True,
         include_patterns=["api/*"],
-        exclude_patterns=["admin/*"]
+        exclude_patterns=["admin/*"],
     )
     introspector = PyramidIntrospector(config)
-    
+
     tools = introspector.discover_tools_from_pyramid(None, mcp_config)
     tool_names = [tool.name for tool in tools]
-    
+
     # Should include API routes but exclude admin routes
     assert any("api" in name for name in tool_names)
     assert not any("admin" in name for name in tool_names)
@@ -146,17 +143,17 @@ def test_tool_name_generation():
     """Test tool name generation from routes."""
     config = Configurator()
     mcp_config = MCPConfiguration(route_discovery_enabled=True)
-    
+
     def test_view(request):
         return Response("test")
-    
+
     config.add_route("get_user", "/users/{id}", request_method="GET")
     config.add_view(test_view, route_name="get_user")
     config.commit()
-    
+
     introspector = PyramidIntrospector(config)
     tools = introspector.discover_tools_from_pyramid(None, mcp_config)
-    
+
     # Should generate appropriate tool name
     assert len(tools) > 0
     tool = tools[0]
@@ -167,26 +164,26 @@ def test_tool_name_generation_edge_cases():
     """Test tool name generation edge cases."""
     config = Configurator()
     mcp_config = MCPConfiguration(route_discovery_enabled=True)
-    
+
     def test_view(request):
         return Response("test")
-    
+
     # Test various route patterns
     routes = [
         ("route_with_underscores", "/api/route_with_underscores"),
         ("route-with-dashes", "/api/route-with-dashes"),
         ("RouteWithCamelCase", "/api/RouteWithCamelCase"),
     ]
-    
+
     for route_name, pattern in routes:
         config.add_route(route_name, pattern)
         config.add_view(test_view, route_name=route_name)
-    
+
     config.commit()
-    
+
     introspector = PyramidIntrospector(config)
     tools = introspector.discover_tools_from_pyramid(None, mcp_config)
-    
+
     # All routes should generate valid tools
     assert len(tools) == len(routes)
     for tool in tools:
@@ -203,24 +200,24 @@ def test_input_schema_generation():
     """Test input schema generation for route parameters."""
     config = Configurator()
     mcp_config = MCPConfiguration(route_discovery_enabled=True)
-    
+
     def test_view(request):
         return Response("test")
-    
+
     config.add_route("get_user", "/users/{id}")
     config.add_view(test_view, route_name="get_user")
     config.commit()
-    
+
     introspector = PyramidIntrospector(config)
     tools = introspector.discover_tools_from_pyramid(None, mcp_config)
-    
+
     assert len(tools) > 0
     tool = tools[0]
-    
+
     # Should have input schema
     assert tool.input_schema is not None
     assert "properties" in tool.input_schema
-    
+
     # Should include route parameter
     assert "id" in tool.input_schema["properties"]
 
@@ -229,17 +226,17 @@ def test_input_schema_with_annotations():
     """Test input schema generation with type annotations."""
     config = Configurator()
     mcp_config = MCPConfiguration(route_discovery_enabled=True)
-    
+
     def annotated_view(request):
         return {"user_id": request.matchdict["id"]}
-    
+
     config.add_route("get_user_annotated", "/users/{id}")
     config.add_view(annotated_view, route_name="get_user_annotated", renderer="json")
     config.commit()
-    
+
     introspector = PyramidIntrospector(config)
     tools = introspector.discover_tools_from_pyramid(None, mcp_config)
-    
+
     assert len(tools) > 0
     tool = tools[0]
     assert tool.input_schema is not None
@@ -249,25 +246,25 @@ def test_input_schema_complex_types():
     """Test input schema generation with complex route patterns."""
     config = Configurator()
     mcp_config = MCPConfiguration(route_discovery_enabled=True)
-    
+
     def complex_view(request):
         return Response("complex")
-    
+
     config.add_route("complex", "/api/{version}/users/{user_id}/posts/{post_id}")
     config.add_view(complex_view, route_name="complex")
     config.commit()
-    
+
     introspector = PyramidIntrospector(config)
     tools = introspector.discover_tools_from_pyramid(None, mcp_config)
-    
+
     assert len(tools) > 0
     tool = tools[0]
-    
+
     # Should have input schema with all parameters if schema is generated
     if tool.input_schema:
         properties = tool.input_schema["properties"]
         expected_params = ["version", "user_id", "post_id"]
-    
+
     for param in expected_params:
         assert param in properties
 
@@ -280,22 +277,34 @@ def test_input_schema_complex_types():
 def test_pattern_matching():
     """Test basic pattern matching functionality."""
     introspector = PyramidIntrospector()
-    
+
     # Test include patterns
-    assert any(introspector._pattern_matches(pattern, "/api/users", "test_route") for pattern in ["api/*"])
-    assert any(introspector._pattern_matches(pattern, "/api/posts", "test_route") for pattern in ["api/*"])
-    assert not any(introspector._pattern_matches(pattern, "/admin/users", "test_route") for pattern in ["api/*"])
-    
+    assert any(
+        introspector._pattern_matches(pattern, "/api/users", "test_route")
+        for pattern in ["api/*"]
+    )
+    assert any(
+        introspector._pattern_matches(pattern, "/api/posts", "test_route")
+        for pattern in ["api/*"]
+    )
+    assert not any(
+        introspector._pattern_matches(pattern, "/admin/users", "test_route")
+        for pattern in ["api/*"]
+    )
+
     # Test exclude patterns (should be checked separately)
-    assert any(introspector._pattern_matches(pattern, "/admin/users", "test_route") for pattern in ["admin/*"])
+    assert any(
+        introspector._pattern_matches(pattern, "/admin/users", "test_route")
+        for pattern in ["admin/*"]
+    )
 
 
 def test_pattern_matching_advanced():
     """Test advanced pattern matching scenarios."""
     introspector = PyramidIntrospector()
-    
+
     patterns = ["api/v1/*", "users/*", "admin/dashboard"]
-    
+
     test_cases = [
         ("/api/v1/users", True),
         ("/api/v1/posts", True),
@@ -304,42 +313,44 @@ def test_pattern_matching_advanced():
         ("/admin/dashboard", True),
         ("/admin/users", False),
     ]
-    
+
     for path, expected in test_cases:
-        result = any(introspector._pattern_matches(pattern, path, "test_route") for pattern in patterns)
+        result = any(
+            introspector._pattern_matches(pattern, path, "test_route")
+            for pattern in patterns
+        )
         assert result == expected, f"Pattern matching failed for {path}"
 
 
 def test_route_exclusion():
     """Test route exclusion logic."""
     config = Configurator()
-    
+
     def test_view(request):
         return Response("test")
-    
+
     # Add routes, some should be excluded
     routes = [
         ("api_users", "/api/users"),
         ("admin_dashboard", "/admin/dashboard"),
         ("public_info", "/info"),
     ]
-    
+
     for route_name, pattern in routes:
         config.add_route(route_name, pattern)
         config.add_view(test_view, route_name=route_name)
-    
+
     config.commit()
-    
+
     # Configure to exclude admin routes
     mcp_config = MCPConfiguration(
-        route_discovery_enabled=True,
-        exclude_patterns=["admin/*"]
+        route_discovery_enabled=True, exclude_patterns=["admin/*"]
     )
     introspector = PyramidIntrospector(config)
-    
+
     tools = introspector.discover_tools_from_pyramid(None, mcp_config)
     tool_names = [tool.name for tool in tools]
-    
+
     # Should exclude admin routes
     assert not any("admin" in name for name in tool_names)
     assert any("api" in name for name in tool_names)
@@ -348,32 +359,31 @@ def test_route_exclusion():
 def test_include_patterns():
     """Test include patterns functionality."""
     config = Configurator()
-    
+
     def test_view(request):
         return Response("test")
-    
+
     routes = [
         ("api_users", "/api/users"),
         ("api_posts", "/api/posts"),
         ("admin_dashboard", "/admin/dashboard"),
     ]
-    
+
     for route_name, pattern in routes:
         config.add_route(route_name, pattern)
         config.add_view(test_view, route_name=route_name)
-    
+
     config.commit()
-    
+
     # Only include API routes
     mcp_config = MCPConfiguration(
-        route_discovery_enabled=True,
-        include_patterns=["api/*"]
+        route_discovery_enabled=True, include_patterns=["api/*"]
     )
     introspector = PyramidIntrospector(config)
-    
+
     tools = introspector.discover_tools_from_pyramid(None, mcp_config)
     tool_names = [tool.name for tool in tools]
-    
+
     # Should only include API routes
     assert all("api" in name for name in tool_names)
     assert not any("admin" in name for name in tool_names)
@@ -382,32 +392,31 @@ def test_include_patterns():
 def test_exclude_patterns():
     """Test exclude patterns functionality."""
     config = Configurator()
-    
+
     def test_view(request):
         return Response("test")
-    
+
     routes = [
         ("public_info", "/info"),
         ("api_users", "/api/users"),
         ("internal_debug", "/internal/debug"),
     ]
-    
+
     for route_name, pattern in routes:
         config.add_route(route_name, pattern)
         config.add_view(test_view, route_name=route_name)
-    
+
     config.commit()
-    
+
     # Exclude internal routes
     mcp_config = MCPConfiguration(
-        route_discovery_enabled=True,
-        exclude_patterns=["internal/*"]
+        route_discovery_enabled=True, exclude_patterns=["internal/*"]
     )
     introspector = PyramidIntrospector(config)
-    
+
     tools = introspector.discover_tools_from_pyramid(None, mcp_config)
     tool_names = [tool.name for tool in tools]
-    
+
     # Should exclude internal routes
     assert not any("internal" in name for name in tool_names)
 
@@ -415,33 +424,33 @@ def test_exclude_patterns():
 def test_combined_include_exclude_patterns():
     """Test combining include and exclude patterns."""
     config = Configurator()
-    
+
     def test_view(request):
         return Response("test")
-    
+
     routes = [
         ("api_users", "/api/users"),
         ("api_admin", "/api/admin"),
         ("public_info", "/info"),
     ]
-    
+
     for route_name, pattern in routes:
         config.add_route(route_name, pattern)
         config.add_view(test_view, route_name=route_name)
-    
+
     config.commit()
-    
+
     # Include API but exclude admin
     mcp_config = MCPConfiguration(
         route_discovery_enabled=True,
         include_patterns=["api/*"],
-        exclude_patterns=["*/admin"]
+        exclude_patterns=["*/admin"],
     )
     introspector = PyramidIntrospector(config)
-    
+
     tools = introspector.discover_tools_from_pyramid(None, mcp_config)
     tool_names = [tool.name for tool in tools]
-    
+
     # Should include api_users but not api_admin or public_info
     assert any("users" in name for name in tool_names)
     assert not any("admin" in name for name in tool_names)
@@ -457,20 +466,20 @@ def test_tool_handler_creation():
     """Test that tool handlers are created correctly."""
     config = Configurator()
     mcp_config = MCPConfiguration(route_discovery_enabled=True)
-    
+
     def test_view(request):
         return {"message": "test"}
-    
+
     config.add_route("test_handler", "/test")
     config.add_view(test_view, route_name="test_handler", renderer="json")
     config.commit()
-    
+
     introspector = PyramidIntrospector(config)
     tools = introspector.discover_tools_from_pyramid(None, mcp_config)
-    
+
     assert len(tools) > 0
     tool = tools[0]
-    
+
     # Tool should have a handler
     assert tool.handler is not None
     assert callable(tool.handler)
@@ -480,20 +489,20 @@ def test_tool_handler_with_parameters():
     """Test tool handlers with parameters."""
     config = Configurator()
     mcp_config = MCPConfiguration(route_discovery_enabled=True)
-    
+
     def parameterized_view(request):
         return {"id": request.matchdict["id"]}
-    
+
     config.add_route("param_test", "/test/{id}")
     config.add_view(parameterized_view, route_name="param_test", renderer="json")
     config.commit()
-    
+
     introspector = PyramidIntrospector(config)
     tools = introspector.discover_tools_from_pyramid(None, mcp_config)
-    
+
     assert len(tools) > 0
     tool = tools[0]
-    
+
     # Tool should have handler and input schema
     assert tool.handler is not None
     assert tool.input_schema is not None
@@ -551,7 +560,11 @@ def test_mcp_description_stored_in_view_introspectable():
 
     for intr in view_introspectables:
         # Handle both dict and introspectable object cases
-        discriminator = intr.get('discriminator') if isinstance(intr, dict) else getattr(intr, 'discriminator', None)
+        discriminator = (
+            intr.get("discriminator")
+            if isinstance(intr, dict)
+            else getattr(intr, "discriminator", None)
+        )
         if discriminator and "with_desc" in str(discriminator):
             with_desc_view = intr
         elif discriminator and "without_desc" in str(discriminator):
@@ -675,9 +688,7 @@ def test_empty_mcp_description_is_ignored():
         return Response("test")
 
     config.add_route("empty_desc", "/empty")
-    config.add_view(
-        view_with_empty_desc, route_name="empty_desc", mcp_description=""
-    )
+    config.add_view(view_with_empty_desc, route_name="empty_desc", mcp_description="")
     config.commit()
 
     mcp_config = MCPConfiguration(route_discovery_enabled=True)
@@ -752,30 +763,30 @@ def test_integration_with_complex_routes():
     """Test introspection with complex route scenarios."""
     config = Configurator()
     mcp_config = MCPConfiguration(route_discovery_enabled=True)
-    
+
     def complex_view(request):
         return {
             "user_id": request.matchdict.get("user_id"),
             "action": request.matchdict.get("action"),
-            "format": request.matchdict.get("format", "json")
+            "format": request.matchdict.get("format", "json"),
         }
-    
+
     # Complex route with multiple parameters and optional parts
     config.add_route("complex_api", "/api/v{version}/users/{user_id}/actions/{action}")
     config.add_view(complex_view, route_name="complex_api", renderer="json")
     config.commit()
-    
+
     introspector = PyramidIntrospector(config)
     tools = introspector.discover_tools_from_pyramid(None, mcp_config)
-    
+
     assert len(tools) > 0
     tool = tools[0]
-    
+
     # Should capture all route parameters if schema is generated
     if tool.input_schema:
         properties = tool.input_schema["properties"]
         expected_params = ["version", "user_id", "action"]
-    
+
     for param in expected_params:
         assert param in properties, f"Missing parameter: {param}"
 
@@ -784,21 +795,21 @@ def test_description_generation():
     """Test automatic description generation."""
     config = Configurator()
     mcp_config = MCPConfiguration(route_discovery_enabled=True)
-    
+
     def get_user_profile(request):
         """Get user profile information."""
         return {"profile": "data"}
-    
+
     config.add_route("get_user_profile", "/users/{id}/profile", request_method="GET")
     config.add_view(get_user_profile, route_name="get_user_profile", renderer="json")
     config.commit()
-    
+
     introspector = PyramidIntrospector(config)
     tools = introspector.discover_tools_from_pyramid(None, mcp_config)
-    
+
     assert len(tools) > 0
     tool = tools[0]
-    
+
     # Should have some description
     assert tool.description is not None
     assert len(tool.description) > 0
@@ -809,10 +820,10 @@ def test_empty_configuration():
     config = Configurator()
     mcp_config = MCPConfiguration(route_discovery_enabled=True)
     config.commit()
-    
+
     introspector = PyramidIntrospector(config)
     tools = introspector.discover_tools_from_pyramid(None, mcp_config)
-    
+
     # Should handle empty configuration gracefully
     assert isinstance(tools, list)
-    assert len(tools) == 0 
+    assert len(tools) == 0

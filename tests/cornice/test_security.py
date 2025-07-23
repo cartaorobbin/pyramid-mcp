@@ -111,7 +111,9 @@ def test_secure_get_endpoint_requires_auth(pyramid_app_with_services, secure_ser
     assert call_response.status_code == 200
 
 
-def test_secure_endpoints_authentication_integration(pyramid_app_with_services, secure_service):
+def test_secure_endpoints_authentication_integration(
+    pyramid_app_with_services, secure_service
+):
     """Test authentication integration with Cornice secure endpoints."""
     services = [secure_service]
     app = pyramid_app_with_services(services)
@@ -163,11 +165,11 @@ def test_secure_endpoints_authentication_integration(pyramid_app_with_services, 
     else:
         # Authentication may fail, which is expected for security testing
         assert "error" in call_response.json
-        error = call_response.json["error"]
-        # For the rest of the test, use a mock result structure that matches MCP context format
+        # For the rest of the test, use a mock result structure
+        # that matches MCP context format
         result = {
             "type": "mcp/context",
-            "representation": {"content": "Security test completed"}
+            "representation": {"content": "Security test completed"},
         }
     assert result["type"] == "mcp/context"
 
@@ -242,7 +244,9 @@ def test_cornice_service_with_bearer_auth_integration(pyramid_app_with_services)
         assert call_response_with_auth.status_code == 200
 
 
-def test_cornice_service_schema_validation_with_security(pyramid_app_with_services, secure_service):
+def test_cornice_service_schema_validation_with_security(
+    pyramid_app_with_services, secure_service
+):
     """Test that Cornice schema validation works with security."""
     services = [secure_service]
     app = pyramid_app_with_services(services)
@@ -287,7 +291,9 @@ def test_cornice_service_schema_validation_with_security(pyramid_app_with_servic
     assert call_response.status_code == 200
 
 
-def test_cornice_tool_input_schema_includes_security_fields(pyramid_app_with_services, secure_service):
+def test_cornice_tool_input_schema_includes_security_fields(
+    pyramid_app_with_services, secure_service
+):
     """Test that Cornice tools include appropriate security fields in input schema."""
     services = [secure_service]
     app = pyramid_app_with_services(services)
@@ -308,8 +314,8 @@ def test_cornice_tool_input_schema_includes_security_fields(pyramid_app_with_ser
 
             # Security fields might be added depending on configuration
             properties = input_schema["properties"]
-            
+
             # If it's a POST tool, should have the schema fields
             if "post" in tool["name"]:
                 assert "name" in properties
-                assert "email" in properties 
+                assert "email" in properties

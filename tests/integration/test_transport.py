@@ -3,12 +3,12 @@ Integration tests for transport functionality.
 
 This module tests:
 - stdio transport integration with Docker containers
-- pyramid_tm integration with pyramid-mcp subrequests  
+- pyramid_tm integration with pyramid-mcp subrequests
 - Transaction context sharing between parent and subrequests
 - Environment variable sharing in subrequests
 
 IMPORTANT: stdio tests rebuild the Docker container to ensure testing against
-the current code, not a potentially outdated cached image.
+latest code. This makes tests slower but ensures accuracy.
 """
 
 import json
@@ -22,7 +22,6 @@ from pyramid.request import Request
 from pyramid.view import view_config
 
 from pyramid_mcp.introspection import PyramidIntrospector
-
 
 # =============================================================================
 # 🐳 STDIO TRANSPORT TESTS (DOCKER-BASED)
@@ -56,7 +55,9 @@ def ensure_fresh_docker_container():
             "pyramid-mcp-secure:latest",
             ".",
         ],
-        cwd=Path(__file__).parent.parent.parent,  # Go to project root from tests/integration/
+        cwd=Path(
+            __file__
+        ).parent.parent.parent,  # Go to project root from tests/integration/
         capture_output=True,
         text=True,
     )
@@ -279,7 +280,8 @@ def test_stdio_transport_call_tool_auth_required():
         timeout=30,
     )
 
-    # Command should still succeed (it might return an error response, but the command itself works)
+    # Command should still succeed (it might return an error response,
+    # but the command itself works)
     assert result.returncode == 0, f"Command failed: {result.stderr}"
 
     # Parse response
@@ -288,7 +290,7 @@ def test_stdio_transport_call_tool_auth_required():
     # Verify response structure
     assert response["jsonrpc"] == "2.0"
     assert response["id"] == 4
-    
+
     # Should have either result or error (depends on auth setup)
     assert "result" in response or "error" in response
 
@@ -346,8 +348,10 @@ def test_stdio_transport_protocol_compliance():
     assert result.returncode == 0, f"Command failed: {result.stderr}"
 
     # Parse responses (should be multiple JSON objects)
-    output_lines = [line.strip() for line in result.stdout.strip().split("\n") if line.strip()]
-    
+    output_lines = [
+        line.strip() for line in result.stdout.strip().split("\n") if line.strip()
+    ]
+
     # Should have responses for initialize and tools/list (not for notification)
     assert len(output_lines) >= 2
 
@@ -529,7 +533,7 @@ def test_pyramid_tm_with_mcp_tool_execution(pyramid_tm_config):
 
     # Verify that the transaction manager is available
     assert hasattr(pyramid_tm_config.registry, "settings")
-    
+
     # The transaction integration should work transparently
     # (This is more of an integration verification than a functional test)
     assert pyramid_mcp is not None
@@ -560,4 +564,6 @@ def test_pyramid_tm_subrequest_isolation(pyramid_tm_config):
 
     # But should have independent request state
     assert subrequest1.environ["PATH_INFO"] != subrequest2.environ["PATH_INFO"]
-    assert subrequest1.environ["REQUEST_METHOD"] != subrequest2.environ["REQUEST_METHOD"] 
+    assert (
+        subrequest1.environ["REQUEST_METHOD"] != subrequest2.environ["REQUEST_METHOD"]
+    )

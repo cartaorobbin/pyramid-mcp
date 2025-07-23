@@ -328,7 +328,6 @@ class PyramidMCP:
             app_iter=generate_sse(), content_type="text/event-stream", charset="utf-8"
         )
         response.headers["Cache-Control"] = "no-cache"
-        response.headers["Connection"] = "keep-alive"
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type"
 

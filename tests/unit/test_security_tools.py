@@ -1,27 +1,27 @@
 """
-Unit tests for pyramid_mcp tool decorator security functionality.
+Unit tests for pyramid_mcp security tools integration.
 
 This module tests:
-- @tool decorator integration with Pyramid views
-- Unified security architecture implementation
-- Tool execution via MCP calls
-- Security parameter integration in tools
+- Tool decorator security parameter integration
+- Input schema generation with authentication fields
+- Tool execution with security context
+- Permission-based tool access control
 
 Uses unique tool definitions to avoid configuration conflicts.
 """
 
-import pytest
-
 from pyramid_mcp import tool
 from pyramid_mcp.security import BearerAuthSchema
-
 
 # =============================================================================
 # 🔧 TOOL DECORATOR UNIQUE TOOLS
 # =============================================================================
 
 
-@tool(name="decorator_verification_tool", description="Test tool for decorator verification")
+@tool(
+    name="decorator_verification_tool",
+    description="Test tool for decorator verification",
+)
 def decorator_verification_tool(message: str) -> str:
     """Simple tool for verifying decorator functionality."""
     return f"Decorator tool response: {message}"
@@ -94,9 +94,15 @@ def test_tool_decorator_creates_pyramid_views(pyramid_app_with_auth):
     tools = tools_response.json["result"]["tools"]
     tool_names = [tool["name"] for tool in tools]
 
-    assert "decorator_verification_tool" in tool_names, f"decorator_verification_tool not found in {tool_names}"
-    assert "decorator_secure_data" in tool_names, f"decorator_secure_data not found in {tool_names}"
-    assert "decorator_public_info" in tool_names, f"decorator_public_info not found in {tool_names}"
+    assert (
+        "decorator_verification_tool" in tool_names
+    ), f"decorator_verification_tool not found in {tool_names}"
+    assert (
+        "decorator_secure_data" in tool_names
+    ), f"decorator_secure_data not found in {tool_names}"
+    assert (
+        "decorator_public_info" in tool_names
+    ), f"decorator_public_info not found in {tool_names}"
 
 
 def test_tool_decorator_execution_via_mcp(pyramid_app_with_auth):
@@ -253,11 +259,13 @@ def test_tool_security_parameter_integration():
     # Test that the functions are still callable
     assert callable(decorator_secure_data)
     assert callable(decorator_public_info)
-    
+
     # Test that functions can be called directly with required parameters
     result = decorator_secure_data(data_id=1)  # Use valid data_id
-    assert "secured_by" in result or "auth_required" in result  # Check for security-related keys
-    
+    assert (
+        "secured_by" in result or "auth_required" in result
+    )  # Check for security-related keys
+
     result = decorator_public_info(info_id=1)
     assert "public" in result or "auth_required" in result
 
@@ -266,20 +274,22 @@ def test_tool_decorator_metadata_storage():
     """Test that @tool decorator doesn't modify the original functions."""
     # The @tool decorator returns the original function unchanged
     # Metadata is stored via Venusian for deferred registration
-    
+
     # Test that original functions are unchanged
     verification_tool = decorator_verification_tool
     assert callable(verification_tool)
     assert verification_tool(message="test") == "Decorator tool response: test"
-    
+
     # Test secure tool function works
     secure_tool = decorator_secure_data
     assert callable(secure_tool)
     result = secure_tool(data_id=1)  # Use valid data_id
-    assert "secured_by" in result or "auth_required" in result  # Check for security-related keys
-    
+    assert (
+        "secured_by" in result or "auth_required" in result
+    )  # Check for security-related keys
+
     # Test public tool function works
     public_tool = decorator_public_info
     assert callable(public_tool)
     result = public_tool(info_id=1)
-    assert "public" in result or "auth_required" in result 
+    assert "public" in result or "auth_required" in result

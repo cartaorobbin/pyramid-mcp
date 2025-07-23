@@ -3,14 +3,12 @@ Unit tests for pyramid_mcp core functionality.
 
 This module tests:
 - Package imports and availability
-- MCPConfiguration class functionality 
+- MCPConfiguration class functionality
 - PyramidMCP class creation and basic functionality
 - Core module integration
 
 Uses enhanced fixtures from conftest.py for clean, non-duplicated test setup.
 """
-
-from pyramid.config import Configurator
 
 from pyramid_mcp import PyramidMCP, __version__, tool
 from pyramid_mcp.core import MCPConfiguration
@@ -84,7 +82,9 @@ def test_mcp_configuration_creation():
 
     # Check default values
     assert config.server_name == "pyramid-mcp"
-    assert config.server_version == "1.0.0"  # Default hardcoded value, not package version
+    assert (
+        config.server_version == "1.0.0"
+    )  # Default hardcoded value, not package version
     assert config.route_discovery_enabled is False  # Default is False
     assert config.mount_path == "/mcp"
 
@@ -219,4 +219,4 @@ def test_introspector_has_discovery_methods(pyramid_config_committed):
     assert hasattr(introspector, "discover_routes")
     assert hasattr(introspector, "discover_tools_from_pyramid")
     assert callable(introspector.discover_routes)
-    assert callable(introspector.discover_tools_from_pyramid) 
+    assert callable(introspector.discover_tools_from_pyramid)
