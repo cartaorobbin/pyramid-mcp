@@ -52,9 +52,9 @@ async def test_agent_with_pyramid_mcp_server(pyramid_mcp_app):
 
     # Validate the actual answer - should contain "8" since 5 + 3 = 8
     final_output = str(result.final_output).lower()
-    assert "8" in final_output, (
-        f"Expected answer '8' not found in response: {result.final_output}"
-    )
+    assert (
+        "8" in final_output
+    ), f"Expected answer '8' not found in response: {result.final_output}"
 
     print(f"✅ Agent response: {result.final_output}")
     print("✅ OpenAI Agent successfully communicated with pyramid-mcp server!")

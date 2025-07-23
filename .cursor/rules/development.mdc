@@ -486,6 +486,23 @@ class UserDict(TypedDict):
 
 ### Dependency Addition Guidelines
 
+#### Use Poetry Add Command (Not Manual Editing)
+**ALWAYS use `poetry add` instead of manually editing pyproject.toml.**
+
+- **Correct approach**: Use `poetry add` to add dependencies
+- **Wrong approach**: Never manually edit `[tool.poetry.dependencies]` sections
+- **Why**: Poetry handles version resolution, conflict detection, and lock file updates automatically
+
+```bash
+# ✅ CORRECT - Use poetry add commands
+poetry add requests                    # Production dependency
+poetry add --group dev logassert      # Development dependency
+poetry add --group docs mkdocs        # Documentation dependency
+
+# ❌ WRONG - Never edit pyproject.toml directly
+# Don't manually add lines like: requests = "^2.31.0"
+```
+
 #### Before Adding Any Dependency
 **ALWAYS follow this checklist before adding new dependencies:**
 
@@ -494,6 +511,7 @@ class UserDict(TypedDict):
 - [ ] Check license compatibility with project
 - [ ] Ensure it's not on the forbidden list
 - [ ] Consider the size and complexity it adds
+- [ ] **Use `poetry add` command** (never edit pyproject.toml manually)
 - [ ] Document the decision in appropriate planning file
 
 #### Preferred Libraries by Category

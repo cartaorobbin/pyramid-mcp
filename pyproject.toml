@@ -51,6 +51,7 @@ cornice = "^6.0.0"
 tox = "^4.0.0"
 pyramid-tm = "^2.6"
 openai-agents = "^0.2.3"
+logassert = "^8.5"
 
 [build-system]
 requires = ["poetry-core"]

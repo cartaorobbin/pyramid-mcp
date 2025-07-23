@@ -778,6 +778,21 @@ files = [
 ]
 
 [[package]]
+name = "logassert"
+version = "8.5"
+description = "Simple but powerful assertion and verification of logged lines"
+optional = false
+python-versions = ">=3.9"
+groups = ["dev"]
+files = [
+    {file = "logassert-8.5-py3-none-any.whl", hash = "sha256:bcf553634e6b187f8cd65bbc58092c897f15d39a798d577ac2257faf5ce8378c"},
+    {file = "logassert-8.5.tar.gz", hash = "sha256:d84d7b9f216fc7b93266b89b1a178e7bf5e1bf621081412c748c70f8140d7690"},
+]
+
+[package.extras]
+dev = ["flake8", "flake8-pyproject", "pytest", "structlog"]
+
+[[package]]
 name = "marshmallow"
 version = "3.26.1"
 description = "A lightweight library for converting complex datatypes to and from native Python datatypes."
@@ -2206,4 +2221,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "7d9675cadffeaad4d4c293065601461397f94d7f9ae16676ec85b0c312a1dc71"
+content-hash = "011d166eb8f6775d1eea923d37b8705a4d91865c2ac49faffd017515a7dd7438"

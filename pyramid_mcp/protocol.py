@@ -7,16 +7,27 @@ between MCP clients and servers.
 """
 
 import hashlib
+import inspect
+import json
+import logging
 import re
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Dict, Optional, Set, Union, cast
+from urllib.parse import urlencode
 
 from marshmallow import ValidationError, fields
 from pyramid.request import Request
 
-from pyramid_mcp.schemas import MCPRequestSchema, MCPResponseSchema
+from pyramid_mcp.schemas import (
+    MCPContextResultSchema,
+    MCPRequestSchema,
+    MCPResponseSchema,
+)
 from pyramid_mcp.security import MCPSecurityType, merge_auth_into_schema
+
+# Module-level logger
+logger = logging.getLogger(__name__)
 
 # Claude Desktop client validation pattern for tool names
 CLAUDE_TOOL_NAME_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
@@ -189,9 +200,6 @@ class MCPProtocolHandler:
 
         # Update the tool with the sanitized name
         if sanitized_name != original_name:
-            import logging
-
-            logger = logging.getLogger(__name__)
             logger.warning(
                 f"Tool name '{original_name}' sanitized to '{sanitized_name}' "
                 f"for Claude Desktop compatibility"
@@ -221,7 +229,6 @@ class MCPProtocolHandler:
 
     def _create_manual_tool_view(self, config: Any, tool: MCPTool) -> None:
         """Create a Pyramid view for a manual tool."""
-        import inspect
 
         route_name = f"mcp_tool_{tool.name}"
         route_path = f"/mcp/tools/{tool.name}"
@@ -389,9 +396,6 @@ class MCPProtocolHandler:
         self, request: Dict[str, Any], pyramid_request: Request
     ) -> Dict[str, Any]:
         """Handle tools/call requests using unified subrequest approach."""
-        import logging
-
-        logger = logging.getLogger(__name__)
 
         # Validate basic parameters
         if not request.get("params"):
@@ -466,8 +470,6 @@ class MCPProtocolHandler:
             response = pyramid_request.invoke_subrequest(subrequest)
 
             # Transform response to MCP context format using schema
-            from pyramid_mcp.schemas import MCPContextResultSchema
-
             schema = MCPContextResultSchema()
 
             # Prepare data for schema transformation
@@ -490,7 +492,13 @@ class MCPProtocolHandler:
             )
 
         except Exception as e:
+            # Log detailed subrequest information for debugging
+            subrequest_info = self._get_subrequest_debug_info(
+                locals().get("subrequest"), tool_args
+            )
             logger.error(f"❌ Error executing tool '{tool_name}': {str(e)}")
+            logger.error(f"📋 Subrequest details: {subrequest_info}")
+
             return cast(
                 Dict[str, Any],
                 MCPResponseSchema().dump(
@@ -507,8 +515,8 @@ class MCPProtocolHandler:
     ) -> Request:
         """Create a subrequest for tool execution.
 
-        Simple approach: just create a subrequest to the tool's URL.
-        Pyramid handles all authentication, permissions, and execution.
+        This method properly handles path parameter substitution for route-based tools
+        and creates appropriate subrequests for both manual and route-based tools.
 
         Args:
             pyramid_request: Original pyramid request
@@ -518,64 +526,95 @@ class MCPProtocolHandler:
         Returns:
             Subrequest configured for tool execution
         """
-        import json
 
-        from pyramid.request import Request
-
-        # Get the tool's URL (either route-based or manual tool view)
+        # Get the tool's URL pattern (either route-based or manual tool view)
         if hasattr(tool, "_internal_route_path") and tool._internal_route_path:
-            tool_url = tool._internal_route_path
+            route_pattern = tool._internal_route_path
         else:
             # Fallback for route-based tools without stored path
-            tool_url = f"/mcp/tools/{tool.name}"
+            route_pattern = f"/mcp/tools/{tool.name}"
 
-        # Create subrequest
-        subrequest = Request.blank(tool_url)
-
-        # Use the correct HTTP method for route-based tools
+        # Get the HTTP method
+        method = "POST"  # Default for manual tools
         if hasattr(tool, "_internal_route_method") and tool._internal_route_method:
-            subrequest.method = tool._internal_route_method
+            method = tool._internal_route_method
+
+        # Extract path parameters from route pattern
+        path_params = re.findall(r"\{([^}]+)\}", route_pattern)
+        path_param_names = [param.split(":")[0] for param in path_params]
+
+        # Separate path parameters from other parameters
+        path_values = {}
+        remaining_args = {}
+
+        # Handle special querystring parameter first
+        args_copy = tool_args.copy()
+        if "querystring" in args_copy:
+            querystring_value = args_copy.pop("querystring")
+            if isinstance(querystring_value, dict):
+                remaining_args.update(querystring_value)
+
+        # Separate path parameters from remaining args
+        for key, value in args_copy.items():
+            if key in path_param_names:
+                path_values[key] = value
+            else:
+                remaining_args[key] = value
+
+        # Build the actual URL by replacing path parameters in the pattern
+        tool_url = route_pattern
+        logger.debug(f"🔧 DEBUG: Original route pattern: {route_pattern}")
+        logger.debug(f"🔧 DEBUG: Path values to substitute: {path_values}")
+
+        for param_name, param_value in path_values.items():
+            # Replace {param} and {param:regex} patterns with actual values
+            old_url = tool_url
+            tool_url = re.sub(
+                rf"\{{{param_name}(?::[^}}]+)?\}}", str(param_value), tool_url
+            )
+            logger.debug(f"🔧 DEBUG: Replaced {param_name}: '{old_url}' -> '{tool_url}'")
+
+        # Handle remaining parameters based on HTTP method
+        if method.upper() in ["POST", "PUT", "PATCH"]:
+            # For POST/PUT/PATCH, put remaining args in body
+            body_data = remaining_args
+            query_params: Dict[str, str] = {}
         else:
-            subrequest.method = "POST"  # Default for manual tools
+            # For GET/DELETE, use remaining args as query parameters
+            body_data = {}
+            query_params = {}
+            for key, value in remaining_args.items():
+                if isinstance(value, (str, int, float, bool)):
+                    query_params[key] = str(value)
+
+        # Add query parameters to URL if any
+        if query_params:
+            query_string = urlencode(query_params)
+            if "?" in tool_url:
+                tool_url += f"&{query_string}"
+            else:
+                tool_url += f"?{query_string}"
+            logger.debug(f"🔧 DEBUG: Added query params: {query_string}")
+
+        # Log the final URL being constructed
+        logger.debug(f"🔧 DEBUG: FINAL URL: {tool_url}")
+
+        # Create subrequest with resolved URL
+        subrequest = Request.blank(tool_url)
+        subrequest.method = method.upper()
+
+        logger.debug(
+            f"🔧 DEBUG: Created subrequest: {subrequest.method} {subrequest.url}"
+        )
 
         # Copy environment and context from parent request
         self._copy_request_context(pyramid_request, subrequest)
 
-        # Set up request body/params based on HTTP method
-        if subrequest.method.upper() in ["POST", "PUT", "PATCH"]:
-            # Use JSON body for POST/PUT/PATCH
+        # Set up request body for POST/PUT/PATCH requests
+        if method.upper() in ["POST", "PUT", "PATCH"] and body_data:
             subrequest.content_type = "application/json"
-            body_data = json.dumps(tool_args).encode("utf-8")
-            subrequest.body = body_data
-        else:
-            # Use query parameters for GET/DELETE
-            if tool_args:
-                from urllib.parse import urlencode
-
-                # Filter out non-primitive values for query params
-                query_params = {}
-                for key, value in tool_args.items():
-                    if isinstance(value, (str, int, float, bool)):
-                        query_params[key] = str(value)
-                    elif isinstance(value, dict) and key == "querystring":
-                        # Special handling for querystring parameter
-                        query_params.update(value)
-
-                if query_params:
-                    query_string = urlencode(query_params)
-                    if "?" in tool_url:
-                        tool_url += f"&{query_string}"
-                    else:
-                        tool_url += f"?{query_string}"
-                    # Re-create subrequest with updated URL
-                    subrequest = Request.blank(tool_url)
-                    subrequest.method = (
-                        tool._internal_route_method
-                        if hasattr(tool, "_internal_route_method")
-                        and tool._internal_route_method
-                        else "GET"
-                    )
-                    self._copy_request_context(pyramid_request, subrequest)
+            body_json = json.dumps(body_data).encode("utf-8")
+            subrequest.body = body_json
 
         return subrequest
 
@@ -614,6 +653,66 @@ class MCPProtocolHandler:
         for key, value in pyramid_request.environ.items():
             if key not in request_specific_keys:
                 subrequest.environ[key] = value
+
+    def _get_subrequest_debug_info(
+        self, subrequest: Optional[Request], tool_args: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Extract debug information from subrequest and tool arguments.
+
+        Args:
+            subrequest: The subrequest that failed (may be None if error occurred
+                before creation)
+            tool_args: Original tool arguments
+
+        Returns:
+            Dictionary with debug information
+        """
+        debug_info: Dict[str, Any] = {
+            "tool_args": tool_args,
+            "subrequest": None,
+        }
+
+        if subrequest is None:
+            debug_info[
+                "subrequest"
+            ] = "Subrequest not created (error occurred before subrequest creation)"
+            return debug_info
+
+        try:
+            # Extract subrequest information
+            subrequest_info = {
+                "url": getattr(subrequest, "url", "unknown"),
+                "method": getattr(subrequest, "method", "unknown"),
+                "path_info": getattr(subrequest, "path_info", "unknown"),
+                "content_type": getattr(subrequest, "content_type", None),
+                "headers": dict(getattr(subrequest, "headers", {})),
+            }
+
+            # Add body information if present
+            if hasattr(subrequest, "body") and subrequest.body:
+                try:
+                    body_content = subrequest.body
+                    if isinstance(body_content, bytes):
+                        body_text = body_content.decode("utf-8", errors="ignore")
+                    else:
+                        body_text = str(body_content)
+                    subrequest_info["body"] = body_text
+                except Exception:
+                    subrequest_info["body"] = (
+                        f"<body present but not readable, "
+                        f"size: {len(subrequest.body)} bytes>"
+                    )
+
+            # Add query string if present
+            if hasattr(subrequest, "query_string") and subrequest.query_string:
+                subrequest_info["query_string"] = subrequest.query_string
+
+            debug_info["subrequest"] = subrequest_info
+
+        except Exception as e:
+            debug_info["subrequest"] = f"Error extracting subrequest info: {str(e)}"
+
+        return debug_info
 
     def _handle_list_resources(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """Handle MCP resources/list request."""
