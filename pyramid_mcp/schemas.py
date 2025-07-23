@@ -376,11 +376,23 @@ class MCPContextResultSchema(Schema):
                 content_format = "text"
                 content = response.text if hasattr(response, "text") else str(response)
 
+            # Check for custom llm_context_hint from view predicate
+            custom_llm_hint = view_info.get("llm_context_hint") if view_info else None
+            default_llm_hint = "This is a response from a Pyramid API"
+
+            # Trust the predicate, but handle edge cases for direct testing
+            # In normal operation, the predicate handles normalization
+            # In direct tests, we need basic fallback for truly empty values
+            if custom_llm_hint is not None and str(custom_llm_hint).strip():
+                llm_context_hint = str(custom_llm_hint).strip()
+            else:
+                llm_context_hint = default_llm_hint
+
             ret = {
                 "type": "mcp/context",
                 "version": "1.0",
                 "tags": ["api_response"],
-                "llm_context_hint": "This is a response from a Pyramid API",
+                "llm_context_hint": llm_context_hint,
                 "source": {
                     "kind": "rest_api",
                     "name": "PyramidAPI",

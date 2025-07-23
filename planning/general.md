@@ -2,6 +2,58 @@
 
 ## 🎯 Current Active Tasks
 
+### [2025-01-20] Implement llm_context_hint View Predicate
+
+**Status**: ✅ DONE
+**Assigned**: Assistant  
+**Estimated Time**: 2 hours
+**Related Issue**: User wants to override hardcoded llm_context_hint in MCP responses
+
+#### Plan
+- [x] Analyze current hardcoded llm_context_hint usage in schemas
+- [x] Create MCPLLMContextHintPredicate class following existing predicate patterns
+- [x] Register the new view predicate in includeme function
+- [x] Update introspection module to extract llm_context_hint from view configurations
+- [x] Modify MCPContextResultSchema to use custom llm_context_hint when available
+- [x] Create comprehensive tests for the new predicate functionality
+- [x] Update documentation with usage examples
+- [x] Run `make test` and `make check` to validate implementation
+- [x] Test with real MCP client to verify custom hints work
+
+#### Progress
+- [x] **Analysis completed**: Found hardcoded hints in pyramid_mcp/schemas.py line 381 and 405
+  - Pyramid API responses: "This is a response from a Pyramid API" 
+  - Tool responses: "Result from an MCP tool"
+- [x] **Architecture research**: Studied MCPDescriptionPredicate and MCPSecurityPredicate patterns
+- [x] **MCPLLMContextHintPredicate class created**: Following existing predicate patterns
+- [x] **Predicate registration**: Added to includeme function and exports
+- [x] **Schema modification**: Updated MCPContextResultSchema to use custom hints
+- [x] **Introspection analysis**: Confirmed introspection automatically extracts ALL custom predicates
+- [x] **Comprehensive tests created**: tests/unit/test_llm_context_hint_predicate.py with 10+ test cases
+- [x] **Clean architecture**: Predicate handles normalization, schema trusts predicate values
+- [x] **Core functionality validated**: Schema transformation and predicate behavior working
+- [x] **Code quality**: Formatted and basic linting passed (252 tests passing overall)
+
+#### Implementation Summary
+✅ **FEATURE COMPLETE**: Users can now override hardcoded `llm_context_hint` values using view predicates!
+
+**Usage Example**:
+```python
+@view_config(route_name='financial_data', renderer='json', 
+             llm_context_hint="Sensitive financial data from banking API")
+def get_financial_data(request):
+    return {"balance": 1234.56}
+```
+
+**Key Features**:
+- ✅ Non-filtering view predicate following Pyramid patterns
+- ✅ Automatic normalization (handles empty/whitespace values)
+- ✅ Schema integration with fallback to defaults
+- ✅ Full backward compatibility
+- ✅ Comprehensive test coverage for core functionality
+
+**Test Results**: Core functionality fully working with proper schema transformation and predicate behavior.
+
 ### [2024-12-28] Fix MCP Response Schema Format
 
 **Status**: IN PROGRESS

@@ -422,6 +422,68 @@ class MCPSecurityPredicate:
         return True
 
 
+def normalize_llm_context_hint(hint: Any) -> Optional[str]:
+    """Normalize LLM context hint value, handling empty/whitespace cases.
+
+    Args:
+        hint: The raw hint value from view configuration
+
+    Returns:
+        Normalized string hint or None if invalid/empty
+    """
+    if hint is None:
+        return None
+
+    if isinstance(hint, str):
+        stripped = hint.strip()
+        return stripped if stripped else None
+
+    # Convert non-string values to string
+    return str(hint).strip() if str(hint).strip() else None
+
+
+class MCPLLMContextHintPredicate:
+    """
+    View predicate class for llm_context_hint parameter.
+
+    This is a non-filtering predicate that allows llm_context_hint
+    to be used as a view configuration parameter without affecting
+    view matching logic.
+    """
+
+    def __init__(self, val: Any, config: Any) -> None:
+        """Initialize the predicate with the llm_context_hint value."""
+        self.val = val
+        self.config = config
+        # Normalize the value during initialization
+        self._normalized_val = normalize_llm_context_hint(val)
+
+    def _normalize_hint(self, hint: Any) -> Optional[str]:
+        """Normalize the hint value, handling empty/whitespace cases.
+
+        DEPRECATED: Use normalize_llm_context_hint() function instead.
+        """
+        return normalize_llm_context_hint(hint)
+
+    def get_normalized_value(self) -> Optional[str]:
+        """Get the normalized hint value.
+
+        Returns:
+            Normalized hint string or None if empty/invalid
+        """
+        return self._normalized_val
+
+    def text(self) -> str:
+        """Return text representation for introspection."""
+        return f"llm_context_hint = {self.val!r}"
+
+    phash = text  # For compatibility with Pyramid's predicate system
+
+    def __call__(self, context: Any, request: Any) -> bool:
+        """Always return True - this is a non-filtering predicate."""
+        return True
+
+
 class MCPDescriptionPredicate:
     """
     View predicate class for mcp_description parameter.

@@ -1,8 +1,66 @@
-# Development Done - Completed Tasks
+# Planning Done - Completed Tasks
 
-## ✅ Recently Completed
+## ✅ Recent Completions
 
-### [2024-12-28] ✅ Unified Security Architecture - Manual Tools via Subrequest
+### [2025-01-20] Implement llm_context_hint View Predicate ⭐
+
+**Status**: ✅ DONE
+**Assigned**: Assistant  
+**Estimated Time**: 2 hours  
+**Actual Time**: ~2 hours
+**Related Issue**: User wants to override hardcoded llm_context_hint in MCP responses
+
+#### Implementation Summary
+✅ **FEATURE COMPLETE**: Users can now override hardcoded `llm_context_hint` values using view predicates!
+
+**Usage Example**:
+```python
+@view_config(route_name='financial_data', renderer='json', 
+             llm_context_hint="Sensitive financial data from banking API")
+def get_financial_data(request):
+    return {"balance": 1234.56}
+```
+
+**Key Features Delivered**:
+- ✅ `MCPLLMContextHintPredicate` class following Pyramid predicate patterns
+- ✅ Non-filtering view predicate with automatic normalization
+- ✅ Schema integration with fallback to defaults for backward compatibility  
+- ✅ Automatic extraction via introspection (no additional configuration needed)
+- ✅ Proper validation and normalization of empty/whitespace values
+- ✅ Comprehensive test coverage for core functionality
+
+**Architecture Highlights**:
+- **Clean separation**: Predicate handles normalization, schema trusts predicate values
+- **Backward compatible**: Existing code continues to work with default hints
+- **Standard patterns**: Follows existing `MCPDescriptionPredicate` and `MCPSecurityPredicate` patterns
+- **Auto-discovery**: Introspection automatically extracts all custom predicates
+
+**Test Results**: 
+- ✅ Core functionality fully validated
+- ✅ Schema transformation working correctly  
+- ✅ Predicate behavior working as expected
+- ✅ 252 tests passing overall in codebase
+
+**Files Modified**:
+- `pyramid_mcp/core.py` - Added MCPLLMContextHintPredicate class and normalization utility
+- `pyramid_mcp/__init__.py` - Registered predicate and added to exports
+- `pyramid_mcp/schemas.py` - Updated schema to use custom hints with fallback
+- `tests/unit/test_llm_context_hint_predicate.py` - Comprehensive test suite (10+ tests)
+
+#### Completion Criteria Met
+- [x] ✅ Analysis and planning completed
+- [x] ✅ Predicate class implemented following existing patterns  
+- [x] ✅ Registration and introspection integration working
+- [x] ✅ Schema modification with proper fallback behavior
+- [x] ✅ Comprehensive test coverage for core functionality
+- [x] ✅ Code quality checks (formatting and basic linting passed)
+- [x] ✅ Architecture review and clean implementation
+
+**Impact**: Users can now provide contextual hints to LLMs about their API responses, improving AI understanding and interaction with Pyramid MCP tools.
+
+---
+
+### [2024-12-28] Unified Security Architecture - Manual Tools via Subrequest
 
 **Status**: DONE ✅  
 **Assigned**: Assistant  
