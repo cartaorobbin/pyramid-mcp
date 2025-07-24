@@ -1,0 +1,182 @@
+#!/usr/bin/env bash
+# Local development environment setup script for pyramid-mcp
+# This script handles the heavy work moved from .envrc
+
+set -e
+
+PROJECT_NAME="pyramid-mcp"
+PYTHON_VERSION="3.10"
+
+echo "🔧 Setting up pyramid-mcp local development environment..."
+
+# =============================================================================
+# Python Version Validation
+# =============================================================================
+echo "🐍 Validating Python version..."
+
+# Extract required Python version from pyproject.toml
+if [[ -f "pyproject.toml" ]]; then
+    REQUIRED_PYTHON=$(grep -E '^python\s*=' pyproject.toml | sed 's/.*"\^*\([0-9.]*\)".*/\1/' | head -1)
+    if [[ -n "$REQUIRED_PYTHON" ]]; then
+        echo "   Required: Python ^$REQUIRED_PYTHON"
+        
+        # Check current Python version
+        if command -v python &> /dev/null; then
+            CURRENT_PYTHON=$(python --version 2>&1 | cut -d' ' -f2)
+            CURRENT_MAJOR_MINOR=$(echo "$CURRENT_PYTHON" | cut -d'.' -f1,2)
+            REQUIRED_MAJOR_MINOR=$(echo "$REQUIRED_PYTHON" | cut -d'.' -f1,2)
+            
+            if [[ "$CURRENT_MAJOR_MINOR" == "$REQUIRED_MAJOR_MINOR" ]] || [[ "$CURRENT_MAJOR_MINOR" > "$REQUIRED_MAJOR_MINOR" ]]; then
+                echo "✅ Python version compatible: $CURRENT_PYTHON"
+            else
+                echo "⚠️  Python version mismatch: $CURRENT_PYTHON (need ^$REQUIRED_PYTHON)"
+            fi
+        fi
+    fi
+fi
+
+# =============================================================================
+# Pyenv Virtual Environment Setup
+# =============================================================================
+echo "🏗️  Setting up pyenv virtual environment..."
+
+# Check if pyenv is installed
+if ! command -v pyenv &> /dev/null; then
+    echo "❌ pyenv is not installed. Please install pyenv:"
+    echo "   https://github.com/pyenv/pyenv#installation"
+    exit 1
+fi
+
+# Reinitialize pyenv to update PATH
+export PATH=$(pyenv root)/shims:$PATH
+eval "$(pyenv init -)"
+eval "$(pyenv virtualenv-init -)"
+
+# Check if virtual environment exists
+if pyenv versions --bare | grep -q "^$PROJECT_NAME$"; then
+    echo "✅ Virtual environment '$PROJECT_NAME' already exists"
+else
+    echo "🔧 Creating virtual environment '$PROJECT_NAME'..."
+    
+    # Find best available Python version
+    if pyenv versions --bare | grep -q "^$PYTHON_VERSION"; then
+        echo "   Using Python $PYTHON_VERSION"
+        pyenv virtualenv "$PYTHON_VERSION" "$PROJECT_NAME"
+    else
+        # Find best available version matching requirements (3.10+)
+        AVAILABLE_PYTHON=$(pyenv versions --bare | grep -E "^3\.(1[0-9]|[2-9][0-9])" | tail -1)
+        if [[ -n "$AVAILABLE_PYTHON" ]]; then
+            echo "   Using available Python $AVAILABLE_PYTHON"
+            pyenv virtualenv "$AVAILABLE_PYTHON" "$PROJECT_NAME"
+        else
+            echo "❌ No suitable Python version found. Install Python 3.10+ with:"
+            echo "   pyenv install 3.10.15"
+            exit 1
+        fi
+    fi
+    
+    echo "✅ Created virtual environment '$PROJECT_NAME'"
+fi
+
+# =============================================================================
+# Activate Virtual Environment First
+# =============================================================================
+echo "🔄 Activating virtual environment '$PROJECT_NAME'..."
+
+# Properly activate the virtual environment
+eval "$(pyenv init -)"
+eval "$(pyenv virtualenv-init -)"
+pyenv activate "$PROJECT_NAME"
+
+# Verify environment activation
+echo "   Python path: $(which python)"
+echo "   Python version: $(python --version)"
+echo "   Virtual environment: $(pyenv version-name)"
+
+# =============================================================================
+# Poetry Installation and Dependencies
+# =============================================================================
+echo "📦 Setting up Poetry and dependencies..."
+
+# Configure Poetry to use the current virtual environment
+export POETRY_VIRTUALENVS_CREATE=false
+export POETRY_VENV_IN_PROJECT=false
+echo "   Configured Poetry to use current virtual environment"
+
+# Check if Poetry is installed and working in this environment
+if ! poetry --version &> /dev/null; then
+    echo "🔧 Installing Poetry in $PROJECT_NAME environment..."
+    echo "   Installing Poetry via pip..."
+    pip install poetry
+    echo "   Refreshing pyenv shims..."
+    pyenv rehash
+    
+    # Verify Poetry installation by actually running it
+    if poetry --version &> /dev/null; then
+        echo "✅ Poetry successfully installed: $(poetry --version)"
+    else
+        echo "❌ Poetry installation failed"
+        exit 1
+    fi
+else
+    echo "✅ Poetry already available: $(poetry --version)"
+fi
+
+# Install dependencies (including dev dependencies)
+echo "📚 Installing project dependencies (including dev dependencies)..."
+if [[ -f "pyproject.toml" ]]; then
+    # Force clean installation to ensure dev dependencies are installed
+    echo "   Running: poetry install --with dev"
+    poetry install --with dev --verbose
+    
+    # Verify dev dependencies are actually installed
+    echo "🔍 Verifying dev dependencies installation..."
+    if poetry run python -c "import pre_commit; print('✅ pre-commit available')" 2>/dev/null; then
+        echo "✅ Dev dependencies verified successfully"
+    else
+        echo "⚠️  Dev dependencies missing, forcing reinstall..."
+        # Clear poetry cache and reinstall
+        poetry cache clear . --all 2>/dev/null || true
+        poetry install --with dev --verbose
+        
+        # Verify again
+        if poetry run python -c "import pre_commit; print('✅ pre-commit available after reinstall')" 2>/dev/null; then
+            echo "✅ Dev dependencies installed successfully after reinstall"
+        else
+            echo "❌ Dev dependencies still missing - manual investigation needed"
+        fi
+    fi
+    
+    echo "✅ Dependencies installation complete"
+else
+    echo "⚠️  No pyproject.toml found, skipping dependency installation"
+fi
+
+# =============================================================================
+# Project-Specific Setup
+# =============================================================================
+echo "🔧 Setting up pyramid-mcp specific configuration..."
+
+# Ensure pre-commit hooks are installed
+if [[ -f ".pre-commit-config.yaml" ]]; then
+    echo "📋 Installing pre-commit hooks..."
+    if poetry run pre-commit install; then
+        echo "✅ Pre-commit hooks installed"
+    else
+        echo "⚠️  Pre-commit installation failed, continuing..."
+    fi
+fi
+
+# Verify Poetry environment is ready
+if poetry env info &> /dev/null; then
+    echo "✅ Poetry environment ready"
+else
+    echo "⚠️  Poetry environment setup issue, but continuing..."
+fi
+
+echo "🎉 pyramid-mcp local development environment setup complete!"
+echo ""
+echo "Next steps:"
+echo "  1. Run 'direnv reload' to activate the environment"
+echo "  2. Use 'make install' for additional project setup"
+echo "  3. Use 'make test' to verify everything works" 

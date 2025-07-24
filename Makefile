@@ -108,3 +108,7 @@ build: ## Build the package
 
 publish: ## Publish to PyPI (requires authentication)
 	poetry publish
+
+setup-local-env: ## Set up local development environment (creates virtualenv, installs dependencies)
+	@echo "🔧 Setting up local development environment..."
+	./bin/setup-local-env
