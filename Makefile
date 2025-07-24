@@ -31,7 +31,7 @@ check: ## Run all code quality checks
 	poetry run black --check pyramid_mcp tests examples
 	poetry run isort --check-only pyramid_mcp tests examples
 	poetry run flake8 pyramid_mcp tests examples
-	poetry run mypy pyramid_mcp tests examples
+	poetry run mypy pyramid_mcp tests examples --exclude='.*site-packages.*'
 
 format: ## Format code with black and isort
 	poetry run black pyramid_mcp tests examples
@@ -39,7 +39,7 @@ format: ## Format code with black and isort
 
 lint: ## Run linting checks
 	poetry run flake8 pyramid_mcp tests examples
-	poetry run mypy pyramid_mcp
+	poetry run mypy pyramid_mcp --exclude='.*site-packages.*'
 
 clean: ## Clean up build artifacts and cache
 	rm -rf build/

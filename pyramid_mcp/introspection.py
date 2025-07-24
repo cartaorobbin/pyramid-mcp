@@ -582,6 +582,9 @@ class PyramidIntrospector:
                     method_info = method_specific[method.upper()]
                     permission = method_info.get("permission")
 
+            # Extract llm_context_hint from view info
+            llm_context_hint = view.get("llm_context_hint")
+
             # Create MCP tool
             tool = MCPTool(
                 name=tool_name,
@@ -590,6 +593,7 @@ class PyramidIntrospector:
                 handler=self._create_route_handler(route_info, view, method),
                 permission=permission,
                 security=security,
+                llm_context_hint=llm_context_hint,
             )
 
             # Store original route pattern and method for route-based tools

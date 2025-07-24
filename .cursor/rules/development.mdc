@@ -1133,9 +1133,9 @@ config.add_route('protected', '/protected', factory=lambda r: AuthenticatedConte
 
 ### 📚 Additional Resources
 
-- [Pyramid Security Documentation](mdc:https:/docs.pylonsproject.org/projects/pyramid/en/latest/narr/security.html)
-- [ACL Tutorial](mdc:https:/docs.pylonsproject.org/projects/pyramid/en/latest/tutorials/wiki2/authorization.html)  
-- [Security Best Practices](mdc:https:/docs.pylonsproject.org/projects/pyramid/en/latest/narr/security.html#security-best-practices)
+- [Pyramid Security Documentation](mdc:ai/https:/docs.pylonsproject.org/projects/pyramid/en/latest/narr/security.html)
+- [ACL Tutorial](mdc:ai/https:/docs.pylonsproject.org/projects/pyramid/en/latest/tutorials/wiki2/authorization.html)  
+- [Security Best Practices](mdc:ai/https:/docs.pylonsproject.org/projects/pyramid/en/latest/narr/security.html#security-best-practices)
 
 ---
 
@@ -1149,3 +1149,53 @@ config.add_route('protected', '/protected', factory=lambda r: AuthenticatedConte
 ---
 
 **Remember**: These rules exist to make our development process smoother and our code better. When in doubt, plan first and document what you're doing in the appropriate planning file! 
+
+### Pyramid Testing Patterns
+
+#### ⭐ CRITICAL: Use Fixtures, Not Manual Configurator Setup
+**ALWAYS use pyramid fixtures for testing, NEVER create Configurator() manually.**
+
+```python
+# ❌ WRONG - Manual Configurator setup
+def test_bad_example():
+    from pyramid.config import Configurator
+    from webtest import TestApp
+    
+    config = Configurator(settings={"mcp.route_discovery.enabled": "true"})
+    config.include("pyramid_mcp") 
+    config.add_route("test", "/test")
+    app = TestApp(config.make_wsgi_app())  # Manual setup
+
+# ✅ CORRECT - Use proper fixtures
+def test_good_example(pyramid_app_with_views):
+    routes = [("test", "/test")]
+    app = pyramid_app_with_views(routes)  # Fixture handles everything
+```
+
+#### Testing Views with Predicates
+**Define views at module level with decorators, let scanning discover them.**
+
+```python
+# At module level - will be discovered by scanning
+@view_config(
+    route_name="api_endpoint",
+    renderer="json",
+    llm_context_hint="Custom context hint for this endpoint"
+)
+def api_view(request):
+    return {"data": "response"}
+
+def test_view_with_predicate(pyramid_app_with_views):
+    routes = [("api_endpoint", "/api/endpoint")]
+    app = pyramid_app_with_views(routes)  # Scanning finds decorated views
+    
+    # Test actual HTTP calls, not mocks
+    response = app.post_json("/mcp", mcp_request)
+    assert response.status_code == 200
+```
+
+#### Available Fixtures
+- `pyramid_app_with_views(routes)` - Complete TestApp with MCP, discovers decorated views
+- `testapp` - Basic TestApp with default configuration  
+- `mcp_testapp` - TestApp with MCP endpoints mounted
+- `pyramid_config` - Configurator for manual configuration (use sparingly) 

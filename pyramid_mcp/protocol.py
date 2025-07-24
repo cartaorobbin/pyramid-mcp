@@ -137,6 +137,7 @@ class MCPTool:
     permission: Optional[str] = None  # Pyramid permission requirement
     context: Optional[Any] = None  # Context for permission checking
     security: Optional[MCPSecurityType] = None  # Authentication parameter specification
+    llm_context_hint: Optional[str] = None  # Custom context hint for LLM responses
     # Internal fields for unified security architecture
     _internal_route_name: Optional[str] = None  # Route name for manual tools
     _internal_route_path: Optional[str] = None  # Route path for manual tools
@@ -473,12 +474,18 @@ class MCPProtocolHandler:
             schema = MCPContextResultSchema()
 
             # Prepare data for schema transformation
+            view_info = {
+                "tool_name": tool_name,
+                "url": f"/_internal/mcp-tool/{tool_name}",
+            }
+
+            # Include llm_context_hint if the tool has one
+            if tool.llm_context_hint:
+                view_info["llm_context_hint"] = tool.llm_context_hint
+
             schema_data = {
                 "response": response,
-                "view_info": {
-                    "tool_name": tool_name,
-                    "url": f"/_internal/mcp-tool/{tool_name}",
-                },
+                "view_info": view_info,
             }
 
             # Transform and return directly using schema

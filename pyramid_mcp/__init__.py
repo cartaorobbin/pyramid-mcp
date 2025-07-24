@@ -32,6 +32,7 @@ from pyramid.config import Configurator
 from pyramid_mcp.core import (
     MCPConfiguration,
     MCPDescriptionPredicate,
+    MCPLLMContextHintPredicate,
     MCPSecurityPredicate,
     PyramidMCP,
     tool,
@@ -44,6 +45,7 @@ __all__ = [
     "PyramidMCP",
     "MCPConfiguration",
     "MCPDescriptionPredicate",
+    "MCPLLMContextHintPredicate",
     "MCPSecurityPredicate",
     "__version__",
     "includeme",
@@ -99,6 +101,9 @@ def includeme(config: Configurator) -> None:
 
     # Register the MCP description view predicate
     config.add_view_predicate("mcp_description", MCPDescriptionPredicate)
+
+    # Register the MCP llm_context_hint view predicate
+    config.add_view_predicate("llm_context_hint", MCPLLMContextHintPredicate)
 
     # Register the MCP security view predicate using configurable parameter name
     if mcp_config.add_security_predicate:
