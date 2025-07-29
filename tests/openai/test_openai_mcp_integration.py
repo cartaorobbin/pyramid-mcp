@@ -2,17 +2,12 @@
 Test OpenAI Agent using pyramid-mcp server via MCP.
 """
 
-import os
-
 import pytest
 from agents import Agent, Runner
 from agents.mcp import MCPServerStreamableHttp
 
 
-@pytest.mark.skipif(
-    not os.getenv("OPENAI_API_KEY"),
-    reason="OPENAI_API_KEY environment variable not set",
-)
+@pytest.mark.openai
 @pytest.mark.asyncio
 async def test_agent_with_pyramid_mcp_server(pyramid_mcp_app):
     """Test creating an OpenAI Agent that uses pyramid MCP server configuration."""

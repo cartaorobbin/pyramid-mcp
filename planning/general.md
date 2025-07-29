@@ -6,20 +6,11 @@ This file tracks CURRENT/ACTIVE tasks being worked on right now (max 1-3 task gr
 
 ---
 
-## 📋 No Active Tasks
+## 📋 ACTIVE TASKS
 
-All current tasks are complete. Ready for new work.
+**No active tasks currently.**
 
----
-
-### [2024-12-28] Fix MCP Response Schema Format
-
-**Status**: ✅ DONE - Moved to done.md
-**Assigned**: AI Assistant
-
-**Implementation Summary**: Successfully implemented comprehensive MCP response schema improvements including context format, tool result format, and proper content handling. All tests pass and feature is working in production.
-
-Full details moved to `done.md` file.
+**Recent Completion**: Successfully fixed OpenAI test and implemented professional `--run-openai-tests` configuration. All tests now follow proper testing rules (moved to `done.md`).
 
 ---
 

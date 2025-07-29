@@ -24,6 +24,39 @@ from pyramid_mcp import tool
 from pyramid_mcp.core import MCPConfiguration, PyramidMCP
 from pyramid_mcp.protocol import MCPProtocolHandler
 
+# =============================================================================
+# 🔧 PYTEST CONFIGURATION HOOKS
+# =============================================================================
+
+
+def pytest_addoption(parser):
+    """Add custom command line options."""
+    parser.addoption(
+        "--run-openai-tests",
+        action="store_true",
+        default=False,
+        help="Run OpenAI integration tests (requires OPENAI_API_KEY and costs money)",
+    )
+
+
+def pytest_configure(config):
+    """Configure pytest markers and collection."""
+    config.addinivalue_line("markers", "openai: marks tests that require OpenAI API")
+
+
+def pytest_collection_modifyitems(config, items):
+    """Modify test collection to handle OpenAI tests."""
+    if config.getoption("--run-openai-tests"):
+        # When --run-openai-tests is specified, run all tests including OpenAI
+        return
+
+    # By default, skip OpenAI tests
+    skip_openai = pytest.mark.skip(reason="need --run-openai-tests option to run")
+    for item in items:
+        if "openai" in item.keywords:
+            item.add_marker(skip_openai)
+
+
 # Permission constants
 PERMISSIONS = {"VIEW": "view", "EDIT": "edit", "ADMIN": "admin", "DELETE": "delete"}
 

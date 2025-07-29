@@ -291,6 +291,49 @@ class MCPSourceSchema(Schema):
     )
 
 
+class MCPContentItemSchema(Schema):
+    """Schema for individual MCP content items."""
+
+    type = fields.Str(
+        required=True,
+        metadata={"description": "Content type (e.g., 'text', 'image', 'resource')"},
+    )
+    text = fields.Str(
+        allow_none=True,
+        metadata={"description": "Text content for type=text"},
+    )
+    data = fields.Raw(
+        allow_none=True,
+        metadata={"description": "Raw data content for other types"},
+    )
+    mimeType = fields.Str(
+        allow_none=True,
+        metadata={"description": "MIME type for binary content"},
+    )
+
+    @pre_dump
+    def transform_content_item(self, obj: Any, **kwargs: Any) -> Dict[str, Any]:
+        """Transform raw content into proper MCP content item format."""
+        # Handle case where obj is already a proper content item
+        if isinstance(obj, dict) and "type" in obj:
+            return obj
+
+        # Transform raw content into content item
+        if isinstance(obj, dict):
+            # For dict content, provide both text representation and raw data
+            return {
+                "type": "text",
+                "text": str(obj),
+                "data": obj,
+            }
+        else:
+            # For simple content, just text
+            return {
+                "type": "text",
+                "text": str(obj),
+            }
+
+
 class MCPRepresentationSchema(Schema):
     """Schema for MCP context representation."""
 
@@ -308,6 +351,13 @@ class MCPRepresentationSchema(Schema):
 
 class MCPContextResultSchema(Schema):
     """Schema for the new MCP context result format."""
+
+    # OpenAI compatibility: Add simple content field at top level
+    content = fields.List(
+        fields.Nested(MCPContentItemSchema),
+        required=True,
+        metadata={"description": "List of content items (OpenAI compatibility)"},
+    )
 
     type = fields.Str(
         required=True,
@@ -389,6 +439,9 @@ class MCPContextResultSchema(Schema):
                 llm_context_hint = default_llm_hint
 
             ret = {
+                "content": [
+                    content
+                ],  # Schema will transform content via MCPContentItemSchema
                 "type": "mcp/context",
                 "version": "1.0",
                 "tags": ["api_response"],
@@ -417,6 +470,9 @@ class MCPContextResultSchema(Schema):
                 content_format = "text"
 
             ret = {
+                "content": [
+                    content
+                ],  # Schema will transform content via MCPContentItemSchema
                 "type": "mcp/context",
                 "version": "1.0",
                 "tags": tags,
