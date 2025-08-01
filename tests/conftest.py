@@ -606,8 +606,7 @@ def pyramid_app_with_auth():
 
             def permits(self, request, context, permission):
                 """Check if current user has the given permission."""
-                from pyramid.authorization import ACLHelper
-                from pyramid.security import Authenticated, Everyone
+                from pyramid.authorization import ACLHelper, Authenticated, Everyone
 
                 # Get effective principals for current user
                 principals = self.effective_principals(request)

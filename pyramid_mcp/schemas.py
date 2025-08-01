@@ -203,10 +203,10 @@ def _add_field_validation_constraints(field: Any, field_info: Dict[str, Any]) ->
 class MCPSchemaInfoSchema(Schema):
     """Schema for MCP schema information structure."""
 
-    properties = fields.Dict(missing=dict)
-    required = fields.List(fields.Str(), missing=list)
-    type = fields.Str(missing="object")
-    additionalProperties = fields.Bool(missing=False)
+    properties = fields.Dict(load_default=dict)
+    required = fields.List(fields.Str(), load_default=list)
+    type = fields.Str(load_default="object")
+    additionalProperties = fields.Bool(load_default=False)
 
     @pre_dump
     def extract_schema_info(self, schema: Any, **kwargs: Any) -> Dict[str, Any]:
@@ -497,10 +497,10 @@ class MCPContextResultSchema(Schema):
 class MCPRequestSchema(Schema):
     """Schema for MCP JSON-RPC request validation and serialization."""
 
-    jsonrpc = fields.Str(validate=validate.Equal("2.0"), missing="2.0")
+    jsonrpc = fields.Str(validate=validate.Equal("2.0"), load_default="2.0")
     method = fields.Str(required=True)
-    params = fields.Dict(allow_none=True, missing=None)
-    id = fields.Raw(allow_none=True, missing=None)
+    params = fields.Dict(allow_none=True, load_default=None)
+    id = fields.Raw(allow_none=True, load_default=None)
 
 
 class MCPErrorSchema(Schema):
