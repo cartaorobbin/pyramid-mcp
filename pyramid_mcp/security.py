@@ -75,7 +75,9 @@ MCPSecurityType = Union[BearerAuthSchema, BasicAuthSchema]
 
 
 def merge_auth_into_schema(
-    base_schema: Optional[Dict[str, Any]], security: Optional[MCPSecurityType]
+    base_schema: Optional[Dict[str, Any]],
+    security: Optional[MCPSecurityType],
+    expose_auth_as_params: bool = True,
 ) -> Dict[str, Any]:
     """Merge authentication parameters into a tool's input schema.
 
@@ -84,10 +86,12 @@ def merge_auth_into_schema(
 
     Args:
         base_schema: Base JSON schema for the tool or None
-        mcp_security: Authentication specification (BearerAuthSchema or BasicAuthSchema)
+        security: Authentication specification (BearerAuthSchema or BasicAuthSchema)
+        expose_auth_as_params: Whether to expose authentication parameters in the schema
 
     Returns:
         Updated JSON schema with authentication parameters
+        (if expose_auth_as_params=True)
 
     Example:
         base = {
@@ -124,8 +128,8 @@ def merge_auth_into_schema(
     if "required" not in merged_schema:
         merged_schema["required"] = []
 
-    # Add authentication parameters if specified
-    if security:
+    # Add authentication parameters if specified and enabled
+    if security and expose_auth_as_params:
         # Generate JSON schema from the auth schema
         auth_json_schema = create_json_schema_from_marshmallow(security.__class__)
 

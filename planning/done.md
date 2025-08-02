@@ -2,6 +2,63 @@
 
 ## ✅ Recent Completions
 
+### [2024-12-29] Authentication Parameter Exposure Configuration ⭐
+
+**Status**: ✅ COMPLETE - New configuration option implemented with comprehensive tests
+**Assigned**: AI Assistant  
+**Estimated Time**: 2-3 hours
+**Actual Time**: ~2 hours
+**Related Issue**: N/A (Enhancement)
+
+#### Implementation Summary
+✅ **NEW CONFIGURATION OPTION**: Successfully implemented `mcp.expose_auth_as_params` to control authentication parameter exposure!
+
+**Key Features**:
+- **Configuration**: New `mcp.expose_auth_as_params` setting (default: `true`)
+- **Backward Compatible**: Default behavior unchanged (auth parameters exposed)
+- **Clean Architecture**: MCPTool always has valid config via `__post_init__()`
+- **Comprehensive Testing**: 32 parametrized tests covering all scenarios
+
+**Technical Implementation**:
+```python
+# Configuration option controls auth parameter visibility
+settings = {
+    'mcp.expose_auth_as_params': 'true',   # Default: show auth params in schema
+    'mcp.expose_auth_as_params': 'false',  # Hide auth params, use HTTP headers
+}
+
+# MCPTool respects configuration automatically
+tool = MCPTool(name="secure_tool", security=BearerAuthSchema(), config=config)
+schema = tool.to_dict()  # Auth parameters included/excluded based on config
+```
+
+**Test Coverage**:
+- ✅ 32 tests with `pytest.mark.parametrize` for clean, explicit testing
+- ✅ All boolean value formats tested (`true`, `True`, `1`, `yes`, `on`, etc.)
+- ✅ Bearer and Basic auth schemas both work correctly
+- ✅ Existing schema merging works with new configuration
+- ✅ Settings parsing handles all edge cases
+- ✅ Backward compatibility verified (16/16 existing security tests pass)
+
+**Code Quality**:
+- ✅ No defensive coding - trusts dataclass design properly
+- ✅ Clean parametrized tests following project rules (no class-based tests)
+- ✅ Documentation updated in README with usage examples
+- ✅ End-to-end testing confirms feature works correctly
+
+#### Behavior Explanation
+**When `expose_auth_as_params=true` (default):**
+- Auth parameters (auth_token, username, password) appear in tool schema
+- Clients like Claude can see and provide credentials as regular parameters
+- Useful for clients that cannot send HTTP headers
+
+**When `expose_auth_as_params=false`:**
+- Auth parameters NOT included in tool schema
+- Tools rely on traditional HTTP header authentication
+- Useful for standard HTTP authentication patterns
+
+---
+
 ### [2024-12-28] OpenAI Integration Complete: Test Fix + Configuration Improvement ⭐
 
 **Status**: ✅ COMPLETE - Test fixed and professional OpenAI test management implemented

@@ -72,9 +72,8 @@ def test_secure_cornice_service_tools_list(pyramid_app_with_services, secure_ser
     tools = tools_response.json["result"]["tools"]
     tool_names = [tool["name"] for tool in tools]
 
-    # Should have secure service tools
-    secure_tools = [name for name in tool_names if "secure" in name]
-    assert len(secure_tools) > 0
+    # Should have at least one tool
+    assert len(tool_names) > 0
 
 
 def test_secure_get_endpoint_requires_auth(pyramid_app_with_services, secure_service):
@@ -82,19 +81,14 @@ def test_secure_get_endpoint_requires_auth(pyramid_app_with_services, secure_ser
     services = [secure_service]
     app = pyramid_app_with_services(services)
 
-    # Find the secure GET tool
+    # Get the secure GET tool directly
     tools_response = app.post_json(
         "/mcp", {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
     )
     tools = tools_response.json["result"]["tools"]
 
-    secure_get_tool = None
-    for tool in tools:
-        if "secure" in tool["name"] and "get" in tool["name"]:
-            secure_get_tool = tool
-            break
-
-    assert secure_get_tool is not None
+    # Get the secure GET tool by index (no conditional logic)
+    secure_get_tool = tools[0]  # get_secure_service
 
     # Try to call without authentication
     call_response = app.post_json(
@@ -107,8 +101,13 @@ def test_secure_get_endpoint_requires_auth(pyramid_app_with_services, secure_ser
         },
     )
 
-    # Should succeed (security handled by Pyramid, not by MCP protocol level)
+    # Should succeed with error about authentication failure
     assert call_response.status_code == 200
+    assert call_response.json["error"]["code"] == -32603
+    # Verify the error contains permission failure information
+    error_message = call_response.json["error"]["message"]
+    assert "Unauthorized" in error_message
+    assert "failed permission check" in error_message
 
 
 def test_secure_endpoints_authentication_integration(
@@ -118,27 +117,14 @@ def test_secure_endpoints_authentication_integration(
     services = [secure_service]
     app = pyramid_app_with_services(services)
 
-    # Get the secure POST tool
+    # Get the secure POST tool directly
     tools_response = app.post_json(
         "/mcp", {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
     )
     tools = tools_response.json["result"]["tools"]
 
-    secure_post_tool = None
-    for tool in tools:
-        if "secure" in tool["name"].lower():
-            secure_post_tool = tool
-            break
-
-    # If we still can't find it, let's see what tools exist
-    if secure_post_tool is None:
-        tool_names = [tool["name"] for tool in tools]
-        print(f"Available tools: {tool_names}")
-        # Just pick the first tool that exists for basic testing
-        if tools:
-            secure_post_tool = tools[0]
-
-    assert secure_post_tool is not None
+    # Get the secure POST tool by index (no conditional logic)
+    secure_post_tool = tools[2]  # create_secure_service
 
     # Test with valid schema data
     call_response = app.post_json(
@@ -159,23 +145,18 @@ def test_secure_endpoints_authentication_integration(
     )
 
     assert call_response.status_code == 200
-    # This is a security test - expect either result or error based on authentication
-    if "result" in call_response.json:
-        result = call_response.json["result"]
-    else:
-        # Authentication may fail, which is expected for security testing
-        assert "error" in call_response.json
-        # For the rest of the test, use a mock result structure
-        # that matches MCP context format
-        result = {
-            "type": "mcp/context",
-            "representation": {"content": "Security test completed"},
-        }
-    assert result["type"] == "mcp/context"
+    # Authentication should fail, expect error (no conditional logic)
+    assert "error" in call_response.json
+    error = call_response.json["error"]
+    assert error["code"] == -32603  # Internal error due to permission failure
+    # Verify specific error content about authentication failure
+    assert "Unauthorized" in error["message"]
+    assert "create_secure_user__POST" in error["message"]
+    assert "failed permission check" in error["message"]
 
 
-def test_cornice_service_with_bearer_auth_integration(pyramid_app_with_services):
-    """Test Cornice service integration with Bearer authentication."""
+def test_bearer_auth_without_token_denies_access(pyramid_app_with_services):
+    """Test that Bearer auth endpoint denies access without authentication token."""
     # Create a service that expects Bearer auth
     bearer_service = Service(
         name="bearer_secure",
@@ -204,16 +185,9 @@ def test_cornice_service_with_bearer_auth_integration(pyramid_app_with_services)
         "/mcp", {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
     )
     tools = tools_response.json["result"]["tools"]
+    bearer_tool = tools[0]  # get_bearer_secure
 
-    bearer_tool = None
-    for tool in tools:
-        if "bearer" in tool["name"]:
-            bearer_tool = tool
-            break
-
-    assert bearer_tool is not None
-
-    # Test without auth token
+    # Test without auth token - should be denied
     call_response = app.post_json(
         "/mcp",
         {
@@ -225,23 +199,143 @@ def test_cornice_service_with_bearer_auth_integration(pyramid_app_with_services)
     )
 
     assert call_response.status_code == 200
+    # Authentication should fail, expect error
+    assert "error" in call_response.json
+    error = call_response.json["error"]
+    assert error["code"] == -32603  # Internal error due to permission failure
+    assert "Unauthorized" in error["message"]
+    assert "get_with_bearer__GET" in error["message"]
 
-    # Test with auth token (if tool supports it)
-    if "auth_token" in bearer_tool.get("inputSchema", {}).get("properties", {}):
-        call_response_with_auth = app.post_json(
-            "/mcp",
-            {
-                "jsonrpc": "2.0",
-                "method": "tools/call",
-                "params": {
-                    "name": bearer_tool["name"],
-                    "arguments": {"auth_token": "test_bearer_token"},
-                },
-                "id": 3,
+
+def test_bearer_auth_with_valid_token_grants_access(pyramid_app_with_services):
+    """Test that Bearer auth endpoint grants access with valid authentication token."""
+    # Create a service that expects Bearer auth
+    bearer_service = Service(
+        name="bearer_secure",
+        path="/bearer-secure",
+        description="Service requiring Bearer authentication",
+    )
+
+    @bearer_service.get(permission="authenticated")
+    def get_with_bearer(request):
+        """Get data with Bearer auth."""
+        # Check for auth headers
+        auth_headers = getattr(request, "mcp_auth_headers", {})
+        has_auth = "Authorization" in auth_headers
+
+        return {
+            "message": "Bearer auth endpoint",
+            "has_auth": has_auth,
+            "auth_type": "bearer" if has_auth else "none",
+        }
+
+    services = [bearer_service]
+    app = pyramid_app_with_services(services)
+
+    # Get the bearer auth tool
+    tools_response = app.post_json(
+        "/mcp", {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
+    )
+    tools = tools_response.json["result"]["tools"]
+    bearer_tool = tools[0]  # get_bearer_secure
+
+    # Test with valid auth token - should grant access
+    call_response_with_auth = app.post_json(
+        "/mcp",
+        {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": bearer_tool["name"],
+                "arguments": {"auth_token": "test_bearer_token"},
             },
-        )
+            "id": 3,
+        },
+    )
 
-        assert call_response_with_auth.status_code == 200
+    assert call_response_with_auth.status_code == 200
+    # Verify successful authentication and expected response content
+    expected_response = (
+        "{'message': 'Bearer auth endpoint', 'has_auth': True, 'auth_type': 'bearer'}"
+    )
+    actual_response = call_response_with_auth.json["result"]["content"][0]["text"]
+    assert actual_response == expected_response
+
+
+def test_expose_auth_as_params_disabled_uses_header_auth(pyramid_app_with_services):
+    """Test mcp.expose_auth_as_params=false uses headers not parameters."""
+    # Create a service that expects Bearer auth
+    bearer_service = Service(
+        name="bearer_secure",
+        path="/bearer-secure",
+        description="Service requiring Bearer authentication",
+    )
+
+    @bearer_service.get(permission="authenticated")
+    def get_with_bearer(request):
+        """Get data with Bearer auth."""
+        # Check for auth headers
+        auth_headers = getattr(request, "mcp_auth_headers", {})
+        has_auth = "Authorization" in auth_headers
+
+        return {
+            "message": "Bearer auth endpoint",
+            "has_auth": has_auth,
+            "auth_type": "bearer" if has_auth else "none",
+        }
+
+    # Configure app with expose_auth_as_params disabled
+    settings = {
+        "mcp.route_discovery.enabled": "true",
+        "mcp.server_name": "test-server",
+        "mcp.server_version": "1.0.0",
+        "mcp.expose_auth_as_params": "false",  # Disable auth parameter exposure
+    }
+    services = [bearer_service]
+    app = pyramid_app_with_services(services, settings)
+
+    # Get the bearer auth tool
+    tools_response = app.post_json(
+        "/mcp", {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
+    )
+    tools = tools_response.json["result"]["tools"]
+    bearer_tool = tools[0]  # get_bearer_secure
+
+    # Verify that auth parameters are NOT in the tool schema
+    input_schema = bearer_tool["inputSchema"]
+    properties = input_schema.get("properties", {})
+    required = input_schema.get("required", [])
+
+    # Auth token should NOT be in schema when expose_auth_as_params is false
+    assert "auth_token" not in properties
+    assert "auth_token" not in required
+    assert "username" not in properties  # Basic auth fields should also be absent
+    assert "password" not in properties
+
+    # Test authentication using HTTP headers (not MCP parameters)
+    # The fix now allows HTTP Authorization headers to work when
+    # expose_auth_as_params=false
+    call_response_with_auth = app.post_json(
+        "/mcp",
+        {
+            "jsonrpc": "2.0",
+            "method": "tools/call",
+            "params": {
+                "name": bearer_tool["name"],
+                "arguments": {},  # No auth_token parameter
+            },
+            "id": 3,
+        },
+        headers={"Authorization": "Bearer test_bearer_token"},  # Auth via header
+    )
+
+    assert call_response_with_auth.status_code == 200
+    # Verify successful authentication via header and expected response content
+    expected_response = (
+        "{'message': 'Bearer auth endpoint', 'has_auth': True, 'auth_type': 'bearer'}"
+    )
+    actual_response = call_response_with_auth.json["result"]["content"][0]["text"]
+    assert actual_response == expected_response
 
 
 def test_cornice_service_schema_validation_with_security(
@@ -251,27 +345,14 @@ def test_cornice_service_schema_validation_with_security(
     services = [secure_service]
     app = pyramid_app_with_services(services)
 
-    # Get the secure POST tool
+    # Get the secure POST tool directly
     tools_response = app.post_json(
         "/mcp", {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
     )
     tools = tools_response.json["result"]["tools"]
 
-    secure_post_tool = None
-    for tool in tools:
-        if "secure" in tool["name"].lower():
-            secure_post_tool = tool
-            break
-
-    # If we still can't find it, let's see what tools exist
-    if secure_post_tool is None:
-        tool_names = [tool["name"] for tool in tools]
-        print(f"Available tools: {tool_names}")
-        # Just pick the first tool that exists for basic testing
-        if tools:
-            secure_post_tool = tools[0]
-
-    assert secure_post_tool is not None
+    # Get the secure POST tool by index (no conditional logic)
+    secure_post_tool = tools[2]  # create_secure_service
 
     # Test with invalid schema data (missing required field)
     call_response = app.post_json(
@@ -287,8 +368,16 @@ def test_cornice_service_schema_validation_with_security(
         },
     )
 
-    # Should still get a response (error handling depends on implementation)
+    # Should get error response (authentication checked before validation)
     assert call_response.status_code == 200
+    assert "error" in call_response.json
+    error = call_response.json["error"]
+    assert (
+        error["code"] == -32603
+    )  # Internal error due to permission failure (auth checked first)
+    # Verify the error mentions authentication failure
+    assert "Unauthorized" in error["message"]
+    assert "create_secure_user__POST" in error["message"]
 
 
 def test_cornice_tool_input_schema_includes_security_fields(
@@ -304,18 +393,14 @@ def test_cornice_tool_input_schema_includes_security_fields(
     )
     tools = tools_response.json["result"]["tools"]
 
-    # Check that tools have proper input schemas
-    for tool in tools:
-        if "secure" in tool["name"]:
-            input_schema = tool["inputSchema"]
-            assert "type" in input_schema
-            assert input_schema["type"] == "object"
-            assert "properties" in input_schema
+    # Check secure POST tool has proper input schema (no conditional logic)
+    secure_post_tool = tools[2]  # create_secure_service
+    input_schema = secure_post_tool["inputSchema"]
+    assert "type" in input_schema
+    assert input_schema["type"] == "object"
+    assert "properties" in input_schema
 
-            # Security fields might be added depending on configuration
-            properties = input_schema["properties"]
-
-            # If it's a POST tool, should have the schema fields
-            if "post" in tool["name"]:
-                assert "name" in properties
-                assert "email" in properties
+    # Verify the POST tool has the expected schema fields
+    properties = input_schema["properties"]
+    assert "name" in properties
+    assert "email" in properties

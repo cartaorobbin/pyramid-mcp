@@ -594,6 +594,7 @@ class PyramidIntrospector:
                 permission=permission,
                 security=security,
                 llm_context_hint=llm_context_hint,
+                config=config,
             )
 
             # Store original route pattern and method for route-based tools

@@ -138,10 +138,18 @@ class MCPTool:
     context: Optional[Any] = None  # Context for permission checking
     security: Optional[MCPSecurityType] = None  # Authentication parameter specification
     llm_context_hint: Optional[str] = None  # Custom context hint for LLM responses
+    config: Optional[Any] = None  # MCP configuration object
     # Internal fields for unified security architecture
     _internal_route_name: Optional[str] = None  # Route name for manual tools
     _internal_route_path: Optional[str] = None  # Route path for manual tools
     _internal_route_method: Optional[str] = None  # HTTP method for route-based tools
+
+    def __post_init__(self) -> None:
+        """Ensure config is always available with defaults."""
+        if self.config is None:
+            from pyramid_mcp.core import MCPConfiguration
+
+            self.config = MCPConfiguration()
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to MCP tool format."""
@@ -158,7 +166,11 @@ class MCPTool:
         }
 
         # Merge authentication parameters into inputSchema
-        tool_dict["inputSchema"] = merge_auth_into_schema(base_schema, self.security)
+        # Note: config is guaranteed to exist due to __post_init__
+        expose_auth = self.config.expose_auth_as_params if self.config else True
+        tool_dict["inputSchema"] = merge_auth_into_schema(
+            base_schema, self.security, expose_auth
+        )
 
         return tool_dict
 
@@ -169,15 +181,19 @@ class MCPProtocolHandler:
     # Special sentinel value to indicate no response should be sent
     NO_RESPONSE = object()
 
-    def __init__(self, server_name: str, server_version: str):
+    def __init__(
+        self, server_name: str, server_version: str, config: Optional[Any] = None
+    ):
         """Initialize the MCP protocol handler.
 
         Args:
             server_name: Name of the MCP server
             server_version: Version of the MCP server
+            config: MCP configuration object containing expose_auth_as_params setting
         """
         self.server_name = server_name
         self.server_version = server_version
+        self.config = config
         self.tools: Dict[str, MCPTool] = {}
         self.capabilities: Dict[str, Any] = {
             "tools": {"listChanged": True},
@@ -465,6 +481,16 @@ class MCPProtocolHandler:
                 auth_header = f"Bearer {auth_token}"
                 subrequest.headers["Authorization"] = auth_header
                 # Also set mcp_auth_headers for TestSecurityPolicy
+                subrequest.mcp_auth_headers = {"Authorization": auth_header}
+            elif (
+                self.config
+                and not self.config.expose_auth_as_params
+                and "Authorization" in pyramid_request.headers
+            ):
+                # When expose_auth_as_params=false, use HTTP header auth directly
+                auth_header = pyramid_request.headers["Authorization"]
+                subrequest.headers["Authorization"] = auth_header
+                # Set mcp_auth_headers so security policy can find the auth
                 subrequest.mcp_auth_headers = {"Authorization": auth_header}
 
             # Execute subrequest - Pyramid handles auth, permissions, and execution

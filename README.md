@@ -463,6 +463,7 @@ settings = {
     # Security Configuration
     'mcp.security_parameter': 'mcp_security',  # Name of security parameter in views (default: 'mcp_security')
     'mcp.add_security_predicate': 'true',     # Register security view predicate (default: True)
+    'mcp.expose_auth_as_params': 'true',      # Expose auth credentials as tool parameters (default: True)
     
     # Protocol Configuration  
     'mcp.enable_sse': 'true',              # Enable Server-Sent Events (default: True)
@@ -478,6 +479,32 @@ settings = {
 ### Authentication Parameters Feature
 
 Pyramid MCP supports tools that require authentication credentials to be passed as parameters rather than HTTP headers. This is particularly useful for Claude AI clients that cannot pass HTTP headers.
+
+#### Controlling Authentication Parameter Exposure
+
+You can control whether authentication parameters are exposed in tool schemas using the `mcp.expose_auth_as_params` configuration:
+
+```python
+# Expose auth credentials as tool parameters (default)
+settings = {
+    'mcp.expose_auth_as_params': 'true'
+}
+
+# Don't expose auth credentials as parameters (use HTTP headers instead)
+settings = {
+    'mcp.expose_auth_as_params': 'false'
+}
+```
+
+**When `expose_auth_as_params=true` (default):**
+- Authentication parameters appear in the tool's input schema
+- Clients (like Claude) can see and provide auth credentials as regular parameters
+- Useful for clients that cannot send HTTP headers
+
+**When `expose_auth_as_params=false`:**
+- Authentication parameters are NOT included in the tool's input schema
+- Tools rely on traditional HTTP header authentication
+- Useful when you want to use standard HTTP authentication patterns
 
 #### Bearer Token Authentication
 

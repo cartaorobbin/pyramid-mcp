@@ -153,6 +153,10 @@ def _extract_mcp_config_from_settings(settings: dict) -> MCPConfiguration:
         add_security_predicate=_parse_bool_setting(
             settings.get("mcp.add_security_predicate", "true")
         ),
+        # Authentication parameter exposure settings
+        expose_auth_as_params=_parse_bool_setting(
+            settings.get("mcp.expose_auth_as_params", "true")
+        ),
     )
 
 

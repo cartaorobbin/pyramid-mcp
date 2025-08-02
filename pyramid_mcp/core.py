@@ -40,6 +40,8 @@ class MCPConfiguration:
     # Security parameter configuration
     security_parameter: str = "mcp_security"
     add_security_predicate: bool = True
+    # Authentication parameter exposure configuration
+    expose_auth_as_params: bool = True
 
 
 class PyramidMCP:
@@ -85,7 +87,7 @@ class PyramidMCP:
 
         # Initialize MCP protocol handler
         self.protocol_handler = MCPProtocolHandler(
-            self.config.server_name, self.config.server_version
+            self.config.server_name, self.config.server_version, self.config
         )
 
         # Initialize introspection
@@ -132,6 +134,7 @@ class PyramidMCP:
                             mcp_config.route_discovery_exclude_patterns or []
                         )
                         self.security_parameter = mcp_config.security_parameter
+                        self.expose_auth_as_params = mcp_config.expose_auth_as_params
 
                 discovery_config = RouteDiscoveryConfig(self.config)
 

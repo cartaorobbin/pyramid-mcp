@@ -10,7 +10,7 @@ This file tracks CURRENT/ACTIVE tasks being worked on right now (max 1-3 task gr
 
 **No active tasks currently.**
 
-**Recent Completion**: Successfully fixed OpenAI test and implemented professional `--run-openai-tests` configuration. All tests now follow proper testing rules (moved to `done.md`).
+**Recent Completion**: Successfully implemented `mcp.expose_auth_as_params` configuration option with comprehensive tests and documentation (moved to `done.md`).
 
 ---
 
