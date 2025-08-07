@@ -210,33 +210,8 @@ class MCPSchemaInfoSchema(Schema):
 
     @pre_dump
     def extract_schema_info(self, schema: Any, **kwargs: Any) -> Dict[str, Any]:
-        """Extract field information from a Marshmallow schema."""
+        """Extract field information from a Marshmallow schema without instantiation."""
         import marshmallow
-
-        # Handle schema class vs instance
-        if isinstance(schema, type):
-            # If it's a class, instantiate it
-            try:
-                schema_instance = schema()
-            except Exception:
-                # If instantiation fails, return empty info
-                return {
-                    "type": "object",
-                    "properties": {},
-                    "required": [],
-                    "additionalProperties": False,
-                }
-        else:
-            schema_instance = schema
-
-        # Check if it's actually a Marshmallow schema
-        if not isinstance(schema_instance, marshmallow.Schema):
-            return {
-                "type": "object",
-                "properties": {},
-                "required": [],
-                "additionalProperties": False,
-            }
 
         # Start with basic schema structure
         schema_data: Dict[str, Any] = {
@@ -246,8 +221,29 @@ class MCPSchemaInfoSchema(Schema):
             "additionalProperties": False,
         }
 
+        # Get fields without instantiation
+        fields_dict = None
+
+        if isinstance(schema, type):
+            # For schema classes, use _declared_fields to avoid instantiation
+            if hasattr(schema, "_declared_fields"):
+                fields_dict = schema._declared_fields
+            else:
+                # Fallback: not a Marshmallow schema class
+                return schema_data
+        else:
+            # For schema instances, check if it's a Marshmallow schema and get fields
+            if isinstance(schema, marshmallow.Schema):
+                fields_dict = schema.fields
+            else:
+                # Not a Marshmallow schema instance
+                return schema_data
+
+        if not fields_dict:
+            return schema_data
+
         # Convert each field to MCP format
-        for field_name, field_obj in schema_instance.fields.items():
+        for field_name, field_obj in fields_dict.items():
             field_info = convert_marshmallow_field_to_mcp_type(field_obj)
             # Remove None values from field info
             if isinstance(field_info, dict):
