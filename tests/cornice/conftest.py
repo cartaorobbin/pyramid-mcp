@@ -68,14 +68,17 @@ def pyramid_app_with_services():
         from webtest import TestApp
 
         # Use provided settings or default
-        if settings is None:
-            settings = {
-                "mcp.route_discovery.enabled": "true",
-                "mcp.server_name": "test-server",
-                "mcp.server_version": "1.0.0",
-            }
 
-        config = Configurator(settings=settings)
+        actual_settings = {
+            "mcp.route_discovery.enabled": "true",
+            "mcp.server_name": "test-server",
+            "mcp.server_version": "1.0.0",
+        }
+
+        if settings is not None:
+            actual_settings.update(settings)
+
+        config = Configurator(settings=actual_settings)
 
         # Set up simple security policy for testing
         config.set_security_policy(SimpleSecurityPolicy())

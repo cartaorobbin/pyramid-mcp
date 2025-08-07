@@ -1395,7 +1395,7 @@ class PyramidIntrospector:
         return metadata
 
     def _extract_marshmallow_schema_info(self, schema: Any) -> Dict[str, Any]:
-        """Extract field information from a Marshmallow schema.
+        """Extract field information from a Marshmallow schema with complete isolation.
 
         Args:
             schema: Marshmallow schema instance or class
@@ -1403,12 +1403,41 @@ class PyramidIntrospector:
         Returns:
             Dictionary containing schema field information for MCP
         """
-        from pyramid_mcp.schemas import MCPSchemaInfoSchema
+        from pyramid_mcp.schemas import _safe_nested_schema_introspection
 
-        # Use the schema to extract and structure the data
-        mcp_schema = MCPSchemaInfoSchema()
-        result = mcp_schema.dump(schema)
+        # Use completely isolated introspection to prevent global state pollution
+        result = _safe_nested_schema_introspection(schema)
         return result if isinstance(result, dict) else {}
+
+    def _get_nested_schema_class_safely(self, nested_field: Any) -> Optional[type]:
+        """Get the schema class from a Nested field WITHOUT triggering instances.
+
+        This function avoids accessing field.schema which triggers automatic instance
+        creation in Marshmallow. Instead, it inspects the field's internal attributes
+        to extract the schema class directly.
+        """
+        import marshmallow
+
+        # CRITICAL: The 'nested' attribute contains the schema class without instances
+        if hasattr(nested_field, "nested"):
+            schema_attr = nested_field.nested
+            if isinstance(schema_attr, type) and issubclass(
+                schema_attr, marshmallow.Schema
+            ):
+                return schema_attr
+
+        # Fallback: Check other possible attribute names
+        for attr_name in ["_schema", "schema_class", "_schema_class", "_nested"]:
+            if hasattr(nested_field, attr_name):
+                attr_value = getattr(nested_field, attr_name)
+                if isinstance(attr_value, type) and issubclass(
+                    attr_value, marshmallow.Schema
+                ):
+                    return attr_value
+
+        # If we can't find the schema class safely, return None
+        # This is better than risking instance creation
+        return None
 
     def _marshmallow_field_to_mcp_type(self, field: Any) -> Dict[str, Any]:
         """Convert a Marshmallow field to MCP parameter type.
@@ -1457,9 +1486,10 @@ class PyramidIntrospector:
                 field_info["items"] = inner_field_info
         elif isinstance(field, fields.Nested):
             field_info["type"] = "object"
-            # For nested fields, try to extract nested schema info
-            if hasattr(field, "schema") and field.schema:
-                nested_info = self._extract_marshmallow_schema_info(field.schema)
+            # CRITICAL ISOLATION: Get nested schema class WITHOUT triggering instances
+            nested_schema_class = self._get_nested_schema_class_safely(field)
+            if nested_schema_class:
+                nested_info = self._extract_marshmallow_schema_info(nested_schema_class)
                 if nested_info:
                     field_info.update(nested_info)
         elif isinstance(field, fields.Dict):

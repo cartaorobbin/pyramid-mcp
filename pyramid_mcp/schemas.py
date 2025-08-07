@@ -6,7 +6,7 @@ HTTP request data in MCP tools. These schemas represent the proper structure
 of HTTP requests with path parameters, query parameters, request body, and headers.
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import marshmallow.fields as fields
 from marshmallow import Schema, missing, pre_dump, validate
@@ -124,11 +124,11 @@ def convert_marshmallow_field_to_mcp_type(field: Any) -> Dict[str, Any]:
                 field_info["items"] = inner_field_info
     elif isinstance(field, fields_module.Nested):
         field_info["type"] = "object"
-        # For nested fields, try to extract nested schema info
-        if hasattr(field, "schema") and field.schema:
-            # Use MCPSchemaInfoSchema to extract nested schema info
-            nested_schema_converter = MCPSchemaInfoSchema()
-            nested_info = nested_schema_converter.extract_schema_info(field.schema)
+        # CRITICAL ISOLATION: Get nested schema class WITHOUT triggering instances
+        nested_schema_class = _get_nested_schema_class_safely(field)
+        if nested_schema_class:
+            # Use completely isolated introspection that never creates instances
+            nested_info = _safe_nested_schema_introspection(nested_schema_class)
             if nested_info and isinstance(nested_info, dict):
                 field_info.update(nested_info)
     elif isinstance(field, fields_module.Dict):
@@ -150,6 +150,100 @@ def convert_marshmallow_field_to_mcp_type(field: Any) -> Dict[str, Any]:
     _add_field_validation_constraints(field, field_info)
 
     return field_info
+
+
+def _get_nested_schema_class_safely(nested_field: Any) -> Optional[type]:
+    """Get the schema class from a Nested field WITHOUT triggering instances.
+
+    This function avoids accessing field.schema which triggers automatic instance
+    creation in Marshmallow. Instead, it inspects the field's internal attributes
+    to extract the schema class directly.
+    """
+    import marshmallow
+
+    # CRITICAL: The 'nested' attribute contains the schema class without instances
+    if hasattr(nested_field, "nested"):
+        schema_attr = nested_field.nested
+        if isinstance(schema_attr, type) and issubclass(
+            schema_attr, marshmallow.Schema
+        ):
+            return schema_attr
+
+    # Fallback: Check other possible attribute names
+    for attr_name in ["_schema", "schema_class", "_schema_class", "_nested"]:
+        if hasattr(nested_field, attr_name):
+            attr_value = getattr(nested_field, attr_name)
+            if isinstance(attr_value, type) and issubclass(
+                attr_value, marshmallow.Schema
+            ):
+                return attr_value
+
+    # If we can't find the schema class safely, return None
+    # This is better than risking instance creation
+    return None
+
+
+def _safe_nested_schema_introspection(schema_or_class: Any) -> Dict[str, Any]:
+    """Safely introspect nested schema without global state pollution.
+
+    This function ensures complete isolation by:
+    1. Never accessing .fields property of instances
+    2. Never creating new schema instances
+    3. Always working with schema classes and _declared_fields
+    4. Never modifying existing instances or global state
+    """
+    import marshmallow
+
+    # SAFETY: Always get the schema CLASS, never work with instances
+    schema_class = None
+    if isinstance(schema_or_class, type) and issubclass(
+        schema_or_class, marshmallow.Schema
+    ):
+        # Already a schema class
+        schema_class = schema_or_class
+    elif isinstance(schema_or_class, marshmallow.Schema):
+        # Schema instance - get its class WITHOUT touching the instance
+        schema_class = schema_or_class.__class__
+    else:
+        # Not a Marshmallow schema
+        return {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": False,
+        }
+
+    # SAFETY: Use _declared_fields - no instantiation or .fields access
+    if not hasattr(schema_class, "_declared_fields"):
+        return {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": False,
+        }
+
+    fields_dict = schema_class._declared_fields
+    properties = {}
+    required = []
+
+    # SAFETY: Recursively process fields with isolation
+    for field_name, field_obj in fields_dict.items():
+        field_info = convert_marshmallow_field_to_mcp_type(field_obj)
+
+        # Use data_key if available, otherwise use field name
+        key_name = getattr(field_obj, "data_key", None) or field_name
+        properties[key_name] = field_info
+
+        # Check if field is required
+        if getattr(field_obj, "required", False):
+            required.append(key_name)
+
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": required,
+        "additionalProperties": False,
+    }
 
 
 def _add_field_validation_constraints(field: Any, field_info: Dict[str, Any]) -> None:
@@ -210,55 +304,13 @@ class MCPSchemaInfoSchema(Schema):
 
     @pre_dump
     def extract_schema_info(self, schema: Any, **kwargs: Any) -> Dict[str, Any]:
-        """Extract field information from a Marshmallow schema without instantiation."""
-        import marshmallow
+        """Extract field information from a Marshmallow schema with complete isolation.
 
-        # Start with basic schema structure
-        schema_data: Dict[str, Any] = {
-            "type": "object",
-            "properties": {},
-            "required": [],
-            "additionalProperties": False,
-        }
-
-        # Get fields without instantiation
-        fields_dict = None
-
-        if isinstance(schema, type):
-            # For schema classes, use _declared_fields to avoid instantiation
-            if hasattr(schema, "_declared_fields"):
-                fields_dict = schema._declared_fields
-            else:
-                # Fallback: not a Marshmallow schema class
-                return schema_data
-        else:
-            # For schema instances, check if it's a Marshmallow schema and get fields
-            if isinstance(schema, marshmallow.Schema):
-                fields_dict = schema.fields
-            else:
-                # Not a Marshmallow schema instance
-                return schema_data
-
-        if not fields_dict:
-            return schema_data
-
-        # Convert each field to MCP format
-        for field_name, field_obj in fields_dict.items():
-            field_info = convert_marshmallow_field_to_mcp_type(field_obj)
-            # Remove None values from field info
-            if isinstance(field_info, dict):
-                field_info = {k: v for k, v in field_info.items() if v is not None}
-                # Use data_key if available, otherwise use field_name
-                schema_field_name = getattr(field_obj, "data_key", None) or field_name
-                schema_data["properties"][schema_field_name] = field_info
-
-            # Check if field is required
-            if field_obj.required:
-                # Use data_key if available, otherwise use field_name
-                schema_field_name = getattr(field_obj, "data_key", None) or field_name
-                schema_data["required"].append(schema_field_name)
-
-        return schema_data
+        CRITICAL: This method MUST provide complete isolation to prevent global
+        state pollution that could affect Cornice or other schema usage.
+        """
+        # Use the completely isolated introspection function
+        return _safe_nested_schema_introspection(schema)
 
 
 # =============================================================================

@@ -776,7 +776,7 @@ class MCPProtocolHandler:
 
 
 def create_json_schema_from_marshmallow(schema_class: type) -> Dict[str, Any]:
-    """Convert a Marshmallow schema to JSON Schema format.
+    """Convert a Marshmallow schema to JSON Schema format without instantiation.
 
     Args:
         schema_class: A Marshmallow Schema class
@@ -784,12 +784,17 @@ def create_json_schema_from_marshmallow(schema_class: type) -> Dict[str, Any]:
     Returns:
         A dictionary representing the JSON Schema
     """
-    # This is a simplified conversion - a more complete implementation
-    # would handle all Marshmallow field types and options
-    schema_instance = schema_class()
+    # Use _declared_fields to avoid instantiation and registry pollution
     json_schema: Dict[str, Any] = {"type": "object", "properties": {}, "required": []}
 
-    for field_name, field_obj in schema_instance.fields.items():
+    # Get fields without instantiation
+    if hasattr(schema_class, "_declared_fields"):
+        fields_dict = schema_class._declared_fields
+    else:
+        # Not a Marshmallow schema class
+        return json_schema
+
+    for field_name, field_obj in fields_dict.items():
         field_schema = {"type": "string"}  # Default to string
 
         if isinstance(field_obj, fields.Integer):
