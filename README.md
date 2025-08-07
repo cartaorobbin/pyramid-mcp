@@ -29,6 +29,7 @@ Pyramid MCP is a library that exposes Pyramid web application endpoints as Model
 - ⚙️ **Settings-based Configuration**: Configure via Pyramid settings
 - 🔍 **Route Discovery**: Automatic discovery of Pyramid routes (configurable)
 - 📡 **Multiple Protocols**: Support for HTTP and SSE (Server-Sent Events)
+- 🎛️ **Enable/Disable Control**: Easily enable or disable MCP endpoints via configuration (perfect for staging → production workflows)
 - 🧪 **Well Tested**: Comprehensive test suite with pytest
 - 📚 **Type Hints**: Full type annotations for better IDE support
 - 🚀 **Easy to Use**: Minimal setup required
@@ -459,6 +460,7 @@ settings = {
     'mcp.server_name': 'my-api',           # Server name (default: 'pyramid-mcp')
     'mcp.server_version': '1.0.0',        # Server version (default: '1.0.0')
     'mcp.mount_path': '/mcp',              # Mount path for MCP endpoints (default: '/mcp')
+    'mcp.enable': 'true',                  # Enable MCP endpoints (default: True)
     
     # Security Configuration
     'mcp.security_parameter': 'mcp_security',  # Name of security parameter in views (default: 'mcp_security')
@@ -475,6 +477,63 @@ settings = {
     'mcp.route_discovery.exclude_patterns': 'internal/*',  # Routes to exclude from tools
 }
 ```
+
+### Enable/Disable MCP Endpoints
+
+The `mcp.enable` configuration allows you to control whether MCP endpoints are created when including the pyramid_mcp plugin. This is particularly useful for staging → production workflows.
+
+#### Basic Usage
+
+```python
+# Enable MCP endpoints (default behavior)
+settings = {
+    'mcp.enable': 'true'  # or True, 'yes', 'on', '1'
+}
+
+# Disable MCP endpoints 
+settings = {
+    'mcp.enable': 'false'  # or False, 'no', 'off', '0'
+}
+```
+
+#### When `mcp.enable=true` (default)
+
+- ✅ **Full MCP functionality**: HTTP endpoints, tool registration, route discovery
+- ✅ **Production ready**: All features available for client connections
+- ✅ **Backward compatible**: Default behavior, existing code continues to work
+
+#### When `mcp.enable=false`
+
+- ✅ **View predicates only**: `mcp_description`, `llm_context_hint`, `mcp_security` predicates still registered
+- ❌ **No HTTP endpoints**: `/mcp` endpoints are not created
+- ❌ **No tool registration**: `@tool` decorators are not processed
+- ❌ **No route discovery**: Automatic route discovery is skipped
+
+#### Staging → Production Workflow
+
+This configuration enables a clean staging → production deployment pattern:
+
+```python
+# staging.ini - Test views with predicates, no MCP endpoints exposed
+[app:main]
+mcp.enable = false
+mcp.server_name = staging-api
+
+# production.ini - Full MCP functionality
+[app:main] 
+mcp.enable = true
+mcp.server_name = production-api
+```
+
+**Staging Benefits:**
+- Test that views work with MCP predicates (`mcp_description`, `llm_context_hint`, etc.)
+- No accidental exposure of MCP endpoints in staging
+- Validate configuration without enabling external access
+
+**Production Benefits:**
+- Clean activation of MCP functionality
+- Same codebase, different configuration
+- Zero downtime deployment when enabling MCP
 
 ### Authentication Parameters Feature
 

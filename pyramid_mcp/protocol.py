@@ -456,7 +456,7 @@ class MCPProtocolHandler:
             )
 
         tool = self.tools[tool_name]
-        logger.info(f"📞 MCP Tool Call: {tool_name}")
+        logger.info(f"📞 MCP Tool Call: {tool_name} with arguments: {tool_args}")
         logger.debug(f"📞 Tool arguments: {tool_args}")
 
         try:
@@ -627,18 +627,16 @@ class MCPProtocolHandler:
                 tool_url += f"&{query_string}"
             else:
                 tool_url += f"?{query_string}"
-            logger.debug(f"🔧 DEBUG: Added query params: {query_string}")
+            logger.debug(f"Added query params: {query_string}")
 
         # Log the final URL being constructed
-        logger.debug(f"🔧 DEBUG: FINAL URL: {tool_url}")
+        logger.debug(f"FINAL URL: {tool_url}")
 
         # Create subrequest with resolved URL
         subrequest = Request.blank(tool_url)
         subrequest.method = method.upper()
 
-        logger.debug(
-            f"🔧 DEBUG: Created subrequest: {subrequest.method} {subrequest.url}"
-        )
+        logger.info(f"Created subrequest: {subrequest.method} {subrequest.url}")
 
         # Copy environment and context from parent request
         self._copy_request_context(pyramid_request, subrequest)
@@ -808,9 +806,11 @@ def create_json_schema_from_marshmallow(schema_class: type) -> Dict[str, Any]:
         if hasattr(field_obj, "metadata") and "description" in field_obj.metadata:
             field_schema["description"] = field_obj.metadata["description"]
 
-        json_schema["properties"][field_name] = field_schema
+        # Use data_key if available, otherwise use field_name
+        schema_field_name = getattr(field_obj, "data_key", None) or field_name
+        json_schema["properties"][schema_field_name] = field_schema
 
         if field_obj.required:
-            json_schema["required"].append(field_name)
+            json_schema["required"].append(schema_field_name)
 
     return json_schema

@@ -72,7 +72,7 @@ def test_path_parameter_resolution(pyramid_app_with_services, logs):
     # The subrequest should also have the resolved URL
     assert (
         "Created subrequest: GET http://localhost/api/v1/persons/17143981885"
-        in logs.debug
+        in logs.info
     )
 
 
@@ -140,5 +140,5 @@ def test_multiple_path_parameters_resolution(pyramid_app_with_services, logs):
     assert "FINAL URL: /api/v1/users/123/posts/abc-def-456" in logs.debug
     assert (
         "Created subrequest: GET http://localhost/api/v1/users/123/posts/abc-def-456"
-        in logs.debug
+        in logs.info
     )

@@ -33,6 +33,8 @@ class MCPConfiguration:
     exclude_patterns: Optional[List[str]] = None
     enable_sse: bool = True
     enable_http: bool = True
+    # Main enable/disable switch
+    enable: bool = True
     # Route discovery configuration
     route_discovery_enabled: bool = False
     route_discovery_include_patterns: Optional[List[str]] = None

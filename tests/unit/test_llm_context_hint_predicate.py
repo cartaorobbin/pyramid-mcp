@@ -28,9 +28,9 @@ def test_llm_context_hint_predicate_end_to_end(pyramid_app_with_views):
     routes = [("financial_data", "/api/financial")]
     settings = {"mcp.route_discovery.enabled": "true"}
 
-    # The pyramid_app_with_views fixture will scan this module for @view_config
-    # decorators
-    app = pyramid_app_with_views(routes, ignore=None, settings=settings)
+    # Scan only this specific module to avoid Cornice service pollution from other tests
+    ignore_pattern = ["tests.cornice", "tests.openai"]
+    app = pyramid_app_with_views(routes, ignore=ignore_pattern, settings=settings)
 
     # Make MCP tool call (tool name is derived from function name:
     # financial_view -> get_financial_data)

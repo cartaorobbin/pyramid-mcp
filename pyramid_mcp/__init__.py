@@ -28,6 +28,7 @@ import logging
 from typing import Any, List, Optional, cast
 
 from pyramid.config import Configurator
+from pyramid.settings import asbool
 
 from pyramid_mcp.core import (
     MCPConfiguration,
@@ -78,27 +79,19 @@ def includeme(config: Configurator) -> None:
             'mcp.server_name': 'my-api',
             'mcp.server_version': '1.0.0'
         })
+
+        # Disable MCP endpoints (only register view predicates)
+        config.include('pyramid_mcp')
+        config.registry.settings.update({
+            'mcp.enable': 'false'
+        })
     """
     settings = cast(Any, config.registry).settings
 
     # Extract MCP settings from pyramid settings
     mcp_config = _extract_mcp_config_from_settings(settings)
 
-    # Create PyramidMCP instance
-    pyramid_mcp = PyramidMCP(config, config=mcp_config)
-
-    # Store the instance in registry for access by application code
-    cast(Any, config.registry).pyramid_mcp = pyramid_mcp
-
-    # Add MCP routes immediately (before action execution)
-    pyramid_mcp._add_mcp_routes_only()
-
-    # Add a directive to access pyramid_mcp from configurator
-    config.add_directive("get_mcp", _get_mcp_directive)
-
-    # Add request method to access MCP tools
-    config.add_request_method(_get_mcp_from_request, "mcp", reify=True)
-
+    # Always register view predicates (they're useful even when MCP is disabled)
     # Register the MCP description view predicate
     config.add_view_predicate("mcp_description", MCPDescriptionPredicate)
 
@@ -114,6 +107,29 @@ def includeme(config: Configurator) -> None:
             "Security predicate registration disabled via "
             "mcp.add_security_predicate=false"
         )
+
+    # If MCP is disabled, skip endpoint creation and tool discovery
+    if not mcp_config.enable:
+        logger.info(
+            "MCP endpoints disabled via mcp.enable=false - "
+            "only view predicates registered"
+        )
+        return
+
+    # Create PyramidMCP instance
+    pyramid_mcp = PyramidMCP(config, config=mcp_config)
+
+    # Store the instance in registry for access by application code
+    cast(Any, config.registry).pyramid_mcp = pyramid_mcp
+
+    # Add MCP routes immediately (before action execution)
+    pyramid_mcp._add_mcp_routes_only()
+
+    # Add a directive to access pyramid_mcp from configurator
+    config.add_directive("get_mcp", _get_mcp_directive)
+
+    # Add request method to access MCP tools
+    config.add_request_method(_get_mcp_from_request, "mcp", reify=True)
 
     # Register a post-configure hook to discover routes and register tools
     # Use order=999999 to ensure this runs after all other configuration including scans
@@ -136,10 +152,12 @@ def _extract_mcp_config_from_settings(settings: dict) -> MCPConfiguration:
         mount_path=settings.get("mcp.mount_path", "/mcp"),
         include_patterns=_parse_list_setting(settings.get("mcp.include_patterns")),
         exclude_patterns=_parse_list_setting(settings.get("mcp.exclude_patterns")),
-        enable_sse=_parse_bool_setting(settings.get("mcp.enable_sse", "true")),
-        enable_http=_parse_bool_setting(settings.get("mcp.enable_http", "true")),
+        enable_sse=asbool(settings.get("mcp.enable_sse", "true")),
+        enable_http=asbool(settings.get("mcp.enable_http", "true")),
+        # Main enable/disable switch
+        enable=asbool(settings.get("mcp.enable", "true")),
         # Route discovery settings
-        route_discovery_enabled=_parse_bool_setting(
+        route_discovery_enabled=asbool(
             settings.get("mcp.route_discovery.enabled", "false")
         ),
         route_discovery_include_patterns=_parse_list_setting(
@@ -150,13 +168,11 @@ def _extract_mcp_config_from_settings(settings: dict) -> MCPConfiguration:
         ),
         # Security parameter settings
         security_parameter=settings.get("mcp.security_parameter", "mcp_security"),
-        add_security_predicate=_parse_bool_setting(
+        add_security_predicate=asbool(
             settings.get("mcp.add_security_predicate", "true")
         ),
         # Authentication parameter exposure settings
-        expose_auth_as_params=_parse_bool_setting(
-            settings.get("mcp.expose_auth_as_params", "true")
-        ),
+        expose_auth_as_params=asbool(settings.get("mcp.expose_auth_as_params", "true")),
     )
 
 
@@ -167,13 +183,6 @@ def _parse_list_setting(value: Any) -> Optional[List[str]]:
     if isinstance(value, str):
         return [item.strip() for item in value.split(",") if item.strip()]
     return list(value) if value else None
-
-
-def _parse_bool_setting(value: Any) -> bool:
-    """Parse a boolean setting from string format."""
-    if isinstance(value, str):
-        return value.lower() in ("true", "1", "yes", "on")
-    return bool(value)
 
 
 def _get_mcp_directive(config: Configurator) -> PyramidMCP:

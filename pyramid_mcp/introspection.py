@@ -386,13 +386,19 @@ class PyramidIntrospector:
         routes_info = self.discover_routes()
 
         for route_info in routes_info:
-            # Skip routes that should be excluded
+            # Skip routes that should be excluded (keep route-level filtering for
+            # backwards compatibility)
             if self._should_exclude_route(route_info, config):
                 continue
 
             # Convert route to MCP tools (one per HTTP method)
             route_tools = self._convert_route_to_tools(route_info, config)
-            tools.extend(route_tools)
+
+            # Apply tool-level filtering on generated tool names
+            for tool in route_tools:
+                if not self._should_exclude_tool(tool, config):
+                    tools.append(tool)
+
         return tools
 
     def _should_exclude_route(self, route_info: Dict[str, Any], config: Any) -> bool:
@@ -435,6 +441,51 @@ class PyramidIntrospector:
                 return True
 
         return False
+
+    def _should_exclude_tool(self, tool: MCPTool, config: Any) -> bool:
+        """Check if a tool should be excluded based on its name.
+
+        Args:
+            tool: MCPTool instance to check
+            config: MCP configuration
+
+        Returns:
+            True if tool should be excluded, False otherwise
+        """
+        tool_name = tool.name
+
+        # Check exclude patterns against tool name
+        exclude_patterns = getattr(config, "exclude_patterns", None)
+        if exclude_patterns:
+            if any(
+                self._tool_pattern_matches(pattern, tool_name)
+                for pattern in exclude_patterns
+            ):
+                return True
+
+        return False
+
+    def _tool_pattern_matches(self, pattern: str, tool_name: str) -> bool:
+        """Check if a pattern matches a tool name.
+
+        Args:
+            pattern: Pattern to match (supports wildcards like 'admin*')
+            tool_name: Tool name to check
+
+        Returns:
+            True if pattern matches, False otherwise
+        """
+        import re
+
+        # Handle wildcard patterns
+        if "*" in pattern or "?" in pattern:
+            # Pattern with wildcards - convert to regex
+            pattern_regex = pattern.replace("*", ".*").replace("?", ".")
+            pattern_regex = f"^{pattern_regex}$"
+            return bool(re.match(pattern_regex, tool_name))
+        else:
+            # Exact pattern - should match as prefix or exact match
+            return tool_name == pattern or tool_name.startswith(pattern + "_")
 
     def _pattern_matches(
         self, pattern: str, route_pattern: str, route_name: str
@@ -1135,12 +1186,12 @@ class PyramidIntrospector:
             url = f"{url}?{query_string}"
             logger.debug(f"🔧 Added query string: {query_string}")
 
-        logger.debug(f"🔧 Final URL: {url}")
+        logger.debug(f"FINAL URL: {url}")
 
         # Create the subrequest
         subrequest = Request.blank(url)
         subrequest.method = method.upper()
-        logger.debug(f"🔧 Created subrequest: {method.upper()} {url}")
+        logger.info(f"🔧 Created subrequest: {method.upper()} {url}")
 
         # 🌍 ENVIRON SHARING SUPPORT
         # Copy parent request environ to subrequest for better context preservation
@@ -1190,15 +1241,13 @@ class PyramidIntrospector:
             f"🔐 Transferred mcp_auth_headers to subrequest: {list(auth_headers.keys())}"
         )
 
-        # 🐛 DEBUG: Log final subrequest details
-        logger.debug("🔧 Final subrequest details:")
-        logger.debug(f"   - Method: {subrequest.method}")
-        logger.debug(f"   - URL: {subrequest.url}")
-        logger.debug(
-            f"   - Content-Type: {getattr(subrequest, 'content_type', 'None')}"
-        )
-        logger.debug(f"   - Headers: {dict(subrequest.headers)}")
-        logger.debug(f"   - Body length: {len(getattr(subrequest, 'body', b''))} bytes")
+        # 🐛 INFO: Log final subrequest details
+        logger.info("🔧 Final subrequest details:")
+        logger.info(f"   - Method: {subrequest.method}")
+        logger.info(f"   - URL: {subrequest.url}")
+        logger.info(f"   - Content-Type: {getattr(subrequest, 'content_type', 'None')}")
+        logger.info(f"   - Headers: {dict(subrequest.headers)}")
+        logger.info(f"   - Body length: {len(getattr(subrequest, 'body', b''))} bytes")
 
         # 🔄 PYRAMID_TM TRANSACTION SHARING SUPPORT
         # Ensure subrequest shares the same transaction context as the parent request

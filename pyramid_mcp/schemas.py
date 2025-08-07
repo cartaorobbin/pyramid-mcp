@@ -252,11 +252,15 @@ class MCPSchemaInfoSchema(Schema):
             # Remove None values from field info
             if isinstance(field_info, dict):
                 field_info = {k: v for k, v in field_info.items() if v is not None}
-                schema_data["properties"][field_name] = field_info
+                # Use data_key if available, otherwise use field_name
+                schema_field_name = getattr(field_obj, "data_key", None) or field_name
+                schema_data["properties"][schema_field_name] = field_info
 
             # Check if field is required
             if field_obj.required:
-                schema_data["required"].append(field_name)
+                # Use data_key if available, otherwise use field_name
+                schema_field_name = getattr(field_obj, "data_key", None) or field_name
+                schema_data["required"].append(schema_field_name)
 
         return schema_data
 
