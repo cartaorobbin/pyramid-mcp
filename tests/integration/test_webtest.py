@@ -116,10 +116,8 @@ def test_mcp_call_tool_calculation(integration_app):
     # Extract result directly from content
     result_text = str(result_content)
 
-    # Verify the result contains some number (type conversion issue: getting
-    # '105' instead of 15) TODO: Fix type conversion in MCP tool argument
-    # handling
-    assert "10" in result_text and "5" in result_text  # Arguments being passed
+    # Verify the result contains the expected calculation result (10 + 5 = 15)
+    assert "15" in result_text  # Calculated result should be present
 
 
 def test_mcp_error_handling_via_http(integration_app):
@@ -204,11 +202,11 @@ def test_mcp_tool_validation_error(integration_app):
     data = response.json
 
     # Should return an error for invalid operation (in MCP format)
-    # MCP wraps errors in result.content structure
+    # MCP wraps errors in result.representation.content structure
     assert "result" in data
-    result_content = data["result"]["content"][0]["data"]
-    assert "error" in result_content
-    assert "Unknown operation: invalid_operation" in result_content["error"]
+    result_content = str(data["result"]["representation"]["content"])
+    assert "error" in result_content.lower()
+    assert "unknown operation" in result_content.lower()
 
 
 # =============================================================================

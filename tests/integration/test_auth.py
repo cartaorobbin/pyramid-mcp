@@ -152,9 +152,8 @@ def test_mcp_calls_protected_route_with_jwt_succeeds(auth_test_config, valid_jwt
     assert "representation" in mcp_result
     content = mcp_result["representation"]["content"]
 
-    # The content contains the tool result wrapped with metadata
-    assert "result" in content
-    tool_result = content["result"]
+    # The content IS the tool result
+    tool_result = content
     assert "user" in tool_result
     assert "protected" in tool_result
     assert tool_result["authenticated"] is True
@@ -231,9 +230,8 @@ def test_mcp_calls_public_route_always_succeeds(auth_test_config):
     assert "representation" in mcp_result
     content = mcp_result["representation"]["content"]
 
-    # The content contains the tool result wrapped with metadata
-    assert "result" in content
-    tool_result = content["result"]
+    # The content IS the tool result
+    tool_result = content
 
     # Verify this is the public route response
     assert tool_result["public"] is True

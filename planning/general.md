@@ -8,107 +8,94 @@ This file tracks CURRENT/ACTIVE tasks being worked on right now (max 1-3 task gr
 
 ## 📋 ACTIVE TASKS
 
-### [2024-12-28] Refactor Conftest.py Pyramid Fixtures
+### [2024-12-28] Refactor Tool Decorator to Use Cornice Services
 
 **Status**: IN PROGRESS  
 **Assigned**: Assistant  
-**Estimated Time**: 2-3 hours  
-**Related Issue**: User request - "conftest is a mess, too many pyramid_app fixtures"
+**Estimated Time**: 3-4 hours  
+**Related Issue**: User request - "refactor tool decorator to use cornice services and remove MCP metadata"
 
 #### 🎯 Problem Analysis
-The current `tests/conftest.py` has multiple pyramid_app fixtures that create confusion and duplication:
+Currently the `@tool` decorator has two different discovery paths in introspection:
 
-**Current Fixtures Found:**
-- `pyramid_app_with_views()` - Creates app with routes and view scanning
-- `pyramid_app_with_auth()` - GLOBAL fixture with authentication setup  
-- `pyramid_app_factory()` - Factory for creating WSGI apps
-- `pyramid_app_with_services()` - Cornice-specific (in `tests/cornice/conftest.py`)
-- `testapp_factory()` - Factory for creating TestApp instances
-- Plus several legacy fixtures: `pyramid_app`, `testapp`, `mcp_app`, etc.
+1. **Cornice service discovery** (the clean path we want to keep) 
+2. **MCP metadata discovery** (the `__mcp_tool_*` path we want to remove)
 
-**Usage Pattern Analysis:**
-- Most tests use `pyramid_app_with_auth()` (15+ test files)
-- Cornice tests use `pyramid_app_with_services()` (5+ test files)  
-- Some legacy fixtures are barely used
-- Inconsistent patterns across test files
+The decorator currently:
+- Creates Pyramid views directly with `__mcp_tool_*` metadata attributes
+- Uses separate metadata-based discovery path in introspection
+- Lives in `core.py` instead of a dedicated file
+- Accepts both GET and POST methods
 
-#### 🎯 Goal: Single Unified Pyramid Fixture
+#### 🎯 Goal: Unified Cornice-Only Discovery
 
-Create **ONE** main `pyramid_app` fixture that:
+Refactor the `@tool` decorator to:
 
-1. **Takes `settings` (dict)**: Updates default values, doesn't replace them
-2. **Takes `views` (list)**: Configured views to add  
-3. **Takes `scan_path` (str)**: Controls scanning scope to avoid undesired views
-4. **Handles all setup**: Security, MCP inclusion, scanning, TestApp creation
-5. **Special case**: Keep `pyramid_app_with_services` for Cornice (only exception)
+1. **Move to `decorators.py`**: Extract from `core.py` for better organization
+2. **Create Cornice services**: Instead of Pyramid views with metadata
+3. **Auto-generate schemas**: From function signatures (no user-defined schemas)  
+4. **POST-only endpoints**: Restrict to POST for schema validation
+5. **Remove metadata discovery**: Eliminate `__mcp_tool_*` attributes completely
+6. **Maintain error format**: Keep current `{"error": "...", "tool_name": "..."}` format
+7. **Keep naming conventions**: `tool_{tool_name}` and `/mcp/tools/{tool_name}`
 
 #### 📋 Implementation Plan
 
-- [x] **Task 1**: Analyze current fixture usage patterns
-- [x] **Task 2**: Design unified fixture interface
-- [x] **Task 3**: Implement new `pyramid_app` fixture 
-- [x] **Task 4**: Update `pyramid_app_with_services` to follow same pattern
-- [x] **Task 5**: Document new fixture pattern in development rules
-- [x] **Task 6**: Remove redundant fixtures (cleanup)
-- [ ] **Task 7**: Run full test suite validation
+- [ ] **Task 1**: Create `pyramid_mcp/decorators.py` file
+- [ ] **Task 2**: Move `tool` decorator class from `core.py` to `decorators.py`
+- [ ] **Task 3**: Refactor decorator to create Cornice services instead of views
+- [ ] **Task 4**: Implement auto-schema generation from function signatures
+- [ ] **Task 5**: Remove all `__mcp_tool_*` metadata code from decorator
+- [ ] **Task 6**: Remove metadata-based discovery path from `introspection.py`
+- [ ] **Task 7**: Update imports in `__init__.py` to expose decorator from new location
+- [ ] **Task 8**: Run tests and fix any issues with unified discovery
 
 #### 🔧 Technical Design
 
-**New Fixture Signature:**
+**New Decorator Behavior:**
 ```python
-@pytest.fixture  
-def pyramid_app():
-    """Unified pyramid fixture for all tests."""
-    def _create_app(settings=None, views=None, scan_path=None):
-        # Merge settings with defaults
-        # Set up security policy 
-        # Include pyramid_mcp
-        # Add views if provided
-        # Scan with specified path
-        # Return TestApp
-    return _create_app
+# Before (creates view with metadata)
+@tool(name="add", description="Add numbers")
+def add_numbers(a: int, b: int) -> int:
+    return a + b
+# Creates: view with __mcp_tool_name__, __mcp_tool_description__, etc.
+
+# After (creates Cornice service)  
+@tool(name="add", description="Add numbers")
+def add_numbers(a: int, b: int) -> int:
+    return a + b
+# Creates: Cornice service with auto-generated schema, POST-only
 ```
 
-**Usage Examples:**
-```python
-# Basic usage - uses all defaults
-def test_basic(pyramid_app):
-    app = pyramid_app()
-    
-# With custom settings
-def test_custom_settings(pyramid_app):
-    app = pyramid_app(settings={"mcp.server_name": "custom"})
-    
-# With specific scan path  
-def test_scoped_scan(pyramid_app):
-    app = pyramid_app(scan_path="tests.specific_module")
-```
+**Auto-Schema Generation:**
+- Inspect function signature and type hints
+- Generate JSON schema for request body validation
+- Use `marshmallow_body_validator` pattern
+- Support basic types: int, float, str, bool
+
+**Discovery Path:**
+- Remove: `if hasattr(view_callable, "__mcp_tool_name__"):` path
+- Keep: Existing Cornice service discovery in introspection
+- Tool decorators will be discovered as regular Cornice services
 
 #### 🚧 Current Progress
-- [x] Analyzed existing fixture patterns and usage
-- [x] Created task breakdown and technical design  
-- [x] Implemented the unified `pyramid_app` fixture
-- [x] Updated `pyramid_app_with_services` to follow same pattern
-- [x] Moved `TestSecurityPolicy` class outside method (performance improvement)
-- [x] Added legacy compatibility aliases for smooth migration
-- [x] **MAJOR CLEANUP**: Removed 200+ lines of redundant fixtures
-- [x] Cleaned up complex pyramid_config_with_routes and JWT fixtures  
-- [x] **SECURITY UNIFICATION**: Consolidated to single TestSecurityPolicy
-- [x] **IGNORE PARAMETER**: Added flexible ignore parameter to pyramid_app fixture
-- [x] **IMPORT CONFLICT FIX**: Fixed cornice import conflict with ignore patterns
-- [ ] **NEXT**: Final validation and broader testing
+- [ ] Analysis of current decorator implementation
+- [ ] Identified removal targets in introspection code
+- [ ] Planned new Cornice-based architecture
 
 #### ⚠️ Risks & Considerations
-- **Breaking Changes**: This refactoring will touch many test files
-- **Cornice Special Case**: Must maintain compatibility with Cornice services
-- **Test Isolation**: Ensure scanning doesn't leak between tests
-- **Memory Performance**: Fixture should be efficient for large test suites
+- **Breaking Changes**: Tests expecting `__mcp_tool_*` metadata will break
+- **Schema Complexity**: Auto-generation must handle various Python types  
+- **Import Dependencies**: Need to ensure `cornice` is available in decorator module
+- **Error Handling**: Must maintain current error response format
 
 #### 🎯 Success Criteria
-- [x] **All tests pass**: `make test` returns 0 failures
-- [x] **Code quality**: `make check` passes all linting  
-- [x] **Single source of truth**: Only 1-2 pyramid fixtures remain
-- [x] **Documentation**: Clear usage examples in fixture docstrings
+- [ ] **All tests pass**: `make test` returns 0 failures
+- [ ] **Code quality**: `make check` passes all linting
+- [ ] **Single discovery path**: Only Cornice service discovery remains
+- [ ] **Decorator in decorators.py**: Clean file organization  
+- [ ] **Auto-generated schemas**: No user-defined schemas required
+- [ ] **POST-only tools**: Consistent with schema validation approach
 
 ---
 

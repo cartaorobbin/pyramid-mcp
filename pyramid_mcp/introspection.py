@@ -591,34 +591,25 @@ class PyramidIntrospector:
             if not view_callable:
                 continue
 
-            # Check if this is an MCP tool view (created by @tool decorator)
-            if hasattr(view_callable, "__mcp_tool_name__"):
-                # Use MCP metadata from @tool decorator
-                tool_name = view_callable.__mcp_tool_name__
-                description = view_callable.__mcp_tool_description__ or "MCP tool"
-                input_schema = getattr(view_callable, "__mcp_tool_input_schema__", None)
-                security = getattr(view_callable, "__mcp_tool_security__", None)
+            # Generate tool name for regular Pyramid views and Cornice services
+            tool_name = self._generate_tool_name(route_name, method, route_pattern)
 
-            else:
-                # Generate tool name for regular Pyramid views
-                tool_name = self._generate_tool_name(route_name, method, route_pattern)
+            # Generate tool description
+            description = self._generate_tool_description(
+                route_name, method, route_pattern, view_callable, view
+            )
 
-                # Generate tool description
-                description = self._generate_tool_description(
-                    route_name, method, route_pattern, view_callable, view
-                )
+            # Generate input schema from route pattern and view signature
+            input_schema = self._generate_input_schema(
+                route_pattern, view_callable, method, view
+            )
 
-                # Generate input schema from route pattern and view signature
-                input_schema = self._generate_input_schema(
-                    route_pattern, view_callable, method, view
-                )
-
-                # Extract security configuration from view info using
-                # configurable parameter
-                security_type = view.get(config.security_parameter)
-                security = None
-                if security_type:
-                    security = self._convert_security_type_to_schema(security_type)
+            # Extract security configuration from view info using
+            # configurable parameter
+            security_type = view.get(config.security_parameter)
+            security = None
+            if security_type:
+                security = self._convert_security_type_to_schema(security_type)
 
             # Extract permission from view info or Cornice metadata
             permission = None
@@ -669,6 +660,11 @@ class PyramidIntrospector:
         Returns:
             Generated tool name
         """
+        # Special handling for tool decorator routes
+        if route_name and route_name.startswith("tool_"):
+            # For tool decorator routes, use the tool name without prefixes
+            return route_name[5:]  # Remove "tool_" prefix
+
         # Start with route name, make it more descriptive
         if route_name:
             base_name = route_name

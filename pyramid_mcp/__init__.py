@@ -36,8 +36,8 @@ from pyramid_mcp.core import (
     MCPLLMContextHintPredicate,
     MCPSecurityPredicate,
     PyramidMCP,
-    tool,
 )
+from pyramid_mcp.decorators import tool
 from pyramid_mcp.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -90,6 +90,9 @@ def includeme(config: Configurator) -> None:
 
     # Extract MCP settings from pyramid settings
     mcp_config = _extract_mcp_config_from_settings(settings)
+
+    # Include cornice for tool decorator support
+    config.include("cornice")
 
     # Always register view predicates (they're useful even when MCP is disabled)
     # Register the MCP description view predicate
