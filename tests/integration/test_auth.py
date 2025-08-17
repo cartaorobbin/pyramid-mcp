@@ -65,12 +65,12 @@ def get_public_info() -> dict:
 
 
 @pytest.fixture
-def auth_test_config(pyramid_app_with_auth):
+def auth_test_config(pyramid_app):
     """
     Test-specific fixture: Configure pyramid for THIS test file.
 
     This fixture is responsible for:
-    - Calling pyramid_app_with_auth with test-specific settings
+    - Calling pyramid_app with test-specific settings
     - Returning the configured TestApp for use by tests
 
     The @tool functions are defined at module level above so Venusian can find them.
@@ -87,7 +87,7 @@ def auth_test_config(pyramid_app_with_auth):
     }
 
     # Return configured TestApp
-    return pyramid_app_with_auth(auth_settings)
+    return pyramid_app(auth_settings)
 
 
 # =============================================================================

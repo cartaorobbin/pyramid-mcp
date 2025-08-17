@@ -107,7 +107,7 @@ Comprehensive fixture system in `conftest.py` organized by category:
 - `test_route_scenarios` - Various route configurations
 
 ### Global Pyramid Fixture (CRITICAL)
-- `pyramid_app_with_auth` - **Main pyramid setup used by all test files**
+- `pyramid_app` - **Main pyramid setup used by all test files**
   - Takes settings as parameter
   - Creates Pyramid Configurator with provided settings
   - Sets up security policy and authentication
@@ -170,17 +170,17 @@ If you need new fixtures:
 
 ### Single Fixture Pattern (CRITICAL)
 
-**Always use the global `pyramid_app_with_auth` fixture** for creating TestApps:
+**Always use the global `pyramid_app` fixture** for creating TestApps:
 
 ```python
-def test_my_functionality(pyramid_app_with_auth):
+def test_my_functionality(pyramid_app):
     """Test using the global pyramid fixture."""
     settings = {
         "mcp.server_name": "my-test-server",
         "mcp.route_discovery.enabled": True,
     }
     
-    app = pyramid_app_with_auth(settings)
+    app = pyramid_app(settings)
     # Test your functionality
 ```
 
@@ -195,9 +195,9 @@ from pyramid_mcp import tool
 def my_test_tool(param: str) -> str:
     return f"Result: {param}"
 
-def test_my_tool(pyramid_app_with_auth):
+def test_my_tool(pyramid_app):
     """Test will automatically discover my_test_tool."""
-    app = pyramid_app_with_auth({"mcp.route_discovery.enabled": True})
+    app = pyramid_app({"mcp.route_discovery.enabled": True})
     # Tool is automatically available
 ```
 

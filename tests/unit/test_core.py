@@ -139,7 +139,7 @@ def test_pyramid_mcp_creation_configured(custom_mcp_config):
     assert pyramid_mcp.config.server_name == "test-server"  # From custom_mcp_config
 
 
-def test_pyramid_mcp_manual_tool_registration(pyramid_app_with_auth):
+def test_pyramid_mcp_manual_tool_registration(pyramid_app):
     """Test registering tools manually with PyramidMCP."""
     # Use our proven working fixture with route discovery enabled
     settings = {
@@ -150,7 +150,7 @@ def test_pyramid_mcp_manual_tool_registration(pyramid_app_with_auth):
     }
 
     # Create TestApp using the global fixture (which handles scanning automatically)
-    testapp = pyramid_app_with_auth(settings)
+    testapp = pyramid_app(settings)
 
     # Get the pyramid_mcp instance from the TestApp's app registry
     pyramid_mcp = testapp.app.registry.pyramid_mcp

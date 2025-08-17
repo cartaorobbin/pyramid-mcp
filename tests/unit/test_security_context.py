@@ -191,7 +191,7 @@ def test_context_factory_security_works_for_regular_views(
     assert response.json["message"] == "Admin data"
 
 
-def test_context_factory_integration_with_mcp_tools(pyramid_app_with_auth):
+def test_context_factory_integration_with_mcp_tools(pyramid_app):
     """Test that MCP tools respect context factory security settings."""
     settings = {
         "mcp.route_discovery.enabled": True,
@@ -199,7 +199,7 @@ def test_context_factory_integration_with_mcp_tools(pyramid_app_with_auth):
         "mcp.server_version": "1.0.0",
     }
 
-    app = pyramid_app_with_auth(settings)
+    app = pyramid_app(settings)
 
     # Initialize MCP
     init_response = app.post_json(

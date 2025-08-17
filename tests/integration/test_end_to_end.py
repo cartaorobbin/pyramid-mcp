@@ -56,7 +56,7 @@ def data_analyzer_tool(data_type: str, analysis: str) -> str:
 
 
 @pytest.fixture
-def end_to_end_test_config(pyramid_app_with_auth):
+def end_to_end_test_config(pyramid_app):
     """Test-specific fixture: Configure pyramid for end-to-end integration tests."""
 
     # Configure pyramid with end-to-end specific settings
@@ -68,7 +68,7 @@ def end_to_end_test_config(pyramid_app_with_auth):
     }
 
     # Return configured TestApp using the global fixture
-    return pyramid_app_with_auth(settings)
+    return pyramid_app(settings)
 
 
 def test_auto_discovered_tools_call_real_views(end_to_end_test_config):
@@ -257,7 +257,7 @@ def test_comparison_simulation_vs_real():
 
 
 @pytest.fixture
-def workflow_test_config(pyramid_app_with_auth):
+def workflow_test_config(pyramid_app):
     """Test-specific fixture: Configure pyramid for workflow tests."""
 
     # Configure pyramid with workflow-specific settings
@@ -269,7 +269,7 @@ def workflow_test_config(pyramid_app_with_auth):
     }
 
     # Return configured TestApp using the global fixture
-    return pyramid_app_with_auth(settings)
+    return pyramid_app(settings)
 
 
 def test_complete_pyramid_mcp_workflow(workflow_test_config):
@@ -433,7 +433,7 @@ def test_complete_pyramid_mcp_workflow(workflow_test_config):
 
 
 @pytest.fixture
-def multi_step_test_config(pyramid_app_with_auth):
+def multi_step_test_config(pyramid_app):
     """Test-specific fixture: Configure pyramid for multi-step integration tests."""
 
     # Configure pyramid with multi-step specific settings
@@ -445,7 +445,7 @@ def multi_step_test_config(pyramid_app_with_auth):
     }
 
     # Return configured TestApp using the global fixture
-    return pyramid_app_with_auth(settings)
+    return pyramid_app(settings)
 
 
 def test_multi_step_integration_scenario(multi_step_test_config):
@@ -612,7 +612,7 @@ def performance_test(iterations: int = 100, operation: str = "compute") -> str:
 
 
 @pytest.fixture
-def dynamic_test_config(pyramid_app_with_auth):
+def dynamic_test_config(pyramid_app):
     """Test-specific fixture: Configure pyramid for dynamic tool tests."""
 
     # Configure pyramid with dynamic tool test settings
@@ -624,7 +624,7 @@ def dynamic_test_config(pyramid_app_with_auth):
     }
 
     # Return configured TestApp using the global fixture
-    return pyramid_app_with_auth(settings)
+    return pyramid_app(settings)
 
 
 def test_dynamic_tool_registration_workflow(dynamic_test_config):
@@ -774,7 +774,7 @@ def test_error_handling_across_components(integration_app):
     assert "does_not_exist" in nonexistent_tool_response.json["error"]["message"]
 
 
-def test_performance_and_concurrency_simulation(pyramid_app_with_auth):
+def test_performance_and_concurrency_simulation(pyramid_app):
     """Simulate performance testing with multiple tool calls."""
     # Use our proven working fixture with route discovery enabled
     settings = {
@@ -783,7 +783,7 @@ def test_performance_and_concurrency_simulation(pyramid_app_with_auth):
         "mcp.server_version": "1.0.0",
     }
 
-    app = pyramid_app_with_auth(settings)
+    app = pyramid_app(settings)
 
     # Test multiple calls via MCP protocol
     results = []

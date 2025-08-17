@@ -504,52 +504,6 @@ def pyramid_app(pyramid_wsgi_app):
 
 
 # =============================================================================
-# 🔄 LEGACY COMPATIBILITY (Temporary during migration)
-# =============================================================================
-
-
-@pytest.fixture
-def pyramid_app_with_auth(pyramid_app):
-    """
-    Legacy compatibility alias for pyramid_app.
-
-    DEPRECATED: Use pyramid_app() directly instead.
-    This alias exists only to avoid breaking existing tests during migration.
-    """
-    return pyramid_app
-
-
-@pytest.fixture
-def testapp(pyramid_app):
-    """
-    Legacy compatibility: Basic TestApp.
-
-    DEPRECATED: Use pyramid_app() directly instead.
-    """
-    return pyramid_app()
-
-
-@pytest.fixture
-def mcp_testapp(pyramid_app):
-    """
-    Legacy compatibility: TestApp with MCP.
-
-    DEPRECATED: Use pyramid_app() directly instead.
-    """
-    return pyramid_app()
-
-
-@pytest.fixture
-def testapp_with_mcp(pyramid_app):
-    """
-    Legacy compatibility: TestApp with MCP.
-
-    DEPRECATED: Use pyramid_app() directly instead.
-    """
-    return pyramid_app()
-
-
-# =============================================================================
 # 📊 TEST DATA FIXTURES
 # =============================================================================
 

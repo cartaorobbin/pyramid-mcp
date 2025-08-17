@@ -33,7 +33,7 @@ class MCPClientSimulator:
 
 
 @pytest.fixture
-def mcp_client_test_config(pyramid_app_with_auth):
+def mcp_client_test_config(pyramid_app):
     """Test-specific fixture: Configure pyramid for MCP client tests."""
 
     # Configure pyramid with MCP client test settings
@@ -45,7 +45,7 @@ def mcp_client_test_config(pyramid_app_with_auth):
     }
 
     # Return configured TestApp using the global fixture
-    return pyramid_app_with_auth(settings)
+    return pyramid_app(settings)
 
 
 @pytest.fixture

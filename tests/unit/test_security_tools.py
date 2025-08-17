@@ -69,7 +69,7 @@ def decorator_public_info(info_id: int) -> dict:
 # =============================================================================
 
 
-def test_tool_decorator_creates_pyramid_views(pyramid_app_with_auth):
+def test_tool_decorator_creates_pyramid_views(pyramid_app):
     """Test that @tool decorators create Pyramid views that are discoverable."""
     settings = {
         "mcp.route_discovery.enabled": True,
@@ -77,7 +77,7 @@ def test_tool_decorator_creates_pyramid_views(pyramid_app_with_auth):
         "mcp.server_version": "1.0.0",
     }
 
-    app = pyramid_app_with_auth(settings)
+    app = pyramid_app(settings)
 
     # Initialize MCP
     init_response = app.post_json(
@@ -105,7 +105,7 @@ def test_tool_decorator_creates_pyramid_views(pyramid_app_with_auth):
     ), f"decorator_public_info not found in {tool_names}"
 
 
-def test_tool_decorator_execution_via_mcp(pyramid_app_with_auth):
+def test_tool_decorator_execution_via_mcp(pyramid_app):
     """Test that tools created with @tool decorator can be executed via MCP."""
     settings = {
         "mcp.route_discovery.enabled": True,
@@ -113,7 +113,7 @@ def test_tool_decorator_execution_via_mcp(pyramid_app_with_auth):
         "mcp.server_version": "1.0.0",
     }
 
-    app = pyramid_app_with_auth(settings)
+    app = pyramid_app(settings)
 
     # Initialize MCP
     init_response = app.post_json(
@@ -158,7 +158,7 @@ def test_tool_decorator_execution_via_mcp(pyramid_app_with_auth):
     assert "content" in result["representation"]
 
 
-def test_tool_decorator_with_permissions(pyramid_app_with_auth):
+def test_tool_decorator_with_permissions(pyramid_app):
     """Test that @tool decorator respects permission settings."""
     settings = {
         "mcp.route_discovery.enabled": True,
@@ -166,7 +166,7 @@ def test_tool_decorator_with_permissions(pyramid_app_with_auth):
         "mcp.server_version": "1.0.0",
     }
 
-    app = pyramid_app_with_auth(settings)
+    app = pyramid_app(settings)
 
     # Initialize MCP
     init_response = app.post_json(
@@ -211,7 +211,7 @@ def test_tool_decorator_with_permissions(pyramid_app_with_auth):
     assert "content" in result["representation"]
 
 
-def test_unified_security_architecture_tool_input_schemas(pyramid_app_with_auth):
+def test_unified_security_architecture_tool_input_schemas(pyramid_app):
     """Test that unified security architecture properly modifies tool input schemas."""
     settings = {
         "mcp.route_discovery.enabled": True,
@@ -219,7 +219,7 @@ def test_unified_security_architecture_tool_input_schemas(pyramid_app_with_auth)
         "mcp.server_version": "1.0.0",
     }
 
-    app = pyramid_app_with_auth(settings)
+    app = pyramid_app(settings)
 
     # Initialize MCP
     init_response = app.post_json(

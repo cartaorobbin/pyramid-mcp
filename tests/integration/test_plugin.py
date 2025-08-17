@@ -125,7 +125,7 @@ def test_request_method_access(minimal_pyramid_config):
 # =============================================================================
 
 
-def test_plugin_tool_decorator(pyramid_app_with_auth):
+def test_plugin_tool_decorator(pyramid_app):
     """Test the plugin-level tool decorator functionality."""
     # Use our proven working fixture with route discovery enabled
     settings = {
@@ -136,7 +136,7 @@ def test_plugin_tool_decorator(pyramid_app_with_auth):
     }
 
     # Create TestApp using the global fixture (which handles scanning automatically)
-    testapp = pyramid_app_with_auth(settings)
+    testapp = pyramid_app(settings)
 
     # Get the pyramid_mcp instance from the TestApp's app registry
     pyramid_mcp = testapp.app.registry.pyramid_mcp
@@ -465,7 +465,7 @@ def test_complete_plugin_integration_scenario(mcp_settings_factory, dummy_reques
     assert len(mcp_routes) >= 1
 
 
-def test_plugin_with_fixture_integration(pyramid_app_with_auth):
+def test_plugin_with_fixture_integration(pyramid_app):
     """Test plugin functionality using the proven global fixture."""
     # Use our proven working fixture with route discovery enabled
     settings = {
@@ -476,7 +476,7 @@ def test_plugin_with_fixture_integration(pyramid_app_with_auth):
     }
 
     # Create TestApp using the global fixture (which handles scanning automatically)
-    testapp = pyramid_app_with_auth(settings)
+    testapp = pyramid_app(settings)
 
     # Get the pyramid_mcp instance from the TestApp's app registry
     pyramid_mcp = testapp.app.registry.pyramid_mcp
