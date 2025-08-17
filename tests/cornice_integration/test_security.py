@@ -167,9 +167,9 @@ def test_bearer_auth_without_token_denies_access(pyramid_app_with_services):
     @bearer_service.get(permission="authenticated")
     def get_with_bearer(request):
         """Get data with Bearer auth."""
-        # Check for auth headers
-        auth_headers = getattr(request, "mcp_auth_headers", {})
-        has_auth = "Authorization" in auth_headers
+        # Check for auth headers in standard request headers
+        auth_header = request.headers.get("Authorization", "")
+        has_auth = bool(auth_header.strip())
 
         return {
             "message": "Bearer auth endpoint",
@@ -219,9 +219,9 @@ def test_bearer_auth_with_valid_token_grants_access(pyramid_app_with_services):
     @bearer_service.get(permission="authenticated")
     def get_with_bearer(request):
         """Get data with Bearer auth."""
-        # Check for auth headers
-        auth_headers = getattr(request, "mcp_auth_headers", {})
-        has_auth = "Authorization" in auth_headers
+        # Check for auth headers in standard request headers
+        auth_header = request.headers.get("Authorization", "")
+        has_auth = bool(auth_header.strip())
 
         return {
             "message": "Bearer auth endpoint",
@@ -274,9 +274,9 @@ def test_expose_auth_as_params_disabled_uses_header_auth(pyramid_app_with_servic
     @bearer_service.get(permission="authenticated")
     def get_with_bearer(request):
         """Get data with Bearer auth."""
-        # Check for auth headers
-        auth_headers = getattr(request, "mcp_auth_headers", {})
-        has_auth = "Authorization" in auth_headers
+        # Check for auth headers in standard request headers
+        auth_header = request.headers.get("Authorization", "")
+        has_auth = bool(auth_header.strip())
 
         return {
             "message": "Bearer auth endpoint",

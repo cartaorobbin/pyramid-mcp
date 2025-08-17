@@ -1230,20 +1230,15 @@ class PyramidIntrospector:
             subrequest.headers[header_name] = header_value
             logger.debug(f"🔐 Added auth header: {header_name}")
 
-        # 🔑 CRITICAL: Transfer mcp_auth_headers attribute to subrequest
-        # This is required for the security policy to find authentication in subrequests
-        subrequest.mcp_auth_headers = auth_headers
-        logger.debug(
-            f"🔐 Transferred mcp_auth_headers to subrequest: {list(auth_headers.keys())}"
-        )
-
         # 🐛 INFO: Log final subrequest details
-        logger.info("🔧 Final subrequest details:")
-        logger.info(f"   - Method: {subrequest.method}")
-        logger.info(f"   - URL: {subrequest.url}")
-        logger.info(f"   - Content-Type: {getattr(subrequest, 'content_type', 'None')}")
-        logger.info(f"   - Headers: {dict(subrequest.headers)}")
-        logger.info(f"   - Body length: {len(getattr(subrequest, 'body', b''))} bytes")
+        logger.debug("🔧 Final subrequest details:")
+        logger.debug(f"   - Method: {subrequest.method}")
+        logger.debug(f"   - URL: {subrequest.url}")
+        logger.debug(
+            f"   - Content-Type: {getattr(subrequest, 'content_type', 'None')}"
+        )
+        logger.debug(f"   - Headers: {dict(subrequest.headers)}")
+        logger.debug(f"   - Body length: {len(getattr(subrequest, 'body', b''))} bytes")
 
         # 🔄 PYRAMID_TM TRANSACTION SHARING SUPPORT
         # Ensure subrequest shares the same transaction context as the parent request

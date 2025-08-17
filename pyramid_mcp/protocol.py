@@ -480,8 +480,6 @@ class MCPProtocolHandler:
             if auth_token:
                 auth_header = f"Bearer {auth_token}"
                 subrequest.headers["Authorization"] = auth_header
-                # Also set mcp_auth_headers for TestSecurityPolicy
-                subrequest.mcp_auth_headers = {"Authorization": auth_header}
             elif (
                 self.config
                 and not self.config.expose_auth_as_params
@@ -490,8 +488,6 @@ class MCPProtocolHandler:
                 # When expose_auth_as_params=false, use HTTP header auth directly
                 auth_header = pyramid_request.headers["Authorization"]
                 subrequest.headers["Authorization"] = auth_header
-                # Set mcp_auth_headers so security policy can find the auth
-                subrequest.mcp_auth_headers = {"Authorization": auth_header}
 
             # Execute subrequest - Pyramid handles auth, permissions, and execution
             response = pyramid_request.invoke_subrequest(subrequest)

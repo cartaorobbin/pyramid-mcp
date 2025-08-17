@@ -251,9 +251,9 @@ from pyramid_mcp.security import BearerAuthSchema
 )
 def secure_tool(pyramid_request, data: str, auth_token: str) -> dict:
     """Tool with Bearer token authentication."""
-    # Access authentication headers
-    headers = pyramid_request.mcp_auth_headers
-    return {"data": data, "authenticated": True}
+    # Access authentication headers from the standard request headers
+    auth_header = pyramid_request.headers.get("Authorization", "")
+    return {"data": data, "authenticated": bool(auth_header)}
 ```
 
 ### Manual Usage (Advanced)
@@ -283,8 +283,8 @@ def manual_tool(x: int) -> int:
     security=BearerAuthSchema()
 )
 def secure_manual_tool(pyramid_request, data: str, auth_token: str) -> dict:
-    headers = pyramid_request.mcp_auth_headers
-    return {"data": data, "authenticated": True}
+    auth_header = pyramid_request.headers.get("Authorization", "")
+    return {"data": data, "authenticated": bool(auth_header)}
 
 # Mount manually (with auto_commit=False for more control)
 pyramid_mcp.mount(auto_commit=False)
@@ -423,9 +423,9 @@ from pyramid_mcp.security import BearerAuthSchema
     security=BearerAuthSchema()
 )
 def secure_api_request(pyramid_request, endpoint: str, auth_token: str) -> dict:
-    # Auth headers are automatically created
-    headers = pyramid_request.mcp_auth_headers
-    # headers = {"Authorization": "Bearer <token>"}
+    # Auth headers are automatically created and available in request headers
+    auth_header = pyramid_request.headers.get("Authorization", "")
+    # auth_header = "Bearer <token>"
     return {"endpoint": endpoint, "status": "authenticated"}
 
 # Tool with Basic authentication
@@ -437,9 +437,9 @@ from pyramid_mcp.security import BasicAuthSchema
     security=BasicAuthSchema()
 )
 def database_query(pyramid_request, query: str, username: str, password: str) -> dict:
-    # Auth headers are automatically created
-    headers = pyramid_request.mcp_auth_headers
-    # headers = {"Authorization": "Basic <base64_encoded_credentials>"}
+    # Auth headers are automatically created and available in request headers
+    auth_header = pyramid_request.headers.get("Authorization", "")
+    # auth_header = "Basic <base64_encoded_credentials>"
     return {"query": query, "status": "executed"}
 
 # Async tool (if using async views)
@@ -578,9 +578,9 @@ from pyramid_mcp.security import BearerAuthSchema
 )
 def secure_api_call(pyramid_request, data: str, auth_token: str) -> dict:
     """Call a secure API with Bearer token authentication."""
-    # Authentication headers are automatically available
-    headers = pyramid_request.mcp_auth_headers
-    # headers = {"Authorization": "Bearer <token>"}
+    # Authentication headers are automatically available in request headers
+    auth_header = pyramid_request.headers.get("Authorization", "")
+    # auth_header = "Bearer <token>"
     
     # Make API call with authentication
     return {"success": True, "data": data}
@@ -599,9 +599,9 @@ from pyramid_mcp.security import BasicAuthSchema
 )
 def secure_ftp_access(pyramid_request, path: str, username: str, password: str) -> dict:
     """Access FTP server with basic authentication."""
-    # Authentication headers are automatically available
-    headers = pyramid_request.mcp_auth_headers
-    # headers = {"Authorization": "Basic <base64_encoded_credentials>"}
+    # Authentication headers are automatically available in request headers
+    auth_header = pyramid_request.headers.get("Authorization", "")
+    # auth_header = "Basic <base64_encoded_credentials>"
     
     # Use credentials for FTP access
     return {"path": path, "status": "connected"}
@@ -611,7 +611,7 @@ def secure_ftp_access(pyramid_request, path: str, username: str, password: str) 
 
 1. **Schema Integration**: Authentication parameters are automatically merged into the tool's JSON schema
 2. **Parameter Extraction**: Credentials are extracted from tool arguments during execution
-3. **Header Generation**: Authentication headers are created and made available via `pyramid_request.mcp_auth_headers`
+3. **Header Generation**: Authentication headers are created and added to the subrequest headers
 4. **Parameter Cleanup**: Authentication parameters are removed from the arguments passed to your handler function
 5. **Validation**: Credentials are validated before tool execution
 
