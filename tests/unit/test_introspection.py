@@ -23,16 +23,41 @@ from pyramid_mcp.introspection import PyramidIntrospector
 # =============================================================================
 
 
-def test_discover_routes_basic(pyramid_config_committed):
-    """Test basic route discovery functionality using committed config fixture."""
-    introspector = PyramidIntrospector(pyramid_config_committed)
+def test_discover_routes_basic(pyramid_config):
+    """Test basic route discovery functionality."""
 
+    # Define test views
+    def create_user_view(request):
+        return {"action": "create"}
+
+    def get_user_view(request):
+        return {"action": "get"}
+
+    def update_user_view(request):
+        return {"action": "update"}
+
+    def delete_user_view(request):
+        return {"action": "delete"}
+
+    def list_users_view(request):
+        return {"action": "list"}
+
+    # Use pyramid_config fixture with test views (commit=True for introspection)
+    views = [
+        (create_user_view, "create_user", {"renderer": "json"}),
+        (get_user_view, "get_user", {"renderer": "json"}),
+        (update_user_view, "update_user", {"renderer": "json"}),
+        (delete_user_view, "delete_user", {"renderer": "json"}),
+        (list_users_view, "list_users", {"renderer": "json"}),
+    ]
+    config = pyramid_config(views=views, commit=True)
+    introspector = PyramidIntrospector(config)
     routes_info = introspector.discover_routes()
 
     # Should discover our test routes
     assert len(routes_info) > 0
 
-    # Check for expected routes from conftest.py
+    # Check for expected routes
     route_names = [route["name"] for route in routes_info]
     expected_routes = [
         "create_user",
@@ -48,9 +73,15 @@ def test_discover_routes_basic(pyramid_config_committed):
         ), f"Expected route {expected} not found in {route_names}"
 
 
-def test_route_info_structure(pyramid_config_committed):
+def test_route_info_structure(pyramid_config):
     """Test that route info has expected structure."""
-    introspector = PyramidIntrospector(pyramid_config_committed)
+
+    def test_view(request):
+        return {"test": "data"}
+
+    views = [(test_view, "test_route", {"renderer": "json"})]
+    config = pyramid_config(views=views, commit=True)
+    introspector = PyramidIntrospector(config)
 
     routes_info = introspector.discover_routes()
 
@@ -84,10 +115,17 @@ def test_discover_routes_with_custom_config():
     assert "test_route" in route_names
 
 
-def test_discover_tools_from_pyramid(pyramid_config_committed):
+def test_discover_tools_from_pyramid(pyramid_config):
     """Test discovering tools from Pyramid routes."""
+
+    def api_view(request):
+        return {"api": "response"}
+
+    views = [(api_view, "api_route", {"renderer": "json"})]
+    config = pyramid_config(views=views, commit=True)
+
     mcp_config = MCPConfiguration(route_discovery_enabled=True)
-    introspector = PyramidIntrospector(pyramid_config_committed)
+    introspector = PyramidIntrospector(config)
 
     tools = introspector.discover_tools_from_pyramid(None, mcp_config)
 

@@ -118,18 +118,21 @@ def test_mcp_configuration_with_patterns(mcp_config_with_patterns):
 # =============================================================================
 
 
-def test_pyramid_mcp_creation_basic(pyramid_mcp_basic):
+def test_pyramid_mcp_creation_basic(minimal_pyramid_config, minimal_mcp_config):
     """Test PyramidMCP creation with basic configuration."""
-    pyramid_mcp = pyramid_mcp_basic
+    pyramid_mcp = PyramidMCP(minimal_pyramid_config, config=minimal_mcp_config)
 
     assert pyramid_mcp is not None
     assert pyramid_mcp.protocol_handler is not None
     assert pyramid_mcp.config.server_name == "pyramid-mcp"  # From minimal_mcp_config
 
 
-def test_pyramid_mcp_creation_configured(pyramid_mcp_configured):
+def test_pyramid_mcp_creation_configured(custom_mcp_config):
     """Test PyramidMCP creation with full configuration."""
-    pyramid_mcp = pyramid_mcp_configured
+    from pyramid.config import Configurator
+
+    config = Configurator()
+    pyramid_mcp = PyramidMCP(config, config=custom_mcp_config)
 
     assert pyramid_mcp is not None
     assert pyramid_mcp.protocol_handler is not None
@@ -166,9 +169,9 @@ def test_pyramid_mcp_manual_tool_registration(pyramid_app_with_auth):
     print(f"✅ Total tools registered: {len(pyramid_mcp.protocol_handler.tools)}")
 
 
-def test_pyramid_mcp_mount_endpoints(minimal_pyramid_config, pyramid_mcp_basic):
+def test_pyramid_mcp_mount_endpoints(minimal_pyramid_config, minimal_mcp_config):
     """Test mounting MCP endpoints to Pyramid configuration."""
-    pyramid_mcp = pyramid_mcp_basic
+    pyramid_mcp = PyramidMCP(minimal_pyramid_config, config=minimal_mcp_config)
 
     # Mount the MCP endpoints without auto-commit for backward compatibility
     pyramid_mcp.mount(auto_commit=False)
@@ -195,12 +198,14 @@ def test_pyramid_mcp_mount_endpoints(minimal_pyramid_config, pyramid_mcp_basic):
 # =============================================================================
 
 
-def test_introspector_creation_with_config(pyramid_config_with_routes):
+def test_introspector_creation_with_config(pyramid_config):
     """Test that PyramidIntrospector can be created with configuration."""
-    introspector = PyramidIntrospector(pyramid_config_with_routes)
+    # Use pyramid_config fixture directly since we need the configurator
+    config = pyramid_config()
+    introspector = PyramidIntrospector(config)
 
     assert introspector is not None
-    assert introspector.configurator == pyramid_config_with_routes
+    assert introspector.configurator == config
 
 
 def test_introspector_creation_minimal(minimal_pyramid_config):
@@ -211,9 +216,16 @@ def test_introspector_creation_minimal(minimal_pyramid_config):
     assert introspector.configurator == minimal_pyramid_config
 
 
-def test_introspector_has_discovery_methods(pyramid_config_committed):
+def test_introspector_has_discovery_methods(pyramid_config):
     """Test that PyramidIntrospector has expected methods."""
-    introspector = PyramidIntrospector(pyramid_config_committed)
+
+    # Use pyramid_config fixture with a test view
+    def test_view(request):
+        return {"message": "test"}
+
+    views = [(test_view, "test_route", {"renderer": "json"})]
+    config = pyramid_config(views=views)
+    introspector = PyramidIntrospector(config)
 
     # Test that key methods exist
     assert hasattr(introspector, "discover_routes")

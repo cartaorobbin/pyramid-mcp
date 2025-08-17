@@ -272,9 +272,23 @@ def test_calculate_tool_with_missing_parameters(mcp_client: MCPClientSimulator) 
 # Direct API Comparison Tests
 
 
-def test_users_endpoint_direct_call(testapp_with_mcp: Any) -> None:
+def test_users_endpoint_direct_call(
+    pyramid_app: Any,
+    users_db: dict,
+    user_id_counter: dict,
+) -> None:
     """Test direct API call to users endpoint."""
-    direct_response = testapp_with_mcp.get("/users")
+
+    # Define user endpoints needed for this test
+    def list_users(request):
+        return {"users": list(users_db.values())}
+
+    # Create app with user endpoints
+    views = [(list_users, "users", {"renderer": "json", "request_method": "GET"})]
+
+    app = pyramid_app(views=views)
+
+    direct_response = app.get("/users")
     assert direct_response.status_code == 200
     direct_data = direct_response.json
     assert isinstance(direct_data, dict)
@@ -283,16 +297,29 @@ def test_users_endpoint_direct_call(testapp_with_mcp: Any) -> None:
 
 
 def test_user_count_tool_vs_users_endpoint(
-    mcp_client: MCPClientSimulator, testapp_with_mcp: Any
+    mcp_client: MCPClientSimulator,
+    pyramid_app: Any,
+    users_db: dict,
+    user_id_counter: dict,
 ) -> None:
     """Test that user count tool and users endpoint both work independently."""
+
+    # Define user endpoints needed for this test
+    def list_users(request):
+        return {"users": list(users_db.values())}
+
+    # Create app with user endpoints
+    views = [(list_users, "users", {"renderer": "json", "request_method": "GET"})]
+
+    app = pyramid_app(views=views)
+
     # Get user count via MCP tool
     mcp_response = mcp_client.call_mcp(
         "tools/call", {"name": "get_user_count", "arguments": {}}
     )
 
     # Get users directly via API
-    direct_response = testapp_with_mcp.get("/users")
+    direct_response = app.get("/users")
     direct_data = direct_response.json
 
     # Both should succeed
@@ -339,8 +366,12 @@ def test_mcp_json_rpc_protocol_structure(mcp_client: MCPClientSimulator) -> None
     assert has_result != has_error  # XOR - exactly one should be true
 
 
-def test_mcp_initialize_protocol(testapp_with_mcp: Any) -> None:
+def test_mcp_initialize_protocol(pyramid_app: Any) -> None:
     """Test MCP initialize protocol directly."""
+
+    # Create app with basic MCP setup (no additional views needed)
+    app = pyramid_app()
+
     request_data = {
         "jsonrpc": "2.0",
         "method": "initialize",
@@ -352,7 +383,7 @@ def test_mcp_initialize_protocol(testapp_with_mcp: Any) -> None:
         },
     }
 
-    response = testapp_with_mcp.post_json("/mcp", request_data)
+    response = app.post_json("/mcp", request_data)
     assert response.status_code == 200
 
     data = response.json

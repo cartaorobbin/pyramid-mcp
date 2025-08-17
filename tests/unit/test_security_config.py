@@ -57,16 +57,20 @@ def test_extract_config_from_settings_custom():
     assert config.security_parameter == "pcm_security"
 
 
-def test_introspector_uses_configurable_parameter(pyramid_config_with_routes):
+def test_introspector_uses_configurable_parameter(pyramid_config):
     """Test that introspector uses configurable security parameter."""
+
+    def test_view(request):
+        return {"test": "data"}
+
+    views = [(test_view, "test_route", {"renderer": "json"})]
+    config = pyramid_config(views=views, commit=True)
 
     # Create a real MCP configuration with custom security parameter
     mcp_config = MCPConfiguration(
         security_parameter="pcm_security", route_discovery_enabled=True
     )
-
-    # Create PyramidMCP instance and test through the real workflow
-    pyramid_mcp = PyramidMCP(pyramid_config_with_routes, config=mcp_config)
+    pyramid_mcp = PyramidMCP(config, config=mcp_config)
 
     # Discover tools - this will set the security parameter in the introspector
     pyramid_mcp.discover_tools()

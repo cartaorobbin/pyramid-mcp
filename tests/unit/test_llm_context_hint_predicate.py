@@ -21,16 +21,25 @@ def financial_view(request):
     return {"balance": 1234.56, "currency": "USD"}
 
 
-def test_llm_context_hint_predicate_end_to_end(pyramid_app_with_views):
+def test_llm_context_hint_predicate_end_to_end(pyramid_app):
     """Test that llm_context_hint predicate works end-to-end with MCP tool calls."""
 
-    # Create Pyramid app with the route and scan for the view
-    routes = [("financial_data", "/api/financial")]
+    # Create the view with the custom llm_context_hint predicate
+    views = [
+        (
+            financial_view,
+            "financial_data",
+            {
+                "renderer": "json",
+                "llm_context_hint": "Sensitive financial account information",
+            },
+        )
+    ]
     settings = {"mcp.route_discovery.enabled": "true"}
 
     # Scan only this specific module to avoid Cornice service pollution from other tests
-    ignore_pattern = ["tests.cornice", "tests.openai"]
-    app = pyramid_app_with_views(routes, ignore=ignore_pattern, settings=settings)
+    ignore = ["tests.cornice_integration", "tests.openai"]
+    app = pyramid_app(views=views, settings=settings, ignore=ignore)
 
     # Make MCP tool call (tool name is derived from function name:
     # financial_view -> get_financial_data)
@@ -50,6 +59,4 @@ def test_llm_context_hint_predicate_end_to_end(pyramid_app_with_views):
     # Verify the custom llm_context_hint is returned in the MCP response
     result = response.json["result"]
     assert result["type"] == "mcp/context"
-    assert result["llm_context_hint"] == (
-        "Sensitive financial account information from banking system"
-    )
+    assert result["llm_context_hint"] == "Sensitive financial account information"

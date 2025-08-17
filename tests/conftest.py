@@ -21,7 +21,7 @@ from pyramid.config import Configurator
 from webtest import TestApp  # type: ignore
 
 from pyramid_mcp import tool
-from pyramid_mcp.core import MCPConfiguration, PyramidMCP
+from pyramid_mcp.core import MCPConfiguration
 from pyramid_mcp.protocol import MCPProtocolHandler
 
 # =============================================================================
@@ -96,86 +96,9 @@ class UserUpdateSchema(Schema):
 
 
 @pytest.fixture
-def pyramid_app_with_views():
-    """
-    Create a Pyramid app with given routes and optional view scanning.
-
-    routes is a list of (route_name, route_pattern) tuples.
-    ignore is optional list of module patterns to ignore when scanning.
-    settings is optional dict of Pyramid settings (defaults to MCP route
-    discovery enabled).
-    """
-
-    def _create_app(routes, ignore=None, settings=None):
-        from pyramid.config import Configurator
-        from webtest import TestApp
-
-        # Use provided settings or default to route discovery enabled
-        if settings is None:
-            settings = {"mcp.route_discovery.enabled": "true"}
-        config = Configurator(settings=settings)
-
-        config.include("pyramid_mcp")
-
-        # Create routes - views will be registered by scan()
-        for route_name, route_pattern in routes:
-            config.add_route(route_name, route_pattern)
-
-        # Scan with optional ignore parameter passed directly to Pyramid
-        config.scan(ignore=ignore)
-
-        return TestApp(config.make_wsgi_app())
-
-    return _create_app
-
-
-@pytest.fixture
 def minimal_pyramid_config():
     """Basic Pyramid Configurator without routes or MCP."""
     return Configurator()
-
-
-@pytest.fixture
-def pyramid_config_with_routes(users_db, user_id_counter):
-    """Pyramid configuration with standard test routes but no MCP."""
-    config = Configurator()
-
-    # Add test routes
-    config.add_route("create_user", "/users", request_method="POST")
-    config.add_route("get_user", "/users/{id}", request_method="GET")
-    config.add_route("update_user", "/users/{id}", request_method="PUT")
-    config.add_route("delete_user", "/users/{id}", request_method="DELETE")
-    config.add_route("list_users", "/users", request_method="GET")
-
-    # Add view configurations
-    config.add_view(create_user_view, route_name="create_user", renderer="json")
-    config.add_view(get_user_view, route_name="get_user", renderer="json")
-    config.add_view(update_user_view, route_name="update_user", renderer="json")
-    config.add_view(delete_user_view, route_name="delete_user", renderer="json")
-    config.add_view(list_users_view, route_name="list_users", renderer="json")
-
-    # Store test data in registry
-    config.registry.users_db = users_db
-    config.registry.user_id_counter = user_id_counter
-
-    return config
-
-
-@pytest.fixture
-def pyramid_config_committed(pyramid_config_with_routes):
-    """Pre-committed Pyramid config for introspection testing."""
-    pyramid_config_with_routes.commit()
-    return pyramid_config_with_routes
-
-
-@pytest.fixture
-def pyramid_app_factory():
-    """Factory for creating Pyramid WSGI apps with different configurations."""
-
-    def _create_app(config):
-        return config.make_wsgi_app()
-
-    return _create_app
 
 
 # =============================================================================
@@ -305,59 +228,6 @@ def protocol_handler():
     return MCPProtocolHandler("test-protocol", "1.0.0")
 
 
-@pytest.fixture
-def pyramid_mcp_basic(minimal_pyramid_config, minimal_mcp_config):
-    """PyramidMCP instance with minimal configuration."""
-    return PyramidMCP(minimal_pyramid_config, config=minimal_mcp_config)
-
-
-@pytest.fixture
-def pyramid_mcp_configured(pyramid_config_with_routes, custom_mcp_config):
-    """PyramidMCP instance with full configuration."""
-    return PyramidMCP(pyramid_config_with_routes, config=custom_mcp_config)
-
-
-# =============================================================================
-# 🌐 WEBTEST APPLICATION FIXTURES
-# =============================================================================
-
-
-@pytest.fixture
-def testapp_basic(pyramid_config_with_routes):
-    """Basic TestApp without MCP integration."""
-    app = pyramid_config_with_routes.make_wsgi_app()
-    return TestApp(app)
-
-
-@pytest.fixture
-def testapp_with_mcp(pyramid_config_with_routes):
-    """TestApp with MCP integration using default settings."""
-    pyramid_config_with_routes.include("pyramid_mcp")
-    app = pyramid_config_with_routes.make_wsgi_app()
-    return TestApp(app)
-
-
-@pytest.fixture
-def testapp_custom_mount(pyramid_config_with_routes, mcp_settings_factory):
-    """TestApp with MCP mounted at custom path."""
-    settings = mcp_settings_factory(mount_path="/api/mcp")
-    pyramid_config_with_routes.registry.settings.update(settings)
-    pyramid_config_with_routes.include("pyramid_mcp")
-    app = pyramid_config_with_routes.make_wsgi_app()
-    return TestApp(app)
-
-
-@pytest.fixture
-def testapp_factory(pyramid_app_factory):
-    """Factory for creating TestApp instances."""
-
-    def _create_testapp(config):
-        app = pyramid_app_factory(config)
-        return TestApp(app)
-
-    return _create_testapp
-
-
 # =============================================================================
 # 🔒 JWT AUTHENTICATION FIXTURES
 # =============================================================================
@@ -390,23 +260,54 @@ def expired_jwt_token():
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
-class JWTSecurityPolicy:
-    """Simple JWT security policy for testing."""
+# =============================================================================
+# 🎯 UNIFIED PYRAMID FIXTURE: MAIN PYRAMID SETUP
+# =============================================================================
+
+
+class TestSecurityPolicy:
+    """Unified test security policy for all pyramid-mcp tests.
+
+    Handles both MCP auth headers and traditional HTTP Authorization headers.
+    This is the SINGLE security policy used across all tests.
+    """
 
     def identity(self, request):
-        """Extract identity from JWT token in Authorization header."""
-        auth_header = request.headers.get("Authorization", "")
-        if not auth_header.startswith("Bearer "):
-            return None
+        """Extract identity from auth headers (MCP or traditional)."""
+        # 1. Check MCP auth headers first (pyramid-mcp specific)
+        auth_headers = getattr(request, "mcp_auth_headers", {})
+        if "Authorization" in auth_headers:
+            auth_header = auth_headers["Authorization"]
+            if auth_header.startswith("Bearer "):
+                token = auth_header[7:]  # Remove 'Bearer ' prefix
+                if token and self._is_valid_token(token):
+                    return self._create_identity(token)
 
-        token = auth_header[7:]  # Remove 'Bearer ' prefix
-        try:
-            payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-            return payload
-        except jwt.ExpiredSignatureError:
-            return None
-        except jwt.InvalidTokenError:
-            return None
+        # 2. Check traditional HTTP Authorization header
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]  # Remove 'Bearer ' prefix
+            if token and self._is_valid_token(token):
+                return self._create_identity(token)
+
+        return None
+
+    def _is_valid_token(self, token):
+        """Simple token validation for testing."""
+        # Reject obvious invalid tokens
+        if token in ["invalid.jwt.token", "expired-test-jwt-token-456"]:
+            return False
+        # Accept other tokens (including valid_bearer_token_123)
+        return True
+
+    def _create_identity(self, token):
+        """Create consistent identity object for testing."""
+        return {
+            "user_id": "test_user",
+            "username": "testuser",
+            "token": token,
+            "roles": ["authenticated"],  # Default role for any valid token
+        }
 
     def authenticated_userid(self, request):
         """Get the authenticated user ID."""
@@ -415,16 +316,33 @@ class JWTSecurityPolicy:
 
     def permits(self, request, context, permission):
         """Check if current user has the given permission."""
-        identity = self.identity(request)
-        if not identity:
-            return False
+        from pyramid.authorization import ACLHelper, Authenticated, Everyone
 
-        # For testing, we'll use simple role-based permissions
+        # Get effective principals for current user
+        principals = self.effective_principals(request)
+
+        # For backward compatibility with "authenticated" permission
         if permission == "authenticated":
-            return True  # Any valid JWT token grants authenticated permission
+            return Authenticated in principals
 
-        # Add other permission logic here as needed
-        return True
+        # Use context ACL if available
+        if hasattr(context, "__acl__"):
+            acl_helper = ACLHelper()
+            # Convert principal names to match Pyramid's format
+            pyramid_principals = []
+            for principal in principals:
+                if principal == "system.Everyone":
+                    pyramid_principals.append(Everyone)
+                elif principal == "system.Authenticated":
+                    pyramid_principals.append(Authenticated)
+                else:
+                    pyramid_principals.append(principal)
+
+            # Check ACL permissions
+            return acl_helper.permits(context, pyramid_principals, permission)
+
+        # If no ACL and not "authenticated" permission, deny by default
+        return False
 
     def effective_principals(self, request):
         """Get all effective principals for the current request."""
@@ -433,8 +351,10 @@ class JWTSecurityPolicy:
             return ["system.Everyone"]
 
         principals = ["system.Everyone", "system.Authenticated"]
-        principals.append(f"userid:{identity.get('user_id')}")
+        if "user_id" in identity:
+            principals.append(f"userid:{identity['user_id']}")
 
+        # Add roles from identity
         for role in identity.get("roles", []):
             principals.append(f"role:{role}")
 
@@ -442,117 +362,31 @@ class JWTSecurityPolicy:
 
 
 @pytest.fixture
-def pyramid_config_with_jwt_auth(users_db, user_id_counter):
-    """Pyramid configuration with JWT authentication enabled."""
-    config = Configurator()
-
-    # Set up JWT authentication
-    config.set_security_policy(JWTSecurityPolicy())
-
-    # Add test routes (both protected and public)
-    config.add_route("create_user", "/users", request_method="POST")
-    config.add_route("get_user", "/users/{id}", request_method="GET")
-    config.add_route("update_user", "/users/{id}", request_method="PUT")
-    config.add_route("delete_user", "/users/{id}", request_method="DELETE")
-    config.add_route("list_users", "/users", request_method="GET")
-
-    # Add protected routes that require authentication
-    config.add_route(
-        "get_protected_user", "/protected/users/{id}", request_method="GET"
-    )
-    config.add_route("get_public_info", "/public/info", request_method="GET")
-
-    # Add view configurations
-    config.add_view(create_user_view, route_name="create_user", renderer="json")
-    config.add_view(get_user_view, route_name="get_user", renderer="json")
-    config.add_view(update_user_view, route_name="update_user", renderer="json")
-    config.add_view(delete_user_view, route_name="delete_user", renderer="json")
-    config.add_view(list_users_view, route_name="list_users", renderer="json")
-
-    # Add protected and public views
-    config.add_view(
-        get_protected_user_view,
-        route_name="get_protected_user",
-        permission="authenticated",
-        renderer="json",
-    )
-    config.add_view(get_public_info_view, route_name="get_public_info", renderer="json")
-
-    # Store test data in registry
-    config.registry.users_db = users_db
-    config.registry.user_id_counter = user_id_counter
-
-    return config
-
-
-@pytest.fixture
-def testapp_with_jwt_auth(pyramid_config_with_jwt_auth, users_db):
-    """TestApp with JWT authentication and MCP integration."""
-    pyramid_config_with_jwt_auth.include("pyramid_mcp")
-
-    # Add test user for protected route testing
-    users_db[1] = {"id": 1, "name": "Test User", "email": "test@example.com"}
-
-    # First make the WSGI app to ensure PyramidMCP is properly initialized
-
-    # Tools are now registered using the standalone @tool decorator
-    @tool(
-        name="get_protected_user",
-        description="Get user info (requires authentication)",
-        permission="authenticated",
-    )
-    def get_protected_user_tool(id: int) -> dict:
-        """MCP tool for protected user access."""
-        # Access user data from registry
-        user = users_db.get(id)
-        if not user:
-            raise ValueError("User not found")
-
-        return {"user": user, "protected": True, "authenticated": True}
-
-    @tool(
-        name="get_public_info",
-        description="Get public information (no authentication required)",
-    )
-    def get_public_info_tool() -> dict:
-        """MCP tool for public information access."""
-        return {
-            "message": "This is public information",
-            "timestamp": datetime.datetime.utcnow().isoformat(),
-            "public": True,
-        }
-
-    app = pyramid_config_with_jwt_auth.make_wsgi_app()
-    return TestApp(app)
-
-
-# =============================================================================
-# 🎯 GLOBAL PYRAMID FIXTURE: MAIN PYRAMID SETUP
-# =============================================================================
-
-
-@pytest.fixture
-def pyramid_app_with_auth():
+def pyramid_config():
     """
-    GLOBAL fixture: Main pyramid setup that can be used by all test files.
+    Create a Pyramid configurator with comprehensive setup.
 
-    This fixture returns a factory function that:
-    - Takes settings as parameter
-    - Creates Pyramid Configurator with provided settings
-    - Sets up security policy and authentication
-    - Includes pyramid_mcp
-    - Runs config.scan() to register @tool decorated functions
-    - Returns configured TestApp
+    This fixture builds and configures a Pyramid configurator but doesn't create
+    the WSGI app. Use this when you need direct access to the configurator for
+    testing.
 
-    This is the SINGLE point where Pyramid gets configured and scanning happens.
-    Usage: pyramid_app_with_auth(settings_dict)
+    Args:
+        settings (dict, optional): Pyramid settings to merge with defaults
+        views (list, optional): List of (view_callable, route_name, view_kwargs)
+            tuples to add
+        scan_path (str, optional): Package path to scan for @tool decorators
+            (default: "tests")
+        ignore (list, optional): List of module patterns to ignore when scanning
+        commit (bool, optional): Whether to commit configuration (default: False)
+
+    Returns:
+        Configurator: Configured Pyramid configurator
     """
 
-    def pyramid_factory(settings=None):
-        if settings is None:
-            settings = {}
-
-        # Set default settings if not provided
+    def _create_config(
+        settings=None, views=None, scan_path=None, ignore=None, commit=False
+    ):
+        # Merge settings with defaults (don't replace)
         default_settings = {
             "mcp.route_discovery.enabled": True,
             "mcp.server_name": "test-server",
@@ -562,113 +396,174 @@ def pyramid_app_with_auth():
             "jwt.algorithm": "HS256",
             "jwt.expiration_delta": 3600,
         }
-        default_settings.update(settings)
-        settings = default_settings
+        if settings:
+            default_settings.update(settings)
+        final_settings = default_settings
 
         # Create Pyramid configurator
-        config = Configurator(settings=settings)
+        config = Configurator(settings=final_settings)
 
-        # Set up modern security policy (replaces deprecated auth/authz policies)
-        class TestSecurityPolicy:
-            """Test security policy that works with MCP auth headers."""
-
-            def identity(self, request):
-                """Check if auth_token was provided via MCP arguments."""
-                # pyramid-mcp stores auth headers in request.mcp_auth_headers
-                auth_headers = getattr(request, "mcp_auth_headers", {})
-
-                if "Authorization" in auth_headers:
-                    auth_header = auth_headers["Authorization"]
-                    if auth_header.startswith("Bearer "):
-                        token = auth_header[7:]  # Remove 'Bearer ' prefix
-
-                        # For testing, validate token format
-                        if token and self._is_valid_token(token):
-                            return {
-                                "user_id": "test_user",
-                                "username": "testuser",
-                                "token": token,
-                            }
-                return None
-
-            def _is_valid_token(self, token):
-                """Simple token validation for testing."""
-                # Reject obvious invalid tokens
-                if token in ["invalid.jwt.token", "expired-test-jwt-token-456"]:
-                    return False
-                # Accept other tokens (including valid_bearer_token_123)
-                return True
-
-            def authenticated_userid(self, request):
-                """Get the authenticated user ID."""
-                identity = self.identity(request)
-                return identity.get("user_id") if identity else None
-
-            def permits(self, request, context, permission):
-                """Check if current user has the given permission."""
-                from pyramid.authorization import ACLHelper, Authenticated, Everyone
-
-                # Get effective principals for current user
-                principals = self.effective_principals(request)
-
-                # For backward compatibility with "authenticated" permission
-                if permission == "authenticated":
-                    return Authenticated in principals
-
-                # Use context ACL if available
-                if hasattr(context, "__acl__"):
-                    acl_helper = ACLHelper()
-                    # Convert principal names to match Pyramid's format
-                    pyramid_principals = []
-                    for principal in principals:
-                        if principal == "system.Everyone":
-                            pyramid_principals.append(Everyone)
-                        elif principal == "system.Authenticated":
-                            pyramid_principals.append(Authenticated)
-                        else:
-                            pyramid_principals.append(principal)
-
-                    # Check ACL permissions
-                    return acl_helper.permits(context, pyramid_principals, permission)
-
-                # If no ACL and not "authenticated" permission, deny by default
-                return False
-
-            def effective_principals(self, request):
-                """Get all effective principals for the current request."""
-                identity = self.identity(request)
-                if not identity:
-                    return ["system.Everyone"]
-
-                principals = ["system.Everyone", "system.Authenticated"]
-                if "user_id" in identity:
-                    principals.append(f"userid:{identity['user_id']}")
-                return principals
-
-        # Use the modern security policy approach
+        # Set security policy using the shared TestSecurityPolicy class
         config.set_security_policy(TestSecurityPolicy())
 
         # Include pyramid_mcp
         config.include("pyramid_mcp")
 
-        # 🔑 CRITICAL: Scan for @tool decorated functions
-        # Scan the entire tests package for @tool decorators
-        config.scan("tests", categories=["pyramid_mcp"])
+        # Add views if provided
+        if views:
+            for view_config in views:
+                view_callable, route_name, view_kwargs = view_config
+                # Add route first (required for Pyramid)
+                config.add_route(route_name, f"/{route_name}")
+                # Then add view
+                config.add_view(view_callable, route_name=route_name, **view_kwargs)
 
-        # Get pyramid_mcp instance and discover tools
-        pyramid_mcp = config.registry.pyramid_mcp  # type: ignore
-        pyramid_mcp.discover_tools()
+        # Scan for @tool decorators with configurable path and ignore patterns
+        scan_target = scan_path if scan_path else "tests"
 
-        # Create and return TestApp
-        app = config.make_wsgi_app()
-        return TestApp(app)
+        # Set default ignore patterns for "tests" scan to avoid import conflicts
+        if ignore is None and scan_target == "tests":
+            ignore = ["tests.cornice_integration"]
 
-    return pyramid_factory
+        # Scan with ignore patterns if provided
+        if ignore:
+            config.scan(scan_target, categories=["pyramid_mcp"], ignore=ignore)
+        else:
+            config.scan(scan_target, categories=["pyramid_mcp"])
+
+        # Commit configuration if requested (needed for introspection)
+        if commit:
+            config.commit()
+
+        return config
+
+    return _create_config
+
+
+@pytest.fixture
+def pyramid_wsgi_app(pyramid_config):
+    """
+    Create a WSGI app from a Pyramid configurator.
+
+    This fixture takes a configurator and creates the WSGI application.
+    Use this when you need the WSGI app but not the TestApp wrapper.
+
+    Args:
+        Same as pyramid_config fixture
+
+    Returns:
+        WSGI application
+    """
+
+    def _create_wsgi_app(
+        settings=None, views=None, scan_path=None, ignore=None, commit=None
+    ):
+        # WSGI app creation requires committed configuration
+        if commit is None:
+            commit = True
+        config = pyramid_config(
+            settings=settings,
+            views=views,
+            scan_path=scan_path,
+            ignore=ignore,
+            commit=commit,
+        )
+        return config.make_wsgi_app()
+
+    return _create_wsgi_app
+
+
+@pytest.fixture
+def pyramid_app(pyramid_wsgi_app):
+    """
+    Create a TestApp from a WSGI application.
+
+    This fixture creates a WebTest TestApp for HTTP testing.
+    Use this for most tests that need to make HTTP requests.
+
+    Args:
+        Same as pyramid_config fixture
+
+    Returns:
+        TestApp: WebTest TestApp instance
+    """
+
+    def _create_testapp(
+        settings=None, views=None, scan_path=None, ignore=None, commit=None
+    ):
+        wsgi_app = pyramid_wsgi_app(
+            settings=settings,
+            views=views,
+            scan_path=scan_path,
+            ignore=ignore,
+            commit=commit,
+        )
+        return TestApp(wsgi_app)
+
+    return _create_testapp
+
+
+# =============================================================================
+# 🔄 LEGACY COMPATIBILITY (Temporary during migration)
+# =============================================================================
+
+
+@pytest.fixture
+def pyramid_app_with_auth(pyramid_app):
+    """
+    Legacy compatibility alias for pyramid_app.
+
+    DEPRECATED: Use pyramid_app() directly instead.
+    This alias exists only to avoid breaking existing tests during migration.
+    """
+    return pyramid_app
+
+
+@pytest.fixture
+def testapp(pyramid_app):
+    """
+    Legacy compatibility: Basic TestApp.
+
+    DEPRECATED: Use pyramid_app() directly instead.
+    """
+    return pyramid_app()
+
+
+@pytest.fixture
+def mcp_testapp(pyramid_app):
+    """
+    Legacy compatibility: TestApp with MCP.
+
+    DEPRECATED: Use pyramid_app() directly instead.
+    """
+    return pyramid_app()
+
+
+@pytest.fixture
+def testapp_with_mcp(pyramid_app):
+    """
+    Legacy compatibility: TestApp with MCP.
+
+    DEPRECATED: Use pyramid_app() directly instead.
+    """
+    return pyramid_app()
 
 
 # =============================================================================
 # 📊 TEST DATA FIXTURES
 # =============================================================================
+
+
+@pytest.fixture
+def users_db():
+    """Mock users database for view functions."""
+    return {}
+
+
+@pytest.fixture
+def user_id_counter():
+    """Mock user ID counter for view functions."""
+    return {"value": 0}
 
 
 @pytest.fixture
@@ -709,92 +604,6 @@ def test_route_scenarios():
             ("admin_users", "/admin/users", "GET"),
         ],
     }
-
-
-# =============================================================================
-# 📁 LEGACY FIXTURES (for backward compatibility during migration)
-# =============================================================================
-
-
-# Sample data and utilities
-@pytest.fixture
-def users_db():
-    """Mock users database."""
-    return {}
-
-
-@pytest.fixture
-def user_id_counter():
-    """Mock user ID counter."""
-    return {"value": 0}
-
-
-# Pyramid configuration fixtures
-@pytest.fixture
-def pyramid_config(users_db, user_id_counter):
-    """Pyramid configuration fixture."""
-    config = Configurator()
-
-    # Add routes
-    config.add_route("create_user", "/users", request_method="POST")
-    config.add_route("get_user", "/users/{id}", request_method="GET")
-    config.add_route("update_user", "/users/{id}", request_method="PUT")
-    config.add_route("delete_user", "/users/{id}", request_method="DELETE")
-    config.add_route("list_users", "/users", request_method="GET")
-
-    # Add view configurations
-    config.add_view(create_user_view, route_name="create_user", renderer="json")
-    config.add_view(get_user_view, route_name="get_user", renderer="json")
-    config.add_view(update_user_view, route_name="update_user", renderer="json")
-    config.add_view(delete_user_view, route_name="delete_user", renderer="json")
-    config.add_view(list_users_view, route_name="list_users", renderer="json")
-
-    # Store test data in registry for views to access
-    config.registry.users_db = users_db
-    config.registry.user_id_counter = user_id_counter
-
-    config.include("pyramid_mcp")
-
-    return config
-
-
-@pytest.fixture
-def pyramid_app(pyramid_config):
-    """Pyramid WSGI application fixture."""
-    return pyramid_config.make_wsgi_app()
-
-
-@pytest.fixture
-def testapp(pyramid_app):
-    """WebTest TestApp fixture for HTTP testing."""
-    return TestApp(pyramid_app)
-
-
-@pytest.fixture
-def mcp_config():
-    """Fixture providing MCP configuration."""
-    return MCPConfiguration(
-        server_name="test-user-api", server_version="1.0.0", mount_path="/mcp"
-    )
-
-
-@pytest.fixture
-def pyramid_mcp(pyramid_config, mcp_config):
-    """PyramidMCP fixture."""
-    return PyramidMCP(pyramid_config, config=mcp_config)
-
-
-@pytest.fixture
-def mcp_app(pyramid_app):
-    """Pyramid application with MCP mounted."""
-    # Include pyramid_mcp plugin
-    return pyramid_app
-
-
-@pytest.fixture
-def mcp_testapp(mcp_app):
-    """WebTest TestApp fixture with MCP endpoints mounted."""
-    return TestApp(mcp_app)
 
 
 # View functions for testing

@@ -736,31 +736,31 @@ def test_dynamic_tool_registration_workflow(dynamic_test_config):
     # The core functionality is working perfectly with our proven patterns!
 
 
-def test_error_handling_across_components(testapp_with_mcp):
+def test_error_handling_across_components(integration_app):
     """Test error handling across different components in integration."""
     # Test various error scenarios
 
     # 1. Invalid JSON-RPC request
-    invalid_response = testapp_with_mcp.post_json("/mcp", {"invalid": "request"})
+    invalid_response = integration_app.post_json("/mcp", {"invalid": "request"})
     assert invalid_response.status_code == 200
     assert "error" in invalid_response.json
 
     # 2. Valid JSON-RPC but invalid method
-    invalid_method_response = testapp_with_mcp.post_json(
+    invalid_method_response = integration_app.post_json(
         "/mcp", {"jsonrpc": "2.0", "method": "invalid_method", "id": 1}
     )
     assert invalid_method_response.status_code == 200
     assert "error" in invalid_method_response.json
 
     # 3. Valid method but missing parameters
-    missing_params_response = testapp_with_mcp.post_json(
+    missing_params_response = integration_app.post_json(
         "/mcp", {"jsonrpc": "2.0", "method": "tools/call", "id": 2}
     )
     assert missing_params_response.status_code == 200
     assert "error" in missing_params_response.json
 
     # 4. Call non-existent tool
-    nonexistent_tool_response = testapp_with_mcp.post_json(
+    nonexistent_tool_response = integration_app.post_json(
         "/mcp",
         {
             "jsonrpc": "2.0",

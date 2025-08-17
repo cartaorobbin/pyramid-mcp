@@ -3,70 +3,162 @@ description:
 globs: 
 alwaysApply: true
 ---
-# Clean Test Pattern for Pyramid-MCP
+# Unified Pyramid Fixture Pattern for Tests
 
-## Test File Structure Pattern
+## 🎯 Use the Unified `pyramid_app` Fixture
 
-When creating new test files, ALWAYS follow this pattern:
+**ALWAYS use the unified `pyramid_app` fixture for new tests.** This is the single, standardized way to create Pyramid applications in tests.
 
-### 1. Global Pyramid Fixture (conftest.py)
+### 1. Basic Test Pattern
 ```python
-@pytest.fixture  
-def pyramid_app_with_auth():
-    """
-    GLOBAL fixture: Main pyramid setup that can be used by all test files.
-    Returns a factory function that takes settings and returns TestApp.
-    """
-    def pyramid_factory(settings=None):
-        # Setup Pyramid with settings
-        # Include pyramid_mcp
-        # Run config.scan() for @tool decorators  
-        # Return TestApp
-        return TestApp(app)
-    return pyramid_factory
+def test_basic_functionality(pyramid_app):
+    """Use pyramid_app directly with defaults."""
+    app = pyramid_app()
+    
+    response = app.post_json('/mcp', {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'tools/list'
+    })
+    assert response.status_code == 200
 ```
 
-### 2. Test-Specific Fixture (per test file)
+### 2. Test with Custom Settings
+```python  
+def test_custom_settings(pyramid_app):
+    """Configure custom settings for your test."""
+    settings = {
+        "mcp.server_name": "custom-test-server",
+        "mcp.mount_path": "/api/mcp"
+    }
+    app = pyramid_app(settings=settings)
+    
+    # Test with custom configuration
+    response = app.post_json('/api/mcp', {...})
+    assert response.status_code == 200
+```
+
+### 3. Test with Specific Views
+```python
+def test_with_views(pyramid_app):
+    """Add specific views for testing."""
+    
+    def my_test_view(request):
+        return {"message": "test"}
+    
+    views = [
+        (my_test_view, "test_route", {"renderer": "json"})
+    ]
+    app = pyramid_app(views=views)
+    
+    # Test the added view
+    response = app.get('/test_route') 
+    assert response.json == {"message": "test"}
+```
+
+### 4. Test with Limited Scanning
+```python
+def test_scoped_tools(pyramid_app):
+    """Limit tool scanning to specific module."""
+    app = pyramid_app(scan_path="tests.unit.specific_module")
+    
+    # Only tools from specific_module will be available
+    response = app.post_json('/mcp', {
+        'jsonrpc': '2.0',
+        'id': 1, 
+        'method': 'tools/list'
+    })
+    # Verify only expected tools are listed
+```
+
+### 5. Test with Ignore Patterns
+```python
+def test_ignore_problematic_modules(pyramid_app):
+    """Ignore specific modules during scanning."""
+    app = pyramid_app(ignore=["tests.cornice", "tests.integration.slow"])
+    
+    # Tools from ignored modules won't be available
+    response = app.post_json('/mcp', {
+        'jsonrpc': '2.0',
+        'id': 1,
+        'method': 'tools/list'
+    })
+```
+
+### 6. Test-Specific Fixture Pattern (for complex setups)
 ```python
 @pytest.fixture
-def [testname]_test_config(pyramid_app_with_auth):
-    """
-    Test-specific fixture: Define tools and configure pyramid for THIS test file.
-    """
+def my_test_config(pyramid_app):
+    """Create test-specific configuration."""
     
     # Define @tool functions needed for this test file
     @tool(name="test_tool", description="Test tool")
     def test_tool_func():
-        pass
+        return {"result": "test"}
     
-    # Configure pyramid with test-specific settings
+    # Configure settings for this test suite
     settings = {
-        "mcp.server_name": "specific-test-server",
-        # ... other settings
+        "mcp.server_name": "my-test-server",
+        "custom.setting": "value"
     }
     
     # Return configured TestApp
-    return pyramid_app_with_auth(settings)
-```
+    return pyramid_app(settings=settings)
 
-### 3. Tests Use Test-Specific Fixture
-```python
-def test_something([testname]_test_config):
-    """Tests use the test-specific fixture directly."""
-    response = [testname]_test_config.post_json('/mcp', {...})
+def test_using_fixture(my_test_config):
+    """Use the test-specific fixture."""
+    response = my_test_config.post_json('/mcp', {...})
     assert response.status_code == 200
 ```
 
-## Pattern Benefits
-- ✅ **Global fixture reusable** across all test files
-- ✅ **Test-specific setup** isolated per test file  
-- ✅ **Single point** for Pyramid config and scanning
-- ✅ **Clean separation** of concerns
-- ✅ **No test pollution** between files
+## 🔧 Unified Fixture Signature
 
-## Rules
-1. **NEVER** duplicate `pyramid_app_with_auth` in test files
-2. **ALWAYS** define `@tool` functions in test-specific fixture
-3. **ALWAYS** call `pyramid_app_with_auth(settings)` with specific settings
-4. **ALWAYS** use test-specific fixture name in tests
-5. **NEVER** mix fixture dependencies backwards
+The `pyramid_app` fixture accepts these parameters:
+
+```python
+pyramid_app(
+    settings=None,      # dict: Pyramid settings (merged with defaults)
+    views=None,         # list: [(view_callable, route_name, view_kwargs)]  
+    scan_path=None,     # str: Package path for @tool scanning (default: "tests")
+    ignore=None         # list: Module patterns to ignore when scanning
+)
+```
+
+**View Configuration Format:**
+- Always use 3-tuple: `(view_callable, route_name, view_kwargs)`
+- `view_kwargs` can be empty dict `{}` if no extra config needed
+- Example: `(my_view, "my_route", {"renderer": "json", "permission": "admin"})`
+
+## 🏆 Pattern Benefits
+- ✅ **Single fixture** for all Pyramid test needs
+- ✅ **Flexible configuration** via parameters
+- ✅ **Consistent signature** across all tests  
+- ✅ **No duplication** of setup logic
+- ✅ **Easy to understand** and maintain
+
+## 📋 Rules for New Tests
+
+1. **ALWAYS use `pyramid_app`** for new tests (not legacy fixtures)
+2. **Use parameters** to configure instead of creating new fixtures
+3. **Keep scan_path specific** to avoid test pollution
+4. **Use 3-tuple format** for view configuration: `(callable, route, kwargs)`
+5. **Create test-specific fixtures** only for complex multi-test setups
+6. **Don't call `discover_tools()`** manually - it's automatic
+
+## 🚫 Legacy Fixtures (Deprecated)
+
+**Don't use these in new tests:**
+- `pyramid_app_with_auth` (use `pyramid_app` instead)
+- `pyramid_app_with_views` (use `pyramid_app(views=...)` instead)  
+- `testapp` (use `pyramid_app()` instead)
+- `mcp_testapp` (use `pyramid_app()` instead)
+
+**Special Exception:**
+- `pyramid_app_with_services` - Only for Cornice service tests
+
+## 🎯 Migration Strategy
+
+**For existing tests:**
+- Legacy fixtures work via compatibility aliases
+- Gradually migrate to `pyramid_app` when touching test files
+- No need to mass-update existing working tests
