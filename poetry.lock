@@ -309,7 +309,7 @@ version = "6.1.0"
 description = "Define Web Services in Pyramid."
 optional = false
 python-versions = "*"
-groups = ["dev"]
+groups = ["main"]
 files = [
     {file = "cornice-6.1.0-py3-none-any.whl", hash = "sha256:320b026998a30099bace43484664eb0a4db37eff0dfc6f7733cec183ec3174ad"},
     {file = "cornice-6.1.0.tar.gz", hash = "sha256:bfd1b6c2a991a7ccb1b2082b6de9e3b8f198b6a2b4a07ab0800e05df05a45361"},
@@ -2221,4 +2221,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.10"
-content-hash = "011d166eb8f6775d1eea923d37b8705a4d91865c2ac49faffd017515a7dd7438"
+content-hash = "520a6ef04693fcceb452b6106cb643d9ee28c2d0b9c7e408640425846e59d40f"
