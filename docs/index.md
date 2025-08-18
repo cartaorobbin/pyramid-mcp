@@ -117,6 +117,9 @@ settings = {
     'mcp.route_discovery.enabled': 'true',
     'mcp.route_discovery.include_patterns': 'api/*,admin/*',
     'mcp.route_discovery.exclude_patterns': 'internal/*',
+    
+    # Security and filtering
+    'mcp.filter_forbidden_tools': 'true',  # Filter tools based on permissions (default: true)
 }
 ```
 

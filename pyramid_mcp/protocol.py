@@ -13,10 +13,16 @@ import logging
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, Optional, Set, Union, cast
+from typing import Any, Callable, Dict, List, Optional, Set, Union, cast
 from urllib.parse import urlencode
 
 from marshmallow import ValidationError, fields
+from pyramid.interfaces import (
+    IDefaultRootFactory,
+    IRootFactory,
+    IRoutesMapper,
+    ISecurityPolicy,
+)
 from pyramid.request import Request
 
 from pyramid_mcp.schemas import (
@@ -301,13 +307,13 @@ class MCPProtocolHandler:
     def handle_message(
         self,
         message_data: Dict[str, Any],
-        pyramid_request: Request,
+        request: Request,
     ) -> Union[Dict[str, Any], object]:
         """Handle an incoming MCP message.
 
         Args:
             message_data: The parsed JSON message
-            pyramid_request: The pyramid request
+            request: The pyramid request
 
         Returns:
             The response message as a dictionary, or NO_RESPONSE for notifications
@@ -315,7 +321,7 @@ class MCPProtocolHandler:
         try:
             # Parse and validate the request using schema
             schema = MCPRequestSchema()
-            request = cast(Dict[str, Any], schema.load(message_data))
+            mcp_request = cast(Dict[str, Any], schema.load(message_data))
         except ValidationError as validation_error:
             # Handle Marshmallow validation errors
             # For malformed requests (missing required fields), JSON-RPC spec
@@ -342,28 +348,30 @@ class MCPProtocolHandler:
 
         try:
             # Route to appropriate handler
-            if request["method"] == "initialize":
-                return self._handle_initialize(request)
-            elif request["method"] == "tools/list":
-                return self._handle_list_tools(request)
-            elif request["method"] == "tools/call":
-                return self._handle_call_tool(request, pyramid_request)
-            elif request["method"] == "resources/list":
-                return self._handle_list_resources(request)
-            elif request["method"] == "prompts/list":
-                return self._handle_list_prompts(request)
-            elif request["method"] == "notifications/initialized":
+            if mcp_request["method"] == "initialize":
+                return self._handle_initialize(mcp_request)
+            elif mcp_request["method"] == "tools/list":
+                return self._handle_list_tools(mcp_request, request)
+            elif mcp_request["method"] == "tools/call":
+                return self._handle_call_tool(mcp_request, request)
+            elif mcp_request["method"] == "resources/list":
+                return self._handle_list_resources(mcp_request)
+            elif mcp_request["method"] == "prompts/list":
+                return self._handle_list_prompts(mcp_request)
+            elif mcp_request["method"] == "notifications/initialized":
                 # Notifications don't expect responses according to JSON-RPC 2.0 spec
-                self._handle_notifications_initialized(request)
+                self._handle_notifications_initialized(mcp_request)
                 return self.NO_RESPONSE
             else:
                 return cast(
                     Dict[str, Any],
                     MCPResponseSchema().dump(
                         {
-                            "id": request.get("id"),
+                            "id": mcp_request.get("id"),
                             "error_code": MCPErrorCode.METHOD_NOT_FOUND.value,
-                            "error_message": f"Method '{request['method']}' not found",
+                            "error_message": (
+                                f"Method '{mcp_request['method']}' not found"
+                            ),
                         }
                     ),
                 )
@@ -388,7 +396,7 @@ class MCPProtocolHandler:
                 ),
             )
 
-    def _handle_initialize(self, request: Dict[str, Any]) -> Dict[str, Any]:
+    def _handle_initialize(self, mcp_request: Dict[str, Any]) -> Dict[str, Any]:
         """Handle MCP initialize request."""
         result = {
             "protocolVersion": "2024-11-05",
@@ -397,37 +405,124 @@ class MCPProtocolHandler:
         }
         return cast(
             Dict[str, Any],
-            MCPResponseSchema().dump({"id": request.get("id"), "result": result}),
+            MCPResponseSchema().dump({"id": mcp_request.get("id"), "result": result}),
         )
 
-    def _handle_list_tools(self, request: Dict[str, Any]) -> Dict[str, Any]:
+    def _handle_list_tools(
+        self, mcp_request: Dict[str, Any], request: Optional[Request] = None
+    ) -> Dict[str, Any]:
         """Handle MCP tools/list request."""
-        tools_list = [tool.to_dict() for tool in self.tools.values()]
+        # Get all tools
+        all_tools = list(self.tools.values())
+
+        # Filter tools based on permissions if configured
+        if self.config and self.config.filter_forbidden_tools and request:
+            tools_list = self._filter_accessible_tools(all_tools, request)
+        else:
+            tools_list = [tool.to_dict() for tool in all_tools]
+
         result = {"tools": tools_list}
         return cast(
             Dict[str, Any],
-            MCPResponseSchema().dump({"id": request.get("id"), "result": result}),
+            MCPResponseSchema().dump({"id": mcp_request.get("id"), "result": result}),
         )
 
+    def _filter_accessible_tools(
+        self, tools: List[MCPTool], request: Request
+    ) -> List[Dict[str, Any]]:
+        """Filter tools based on user permissions.
+
+        Args:
+            tools: List of all available tools
+            request: Current pyramid request for permission checking
+
+        Returns:
+            List of tool dictionaries for accessible tools only
+        """
+        accessible_tools = []
+
+        # Get security policy
+        policy = request.registry.queryUtility(ISecurityPolicy)
+        if not policy:
+            # No security policy configured, return all tools
+            logger.debug("No security policy found, returning all tools")
+            return [tool.to_dict() for tool in tools]
+
+        logger.debug(f"Filtering {len(tools)} tools based on permissions")
+
+        for tool in tools:
+            # Check if tool is accessible
+            is_accessible = self._check_tool_permission(tool, request, policy)
+
+            if is_accessible:
+                accessible_tools.append(tool.to_dict())
+
+        logger.debug(
+            f"Filtered tools: {len(accessible_tools)}/{len(tools)} tools accessible"
+        )
+        return accessible_tools
+
+    def _check_tool_permission(
+        self, tool: MCPTool, request: Request, policy: Any
+    ) -> bool:
+        """Check if current user has permission to access a specific tool.
+
+        Args:
+            tool: Tool to check
+            request: Current pyramid request
+            policy: Security policy instance
+
+        Returns:
+            True if user has permission, False otherwise
+        """
+        # Check if tool has permission requirement
+        if not tool.permission:
+            # No permission required, tool is accessible
+            logger.debug(
+                f"Tool '{tool.name}' has no permission requirement, accessible"
+            )
+            return True
+
+        try:
+            # Use the existing subrequest creation logic - it handles everything!
+            subrequest = self._create_unified_tool_subrequest(request, tool, {})
+
+            # Check permission using security policy
+            has_permission = policy.permits(
+                subrequest, subrequest.context, tool.permission
+            )
+
+            logger.debug(
+                f"Permission check for tool '{tool.name}': "
+                f"permission='{tool.permission}', result={has_permission}"
+            )
+
+            return bool(has_permission)
+
+        except (AttributeError, TypeError, ValueError) as e:
+            # If there's any error in permission checking, deny access for security
+            logger.warning(f"Error in permission check for tool '{tool.name}': {e}")
+            return False
+
     def _handle_call_tool(
-        self, request: Dict[str, Any], pyramid_request: Request
+        self, mcp_request: Dict[str, Any], request: Request
     ) -> Dict[str, Any]:
         """Handle tools/call requests using unified subrequest approach."""
 
         # Validate basic parameters
-        if not request.get("params"):
+        if not mcp_request.get("params"):
             return cast(
                 Dict[str, Any],
                 MCPResponseSchema().dump(
                     {
-                        "id": request.get("id"),
+                        "id": mcp_request.get("id"),
                         "error_code": MCPErrorCode.INVALID_PARAMS.value,
                         "error_message": "Missing parameters",
                     }
                 ),
             )
 
-        params = request.get("params", {})
+        params = mcp_request.get("params", {})
         tool_name = params.get("name")
         tool_args = params.get("arguments", {})
 
@@ -436,7 +531,7 @@ class MCPProtocolHandler:
                 Dict[str, Any],
                 MCPResponseSchema().dump(
                     {
-                        "id": request.get("id"),
+                        "id": mcp_request.get("id"),
                         "error_code": MCPErrorCode.INVALID_PARAMS.value,
                         "error_message": "Tool name is required",
                     }
@@ -448,7 +543,7 @@ class MCPProtocolHandler:
                 Dict[str, Any],
                 MCPResponseSchema().dump(
                     {
-                        "id": request.get("id"),
+                        "id": mcp_request.get("id"),
                         "error_code": MCPErrorCode.METHOD_NOT_FOUND.value,
                         "error_message": f"Tool '{tool_name}' not found",
                     }
@@ -472,9 +567,7 @@ class MCPProtocolHandler:
                 auth_token = tool_args.get("auth_token")
 
             # Create unified subrequest for both route-based and manual tools
-            subrequest = self._create_unified_tool_subrequest(
-                pyramid_request, tool, tool_args
-            )
+            subrequest = self._create_unified_tool_subrequest(request, tool, tool_args)
 
             # Add auth headers to subrequest
             if auth_token:
@@ -483,14 +576,14 @@ class MCPProtocolHandler:
             elif (
                 self.config
                 and not self.config.expose_auth_as_params
-                and "Authorization" in pyramid_request.headers
+                and "Authorization" in request.headers
             ):
                 # When expose_auth_as_params=false, use HTTP header auth directly
-                auth_header = pyramid_request.headers["Authorization"]
+                auth_header = request.headers["Authorization"]
                 subrequest.headers["Authorization"] = auth_header
 
             # Execute subrequest - Pyramid handles auth, permissions, and execution
-            response = pyramid_request.invoke_subrequest(subrequest)
+            response = request.invoke_subrequest(subrequest)
 
             # Transform response to MCP context format using schema
             schema = MCPContextResultSchema()
@@ -516,23 +609,18 @@ class MCPProtocolHandler:
             return cast(
                 Dict[str, Any],
                 MCPResponseSchema().dump(
-                    {"id": request.get("id"), "result": mcp_result}
+                    {"id": mcp_request.get("id"), "result": mcp_result}
                 ),
             )
 
         except Exception as e:
-            # Log detailed subrequest information for debugging
-            subrequest_info = self._get_subrequest_debug_info(
-                locals().get("subrequest"), tool_args
-            )
             logger.error(f"❌ Error executing tool '{tool_name}': {str(e)}")
-            logger.error(f"📋 Subrequest details: {subrequest_info}")
 
             return cast(
                 Dict[str, Any],
                 MCPResponseSchema().dump(
                     {
-                        "id": request.get("id"),
+                        "id": mcp_request.get("id"),
                         "error_code": MCPErrorCode.INTERNAL_ERROR.value,
                         "error_message": f"Tool execution failed: {str(e)}",
                     }
@@ -540,7 +628,7 @@ class MCPProtocolHandler:
             )
 
     def _create_unified_tool_subrequest(
-        self, pyramid_request: Request, tool: MCPTool, tool_args: Dict[str, Any]
+        self, request: Request, tool: MCPTool, tool_args: Dict[str, Any]
     ) -> Request:
         """Create a subrequest for tool execution.
 
@@ -548,7 +636,7 @@ class MCPProtocolHandler:
         and creates appropriate subrequests for both manual and route-based tools.
 
         Args:
-            pyramid_request: Original pyramid request
+            request: Original pyramid request
             tool: Tool to execute
             tool_args: Tool arguments
 
@@ -628,14 +716,15 @@ class MCPProtocolHandler:
         # Log the final URL being constructed
         logger.debug(f"FINAL URL: {tool_url}")
 
-        # Create subrequest with resolved URL
+        # Create subrequest with resolved URL using Pyramid's routing
         subrequest = Request.blank(tool_url)
         subrequest.method = method.upper()
 
-        logger.info(f"Created subrequest: {subrequest.method} {subrequest.url}")
-
         # Copy environment and context from parent request
-        self._copy_request_context(pyramid_request, subrequest)
+        self._copy_request_context(request, subrequest)
+
+        logger.info(f"Created subrequest: {subrequest.method} {subrequest.url}")
+        logger.debug(f"Subrequest context: {type(subrequest.context).__name__}")
 
         # Set up request body for POST/PUT/PATCH requests
         if method.upper() in ["POST", "PUT", "PATCH"] and body_data:
@@ -645,25 +734,23 @@ class MCPProtocolHandler:
 
         return subrequest
 
-    def _copy_request_context(
-        self, pyramid_request: Request, subrequest: Request
-    ) -> None:
+    def _copy_request_context(self, request: Request, subrequest: Request) -> None:
         """Copy security and context information from parent request to subrequest.
 
         Args:
-            pyramid_request: Original pyramid request
+            request: Original pyramid request
             subrequest: Subrequest to configure
         """
         # Copy registry for access to security policy and other utilities
-        if hasattr(pyramid_request, "registry"):
-            subrequest.registry = pyramid_request.registry
+        if hasattr(request, "registry"):
+            subrequest.registry = request.registry
 
         # Copy registry and security policy (let security policy compute the rest)
-        subrequest.registry = pyramid_request.registry
+        subrequest.registry = request.registry
 
         # Copy transaction manager if available (for pyramid_tm integration)
-        if hasattr(pyramid_request, "tm"):
-            subrequest.tm = pyramid_request.tm
+        if hasattr(request, "tm"):
+            subrequest.tm = request.tm
 
         # Copy important environ variables (but not request-specific ones)
         request_specific_keys = {
@@ -677,92 +764,56 @@ class MCPProtocolHandler:
             "RAW_URI",
         }
 
-        for key, value in pyramid_request.environ.items():
+        for key, value in request.environ.items():
             if key not in request_specific_keys:
                 subrequest.environ[key] = value
 
-    def _get_subrequest_debug_info(
-        self, subrequest: Optional[Request], tool_args: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Extract debug information from subrequest and tool arguments.
+        # CRITICAL: Resolve the route to get proper context and matchdict
+        # This ensures context factories are applied and ACLs work for ALL tools
+        mapper = request.registry.getUtility(IRoutesMapper)
+        route_info = mapper(subrequest)
 
-        Args:
-            subrequest: The subrequest that failed (may be None if error occurred
-                before creation)
-            tool_args: Original tool arguments
+        # Get route and set matchdict
+        route = route_info["route"]
+        subrequest.matchdict = route_info["match"]
 
-        Returns:
-            Dictionary with debug information
-        """
-        debug_info: Dict[str, Any] = {
-            "tool_args": tool_args,
-            "subrequest": None,
-        }
+        # Get context factory from route or use fallback factories
+        context_factory = getattr(route, "factory", None)
+        if context_factory is None:
+            # Try IDefaultRootFactory first
+            context_factory = request.registry.queryUtility(IDefaultRootFactory)
+        if context_factory is None:
+            # Try IRootFactory as second fallback
+            context_factory = request.registry.queryUtility(IRootFactory)
+        if context_factory is None:
+            # Final fallback: create a simple context dict
+            subrequest.context = {}
+        else:
+            # Create the context using the factory
+            subrequest.context = context_factory(subrequest)
 
-        if subrequest is None:
-            debug_info[
-                "subrequest"
-            ] = "Subrequest not created (error occurred before subrequest creation)"
-            return debug_info
-
-        try:
-            # Extract subrequest information
-            subrequest_info = {
-                "url": getattr(subrequest, "url", "unknown"),
-                "method": getattr(subrequest, "method", "unknown"),
-                "path_info": getattr(subrequest, "path_info", "unknown"),
-                "content_type": getattr(subrequest, "content_type", None),
-                "headers": dict(getattr(subrequest, "headers", {})),
-            }
-
-            # Add body information if present
-            if hasattr(subrequest, "body") and subrequest.body:
-                try:
-                    body_content = subrequest.body
-                    if isinstance(body_content, bytes):
-                        body_text = body_content.decode("utf-8", errors="ignore")
-                    else:
-                        body_text = str(body_content)
-                    subrequest_info["body"] = body_text
-                except Exception:
-                    subrequest_info["body"] = (
-                        f"<body present but not readable, "
-                        f"size: {len(subrequest.body)} bytes>"
-                    )
-
-            # Add query string if present
-            if hasattr(subrequest, "query_string") and subrequest.query_string:
-                subrequest_info["query_string"] = subrequest.query_string
-
-            debug_info["subrequest"] = subrequest_info
-
-        except Exception as e:
-            debug_info["subrequest"] = f"Error extracting subrequest info: {str(e)}"
-
-        return debug_info
-
-    def _handle_list_resources(self, request: Dict[str, Any]) -> Dict[str, Any]:
+    def _handle_list_resources(self, mcp_request: Dict[str, Any]) -> Dict[str, Any]:
         """Handle MCP resources/list request."""
         # For now, return empty resources list
         # This can be extended to support MCP resources in the future
         result: Dict[str, Any] = {"resources": []}
         return cast(
             Dict[str, Any],
-            MCPResponseSchema().dump({"id": request.get("id"), "result": result}),
+            MCPResponseSchema().dump({"id": mcp_request.get("id"), "result": result}),
         )
 
-    def _handle_list_prompts(self, request: Dict[str, Any]) -> Dict[str, Any]:
+    def _handle_list_prompts(self, mcp_request: Dict[str, Any]) -> Dict[str, Any]:
         """Handle MCP prompts/list request."""
         # For now, return empty prompts list
         # This can be extended to support MCP prompts in the future
         result: Dict[str, Any] = {"prompts": []}
         return cast(
             Dict[str, Any],
-            MCPResponseSchema().dump({"id": request.get("id"), "result": result}),
+            MCPResponseSchema().dump({"id": mcp_request.get("id"), "result": result}),
         )
 
     def _handle_notifications_initialized(
-        self, request: Dict[str, Any]
+        self, mcp_request: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
         """Handle MCP notifications/initialized request."""
         # This is a notification - no response should be sent for notifications

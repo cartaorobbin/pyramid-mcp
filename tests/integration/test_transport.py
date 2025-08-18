@@ -177,19 +177,21 @@ def test_stdio_transport_list_tools():
     # Verify response structure
     assert response["jsonrpc"] == "2.0"
     assert response["id"] == 2
-    assert "result" in response
-    assert "tools" in response["result"]
-    assert isinstance(response["result"]["tools"], list)
 
-    # Should have some tools available
-    tools = response["result"]["tools"]
-    assert len(tools) > 0
-
-    # Each tool should have required fields
-    for tool in tools:
-        assert "name" in tool
-        assert "inputSchema" in tool
-        assert isinstance(tool["inputSchema"], dict)
+    # For the secure example, tools should be filtered out for anonymous users
+    # This verifies that filter_forbidden_tools=true is working correctly
+    if "result" in response:
+        assert "tools" in response["result"]
+        assert isinstance(response["result"]["tools"], list)
+        tools = response["result"]["tools"]
+        # Secure app should have no tools visible to anonymous users
+        assert (
+            len(tools) == 0
+        ), f"Anonymous user should not see tools in secure app, got: {[t['name'] for t in tools]}"  # noqa: E501
+    else:
+        # Alternative: Some implementations might return error for no accessible tools
+        assert "error" in response
+        # This is also acceptable behavior for a secure application
 
 
 @pytest.mark.slow

@@ -6,6 +6,7 @@ and convert them into MCP tools. Includes support for Cornice REST framework
 to extract enhanced metadata and validation information.
 """
 
+import logging
 import re
 from typing import Any, Callable, Dict, List, Optional, Union
 
@@ -14,6 +15,8 @@ import marshmallow
 from pyramid_mcp.protocol import MCPTool
 from pyramid_mcp.schemas import BodySchema, PathParameterSchema, QueryParameterSchema
 from pyramid_mcp.security import BasicAuthSchema, BearerAuthSchema
+
+logger = logging.getLogger(__name__)
 
 
 class PyramidIntrospector:
@@ -66,6 +69,9 @@ class PyramidIntrospector:
                         view_by_route[route_name] = []
                     view_by_route[route_name].append(view_intr)
 
+            # Permissions are directly available in view introspectables
+            # No need for complex extraction - Pyramid stores them directly
+
             # Discover Cornice services for enhanced metadata
             cornice_services = self._discover_cornice_services(registry)
 
@@ -110,11 +116,14 @@ class PyramidIntrospector:
                 for view_intr in views:
                     view_callable = view_intr.get("callable")
                     if view_callable:
+                        # Get permission from introspectable or related permissions
+                        permission = self._extract_permission(view_intr, introspector)
+
                         view_info = {
                             "callable": view_callable,
                             "name": view_intr.get("name", ""),
                             "request_methods": view_intr.get("request_methods", []),
-                            "permission": None,  # Populated from permissions
+                            "permission": permission,
                             "renderer": None,
                             "context": view_intr.get("context"),
                             "predicates": {
@@ -175,6 +184,64 @@ class PyramidIntrospector:
             pass
 
         return routes_info
+
+    def _extract_permission(self, view_intr: Any, introspector: Any) -> Optional[str]:
+        """Extract permission from view introspectable or related introspectables.
+
+        First tries to get permission directly from the view introspectable.
+        If not found, searches related introspectables in the Pyramid introspection
+        system. Pyramid stores permissions in a separate 'permissions' category, but
+        links them
+        to views via the 'related' field in the introspection items.
+
+        Args:
+            view_intr: The view introspectable
+            introspector: Pyramid introspector instance
+
+        Returns:
+            Permission string if found, None otherwise
+        """
+        # First try to get permission directly from view introspectable
+        permission = view_intr.get("permission")
+        if permission:
+            return str(permission)
+
+        # If not found directly, check related permissions introspectables
+        try:
+            # Get the view category to find the full introspection item (not just the
+            # introspectable)
+            view_category = introspector.get_category("views") or []
+
+            # Find the introspection item that contains our view introspectable
+            for view_item in view_category:
+                item_introspectable = view_item.get("introspectable", {})
+
+                # Match by checking if this is the same view introspectable
+                # We can match by route_name and callable
+                if item_introspectable.get("route_name") == view_intr.get(
+                    "route_name"
+                ) and item_introspectable.get("callable") == view_intr.get("callable"):
+                    # Found our view item! Now check the related introspectables
+                    related_items = view_item.get("related", [])
+
+                    for related_introspectable in related_items:
+                        # Check if this is a permissions introspectable
+                        if (
+                            hasattr(related_introspectable, "category_name")
+                            and related_introspectable.category_name == "permissions"
+                        ):
+                            # The permission value is stored in the discriminator
+                            return str(related_introspectable.discriminator)
+
+                    break  # Found our view, no need to continue searching
+
+        except (AttributeError, KeyError, TypeError) as e:
+            # Don't fail introspection if permission extraction fails
+            logger.warning(
+                f"Failed to extract permission from related introspectables: {e}"
+            )
+
+        return None
 
     def _discover_cornice_services(self, registry: Any) -> List[Dict[str, Any]]:
         """Discover Cornice services from the Pyramid registry.

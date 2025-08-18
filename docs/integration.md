@@ -397,7 +397,122 @@ if __name__ == "__main__":
 
 ### Security Considerations
 
-1. **Authentication**: Add authentication to your MCP endpoints:
+#### 1. Tool Filtering Based on Permissions
+
+pyramid-mcp automatically filters tools in the `tools/list` response based on the current user's permissions. This prevents unauthorized tools from being visible to AI assistants.
+
+**Configuration** (enabled by default):
+```python
+settings = {
+    'mcp.filter_forbidden_tools': 'true',  # Default: true
+}
+```
+
+**How it works:**
+- When an AI assistant requests available tools via `tools/list`, pyramid-mcp checks each tool's permission requirements
+- Tools are filtered based on the current user's authentication status and permissions
+- Only accessible tools are returned in the response
+
+**Example with Pyramid ACL security:**
+```python
+from pyramid.security import Allow, Everyone, Authenticated
+
+class PublicContext:
+    def __acl__(self):
+        return [(Allow, Everyone, 'view')]
+
+class AuthenticatedContext:
+    def __acl__(self):
+        return [
+            (Allow, Authenticated, 'view'),
+            (Deny, Everyone, 'view'),
+        ]
+
+class AdminContext:
+    def __acl__(self):
+        return [
+            (Allow, 'role:admin', 'view'),
+            (Deny, Everyone, 'view'),
+        ]
+
+# Context factories for different security levels
+def public_context_factory(request):
+    return PublicContext()
+
+def auth_context_factory(request):
+    return AuthenticatedContext()
+
+def admin_context_factory(request):
+    return AdminContext()
+
+# Routes with context factories
+config.add_route('public_data', '/public', factory=public_context_factory)
+config.add_route('auth_data', '/secure', factory=auth_context_factory)  
+config.add_route('admin_data', '/admin', factory=admin_context_factory)
+
+# Views with permissions
+@view_config(route_name='public_data', permission='view', renderer='json')
+def public_view(request):
+    return {"data": "available to everyone"}
+
+@view_config(route_name='auth_data', permission='view', renderer='json')
+def auth_view(request):
+    return {"data": "requires authentication"}
+
+@view_config(route_name='admin_data', permission='view', renderer='json')
+def admin_view(request):
+    return {"data": "admin only"}
+```
+
+**Result:**
+- **Anonymous users**: Only see tools from `public_data` 
+- **Authenticated users**: See tools from `public_data` and `auth_data`
+- **Admin users**: See all tools including `admin_data`
+
+**AI Assistant Integration Example:**
+```python
+# When Claude or other AI assistant calls tools/list
+import httpx
+
+async def test_tool_filtering():
+    # Anonymous request - should only see public tools
+    response = await httpx.post('http://localhost:8080/mcp', json={
+        'jsonrpc': '2.0',
+        'method': 'tools/list',
+        'id': 1
+    })
+    print("Anonymous user sees:", [tool['name'] for tool in response.json()['result']['tools']])
+    # Output: ['get_public_data']
+    
+    # Authenticated request - should see public + auth tools  
+    response = await httpx.post('http://localhost:8080/mcp', json={
+        'jsonrpc': '2.0',
+        'method': 'tools/list', 
+        'id': 1
+    }, headers={'Authorization': 'Bearer user-token'})
+    print("Authenticated user sees:", [tool['name'] for tool in response.json()['result']['tools']])
+    # Output: ['get_public_data', 'get_auth_data']
+    
+    # Admin request - should see all tools
+    response = await httpx.post('http://localhost:8080/mcp', json={
+        'jsonrpc': '2.0',
+        'method': 'tools/list',
+        'id': 1
+    }, headers={'Authorization': 'Bearer admin-token'})
+    print("Admin user sees:", [tool['name'] for tool in response.json()['result']['tools']])
+    # Output: ['get_public_data', 'get_auth_data', 'get_admin_data']
+```
+
+**Disabling filtering** (not recommended for production):
+```python
+settings = {
+    'mcp.filter_forbidden_tools': 'false',  # Shows all tools regardless of permissions
+}
+```
+
+#### 2. Authentication Integration
+
+Add authentication to your MCP endpoints:
 
 ```python
 from pyramid.authentication import AuthTktAuthenticationPolicy
@@ -408,18 +523,22 @@ def includeme(config):
     config.set_authentication_policy(AuthTktAuthenticationPolicy('secret'))
     config.set_authorization_policy(ACLAuthorizationPolicy())
     
-    # Protect MCP endpoints
+    # Protect MCP endpoints with context factories
     config.add_route('mcp', '/mcp', factory='myapp.security.MCPContextFactory')
 ```
 
-2. **HTTPS**: Always use HTTPS in production:
+#### 3. HTTPS in Production
+
+Always use HTTPS in production:
 
 ```python
 # Configure your WSGI server (e.g., Gunicorn) with SSL
 # gunicorn --certfile=cert.pem --keyfile=key.pem -b 0.0.0.0:443 myapp:app
 ```
 
-3. **Rate Limiting**: Add rate limiting to prevent abuse:
+#### 4. Rate Limiting
+
+Add rate limiting to prevent abuse:
 
 ```python
 from pyramid_ratelimit import RateLimitPredicate

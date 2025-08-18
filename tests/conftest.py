@@ -302,11 +302,18 @@ class TestSecurityPolicy:
 
     def _create_identity(self, token):
         """Create consistent identity object for testing."""
+        # Determine roles based on token type
+        roles = ["authenticated"]  # Default role for any valid token
+
+        # Admin tokens get admin role
+        if "admin" in token.lower():
+            roles.append("admin")
+
         return {
             "user_id": "test_user",
             "username": "testuser",
             "token": token,
-            "roles": ["authenticated"],  # Default role for any valid token
+            "roles": roles,
         }
 
     def authenticated_userid(self, request):

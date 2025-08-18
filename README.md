@@ -26,6 +26,7 @@ Pyramid MCP is a library that exposes Pyramid web application endpoints as Model
 - 🔌 **Pyramid Plugin**: Easy integration with `config.include('pyramid_mcp')`
 - 🛠️ **Tool Registration**: Simple `@tool` decorator for registering MCP tools
 - 🔐 **Authentication Parameters**: Support for Bearer token and Basic auth as tool parameters (uses `mcp_security` parameter by default, configurable)
+- 🛡️ **Security Filtering**: Automatic filtering of tools based on user permissions and ACL contexts (enabled by default)
 - ⚙️ **Settings-based Configuration**: Configure via Pyramid settings
 - 🔍 **Route Discovery**: Automatic discovery of Pyramid routes (configurable)
 - 📡 **Multiple Protocols**: Support for HTTP and SSE (Server-Sent Events)

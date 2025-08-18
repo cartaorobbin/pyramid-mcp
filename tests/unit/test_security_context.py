@@ -197,6 +197,7 @@ def test_context_factory_integration_with_mcp_tools(pyramid_app):
         "mcp.route_discovery.enabled": True,
         "mcp.server_name": "context-test-server",
         "mcp.server_version": "1.0.0",
+        "mcp.filter_forbidden_tools": "false",  # Disable filtering to test context  # noqa: E501
     }
 
     app = pyramid_app(settings)

@@ -84,6 +84,7 @@ def auth_test_config(pyramid_app):
         "jwt.secret": "test-secret-key-for-auth-tests",
         "jwt.algorithm": "HS256",
         "jwt.expiration_delta": 3600,
+        "mcp.filter_forbidden_tools": "false",  # Disable filtering to test permission  # noqa: E501
     }
 
     # Return configured TestApp

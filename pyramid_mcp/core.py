@@ -41,6 +41,8 @@ class MCPConfiguration:
     add_security_predicate: bool = True
     # Authentication parameter exposure configuration
     expose_auth_as_params: bool = True
+    # Tool filtering configuration
+    filter_forbidden_tools: bool = True
 
 
 class PyramidMCP:

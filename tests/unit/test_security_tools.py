@@ -75,6 +75,7 @@ def test_tool_decorator_creates_pyramid_views(pyramid_app):
         "mcp.route_discovery.enabled": True,
         "mcp.server_name": "decorator-test-server",
         "mcp.server_version": "1.0.0",
+        "mcp.filter_forbidden_tools": "false",  # Disable filtering to test tools  # noqa: E501
     }
 
     app = pyramid_app(settings)
@@ -217,6 +218,7 @@ def test_unified_security_architecture_tool_input_schemas(pyramid_app):
         "mcp.route_discovery.enabled": True,
         "mcp.server_name": "schema-test-server",
         "mcp.server_version": "1.0.0",
+        "mcp.filter_forbidden_tools": "false",  # Disable filtering to test schema  # noqa: E501
     }
 
     app = pyramid_app(settings)

@@ -61,7 +61,9 @@ def secure_service():
 def test_secure_cornice_service_tools_list(pyramid_app_with_services, secure_service):
     """Test that secure Cornice services appear in MCP tools list."""
     services = [secure_service]
-    app = pyramid_app_with_services(services)
+    # Disable filtering for this test to see all tools regardless of permissions
+    settings = {"mcp.filter_forbidden_tools": "false"}
+    app = pyramid_app_with_services(services, settings=settings)
 
     # Get tools list
     tools_response = app.post_json(
@@ -79,7 +81,9 @@ def test_secure_cornice_service_tools_list(pyramid_app_with_services, secure_ser
 def test_secure_get_endpoint_requires_auth(pyramid_app_with_services, secure_service):
     """Test that secure GET endpoint requires authentication."""
     services = [secure_service]
-    app = pyramid_app_with_services(services)
+    # Disable filtering for this test to see all tools regardless of permissions
+    settings = {"mcp.filter_forbidden_tools": "false"}
+    app = pyramid_app_with_services(services, settings=settings)
 
     # Get the secure GET tool directly
     tools_response = app.post_json(
@@ -115,7 +119,9 @@ def test_secure_endpoints_authentication_integration(
 ):
     """Test authentication integration with Cornice secure endpoints."""
     services = [secure_service]
-    app = pyramid_app_with_services(services)
+    # Disable filtering for this test to see all tools regardless of permissions
+    settings = {"mcp.filter_forbidden_tools": "false"}
+    app = pyramid_app_with_services(services, settings=settings)
 
     # Get the secure POST tool directly
     tools_response = app.post_json(
@@ -178,7 +184,9 @@ def test_bearer_auth_without_token_denies_access(pyramid_app_with_services):
         }
 
     services = [bearer_service]
-    app = pyramid_app_with_services(services)
+    # Disable filtering for this test to see all tools regardless of permissions
+    settings = {"mcp.filter_forbidden_tools": "false"}
+    app = pyramid_app_with_services(services, settings=settings)
 
     # Get the bearer auth tool
     tools_response = app.post_json(
@@ -230,7 +238,9 @@ def test_bearer_auth_with_valid_token_grants_access(pyramid_app_with_services):
         }
 
     services = [bearer_service]
-    app = pyramid_app_with_services(services)
+    # Disable filtering for this test to see all tools regardless of permissions
+    settings = {"mcp.filter_forbidden_tools": "false"}
+    app = pyramid_app_with_services(services, settings=settings)
 
     # Get the bearer auth tool
     tools_response = app.post_json(
@@ -290,6 +300,7 @@ def test_expose_auth_as_params_disabled_uses_header_auth(pyramid_app_with_servic
         "mcp.server_name": "test-server",
         "mcp.server_version": "1.0.0",
         "mcp.expose_auth_as_params": "false",  # Disable auth parameter exposure
+        "mcp.filter_forbidden_tools": "false",  # Disable filtering to see all tools
     }
     services = [bearer_service]
     app = pyramid_app_with_services(services, settings)
@@ -343,7 +354,9 @@ def test_cornice_service_schema_validation_with_security(
 ):
     """Test that Cornice schema validation works with security."""
     services = [secure_service]
-    app = pyramid_app_with_services(services)
+    # Disable filtering for this test to see all tools regardless of permissions
+    settings = {"mcp.filter_forbidden_tools": "false"}
+    app = pyramid_app_with_services(services, settings=settings)
 
     # Get the secure POST tool directly
     tools_response = app.post_json(
@@ -385,7 +398,9 @@ def test_cornice_tool_input_schema_includes_security_fields(
 ):
     """Test that Cornice tools include appropriate security fields in input schema."""
     services = [secure_service]
-    app = pyramid_app_with_services(services)
+    # Disable filtering for this test to see all tools regardless of permissions
+    settings = {"mcp.filter_forbidden_tools": "false"}
+    app = pyramid_app_with_services(services, settings=settings)
 
     # Get tools list
     tools_response = app.post_json(
@@ -404,3 +419,245 @@ def test_cornice_tool_input_schema_includes_security_fields(
     properties = input_schema["properties"]
     assert "name" in properties
     assert "email" in properties
+
+
+@pytest.fixture
+def acl_test_app(pyramid_app):
+    """Fixture that creates a test app with ACL context factories and regular views."""
+    from pyramid.authorization import Allow, Authenticated, Deny, Everyone
+
+    # Define ACL contexts
+    class PublicContext:
+        def __acl__(self):
+            return [
+                (Allow, Everyone, "view"),
+            ]
+
+    class AuthenticatedContext:
+        def __acl__(self):
+            return [
+                (Allow, Authenticated, "view"),
+                (Deny, Everyone, "view"),
+            ]
+
+    class AdminContext:
+        def __acl__(self):
+            return [
+                (Allow, "role:admin", "view"),
+                (Deny, Everyone, "view"),
+            ]
+
+    # Context factories
+    def public_context_factory(request):
+        return PublicContext()
+
+    def auth_context_factory(request):
+        return AuthenticatedContext()
+
+    def admin_context_factory(request):
+        return AdminContext()
+
+    # Define views - permissions will be set in config.add_view()
+    def public_view(request):
+        return {"message": "public data", "accessible": True}
+
+    def auth_view(request):
+        return {"message": "authenticated data", "accessible": True}
+
+    def admin_view(request):
+        return {"message": "admin data", "accessible": True}
+
+    # Test settings with filtering enabled
+    settings = {
+        "mcp.filter_forbidden_tools": "true",
+        "mcp.route_discovery.enabled": "true",
+        "mcp.server_name": "acl-test-server",
+    }
+
+    # We need to manually create the config since the fixture doesn't support
+    # context factories
+    from pyramid.config import Configurator
+    from webtest import TestApp
+
+    from tests.conftest import TestSecurityPolicy
+
+    config = Configurator(settings=settings)
+    config.set_security_policy(TestSecurityPolicy())
+    config.include("pyramid_mcp")
+
+    # Add routes with context factories FIRST
+    config.add_route("public_data", "/public_data", factory=public_context_factory)
+    config.add_route("auth_data", "/auth_data", factory=auth_context_factory)
+    config.add_route("admin_data", "/admin_data", factory=admin_context_factory)
+
+    # Add views explicitly with permissions (specify GET method)
+    config.add_view(
+        public_view,
+        route_name="public_data",
+        permission="view",
+        renderer="json",
+        request_method="GET",
+    )
+    config.add_view(
+        auth_view,
+        route_name="auth_data",
+        permission="view",
+        renderer="json",
+        request_method="GET",
+    )
+    config.add_view(
+        admin_view,
+        route_name="admin_data",
+        permission="view",
+        renderer="json",
+        request_method="GET",
+    )
+
+    return TestApp(config.make_wsgi_app())
+
+
+def test_anonymous_user_sees_only_public_tools(acl_test_app):
+    """Test that anonymous user only sees public tools when filtering is enabled."""
+    tools_response = acl_test_app.post_json(
+        "/mcp", {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
+    )
+    assert tools_response.status_code == 200
+
+    tools = tools_response.json["result"]["tools"]
+    tool_names = [tool["name"] for tool in tools]
+
+    # Should only have public tool (others filtered out)
+    assert "get_public_data" in tool_names, f"Expected public tool, got: {tool_names}"
+    assert (
+        "get_auth_data" not in tool_names
+    ), f"Auth tool should be filtered out: {tool_names}"
+    assert (
+        "get_admin_data" not in tool_names
+    ), f"Admin tool should be filtered out: {tool_names}"
+
+
+def test_authenticated_user_sees_public_and_auth_tools(acl_test_app):
+    """Test that authenticated user sees public and auth tools when filtering is
+    enabled."""
+    tools_response = acl_test_app.post_json(
+        "/mcp",
+        {"jsonrpc": "2.0", "method": "tools/list", "id": 1},
+        headers={"Authorization": "Bearer valid-token"},
+    )
+    assert tools_response.status_code == 200
+
+    tools = tools_response.json["result"]["tools"]
+    tool_names = [tool["name"] for tool in tools]
+
+    # Should have public and auth tools (admin still filtered out)
+    assert (
+        "get_public_data" in tool_names
+    ), f"Expected public tool with auth: {tool_names}"
+    assert "get_auth_data" in tool_names, f"Expected auth tool with auth: {tool_names}"
+    assert (
+        "get_admin_data" not in tool_names
+    ), f"Admin tool should still be filtered: {tool_names}"
+
+
+def test_admin_user_sees_all_tools(acl_test_app):
+    """Test that admin user sees all tools when filtering is enabled."""
+    tools_response = acl_test_app.post_json(
+        "/mcp",
+        {"jsonrpc": "2.0", "method": "tools/list", "id": 1},
+        headers={"Authorization": "Bearer admin-token"},
+    )
+    assert tools_response.status_code == 200
+
+    tools = tools_response.json["result"]["tools"]
+    tool_names = [tool["name"] for tool in tools]
+
+    # Should have ALL tools
+    assert (
+        "get_public_data" in tool_names
+    ), f"Expected public tool with admin: {tool_names}"
+    assert "get_auth_data" in tool_names, f"Expected auth tool with admin: {tool_names}"
+    assert (
+        "get_admin_data" in tool_names
+    ), f"Expected admin tool with admin: {tool_names}"
+
+
+def test_admin_user_can_access_admin_tool(acl_test_app):
+    """Test that admin user can access admin-only tools via tools/call."""
+    # Call the admin tool with admin-token (should succeed)
+    call_request = {
+        "jsonrpc": "2.0",
+        "id": 5,
+        "method": "tools/call",
+        "params": {"name": "get_admin_data", "arguments": {}},
+    }
+
+    call_response = acl_test_app.post_json(
+        "/mcp",
+        call_request,
+        headers={"Authorization": "Bearer admin-token"},  # Admin user
+    )
+
+    # Should succeed - admin can access admin tools
+    assert call_response.status_code == 200, f"Admin call failed: {call_response.body}"
+    assert "result" in call_response.json, f"Expected result, got: {call_response.json}"
+    assert "content" in call_response.json["result"], "Missing content in result"
+
+
+def test_regular_user_cannot_access_admin_tool(acl_test_app):
+    """Test that regular authenticated user cannot access admin-only tools."""
+    # First verify regular user cannot see admin tool in tools/list
+    list_request = {"jsonrpc": "2.0", "id": 6, "method": "tools/list", "params": {}}
+
+    list_response = acl_test_app.post_json(
+        "/mcp",
+        list_request,
+        headers={"Authorization": "Bearer valid-token"},  # Regular user
+    )
+
+    assert list_response.status_code == 200
+    tools = list_response.json["result"]["tools"]
+    tool_names = [tool["name"] for tool in tools]
+
+    # Regular user should NOT see admin tool in the list
+    assert (
+        "get_admin_data" not in tool_names
+    ), f"Regular user should not see admin tool, got: {tool_names}"
+    assert "get_public_data" in tool_names, "Regular user should see public tools"
+    assert "get_auth_data" in tool_names, "Regular user should see auth tools"
+
+    # Now try to call the admin tool directly (should fail)
+    call_request = {
+        "jsonrpc": "2.0",
+        "id": 7,
+        "method": "tools/call",
+        "params": {"name": "get_admin_data", "arguments": {}},
+    }
+
+    call_response = acl_test_app.post_json(
+        "/mcp",
+        call_request,
+        headers={"Authorization": "Bearer valid-token"},  # Regular user
+        expect_errors=True,
+    )
+
+    # Should fail - regular user cannot access admin tools
+    # JSON-RPC returns 200 with error details in response body (correct protocol
+    # behavior)
+    assert (
+        call_response.status_code == 200
+    ), f"Expected 200 with JSON-RPC error, got: {call_response.status_code}"
+
+    # Should contain error in JSON-RPC response, not result
+    assert (
+        "error" in call_response.json
+    ), f"Expected JSON-RPC error, got: {call_response.json}"
+    assert (
+        "result" not in call_response.json
+    ), "Should not have result for unauthorized access"
+
+    # Error should indicate authorization failure with specific expected message
+    error_message = call_response.json["error"]["message"]
+    assert (
+        error_message
+        == "Tool execution failed: Unauthorized: admin_view failed permission check"
+    )

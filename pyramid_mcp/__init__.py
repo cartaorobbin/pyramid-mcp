@@ -176,6 +176,10 @@ def _extract_mcp_config_from_settings(settings: dict) -> MCPConfiguration:
         ),
         # Authentication parameter exposure settings
         expose_auth_as_params=asbool(settings.get("mcp.expose_auth_as_params", "true")),
+        # Tool filtering settings
+        filter_forbidden_tools=asbool(
+            settings.get("mcp.filter_forbidden_tools", "true")
+        ),
     )
 
 
