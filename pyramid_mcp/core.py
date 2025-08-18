@@ -5,10 +5,10 @@ This module provides the main PyramidMCP class that integrates Model Context Pro
 capabilities with Pyramid web applications.
 """
 
-import inspect
+
 import json
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pyramid.config import Configurator
 from pyramid.request import Request
@@ -325,54 +325,6 @@ class PyramidMCP:
         response.headers["Access-Control-Allow-Headers"] = "Content-Type"
 
         return response
-
-    def _generate_schema_from_signature(
-        self, func: Callable
-    ) -> Optional[Dict[str, Any]]:
-        """Generate JSON schema from function signature.
-
-        Args:
-            func: Function to analyze
-
-        Returns:
-            JSON schema dictionary or None
-        """
-        try:
-            sig = inspect.signature(func)
-            properties = {}
-            required = []
-
-            for param_name, param in sig.parameters.items():
-                param_schema = {"type": "string"}  # Default type
-
-                if param.annotation != inspect.Parameter.empty:
-                    if param.annotation == int:
-                        param_schema["type"] = "integer"
-                    elif param.annotation == float:
-                        param_schema["type"] = "number"
-                    elif param.annotation == bool:
-                        param_schema["type"] = "boolean"
-                    elif param.annotation == list:
-                        param_schema["type"] = "array"
-                    elif param.annotation == dict:
-                        param_schema["type"] = "object"
-
-                properties[param_name] = param_schema
-
-                if param.default == inspect.Parameter.empty:
-                    required.append(param_name)
-
-            if properties:
-                return {
-                    "type": "object",
-                    "properties": properties,
-                    "required": required,
-                }
-
-        except Exception:
-            pass
-
-        return None
 
 
 class MCPSecurityPredicate:

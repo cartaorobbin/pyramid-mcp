@@ -1299,20 +1299,6 @@ class PyramidIntrospector:
             if key not in request_specific_keys:
                 subrequest.environ[key] = value
 
-    def _create_request_for_view(
-        self, kwargs: Dict[str, Any], route_pattern: str, method: str
-    ) -> Any:
-        """DEPRECATED: Use _create_subrequest instead.
-
-        This method is kept for backward compatibility but should not be used
-        for new code. Use subrequest mechanism instead.
-        """
-        # This method is deprecated and should not be used
-        # Keeping it for backward compatibility only
-        raise NotImplementedError(
-            "This method is deprecated. Use subrequest mechanism instead."
-        )
-
     def _convert_response_to_mcp(
         self, response: Any, view_info: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
