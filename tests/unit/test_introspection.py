@@ -115,7 +115,7 @@ def test_discover_routes_with_custom_config():
     assert "test_route" in route_names
 
 
-def test_discover_tools_from_pyramid(pyramid_config):
+def test_discover_tools(pyramid_config):
     """Test discovering tools from Pyramid routes."""
 
     def api_view(request):
@@ -127,7 +127,7 @@ def test_discover_tools_from_pyramid(pyramid_config):
     mcp_config = MCPConfiguration(route_discovery_enabled=True)
     introspector = PyramidIntrospector(config)
 
-    tools = introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = introspector.discover_tools(mcp_config)
 
     # Should discover tools from our test routes
     assert len(tools) > 0
@@ -164,7 +164,7 @@ def test_discover_tools_with_patterns():
     )
     introspector = PyramidIntrospector(config)
 
-    tools = introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = introspector.discover_tools(mcp_config)
     tool_names = [tool.name for tool in tools]
 
     # Should include API routes but exclude admin routes
@@ -190,7 +190,7 @@ def test_tool_name_generation():
     config.commit()
 
     introspector = PyramidIntrospector(config)
-    tools = introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = introspector.discover_tools(mcp_config)
 
     # Should generate appropriate tool name
     assert len(tools) > 0
@@ -220,7 +220,7 @@ def test_tool_name_generation_edge_cases():
     config.commit()
 
     introspector = PyramidIntrospector(config)
-    tools = introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = introspector.discover_tools(mcp_config)
 
     # All routes should generate valid tools
     assert len(tools) == len(routes)
@@ -247,7 +247,7 @@ def test_input_schema_generation():
     config.commit()
 
     introspector = PyramidIntrospector(config)
-    tools = introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = introspector.discover_tools(mcp_config)
 
     assert len(tools) > 0
     tool = tools[0]
@@ -273,7 +273,7 @@ def test_input_schema_with_annotations():
     config.commit()
 
     introspector = PyramidIntrospector(config)
-    tools = introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = introspector.discover_tools(mcp_config)
 
     assert len(tools) > 0
     tool = tools[0]
@@ -293,7 +293,7 @@ def test_input_schema_complex_types():
     config.commit()
 
     introspector = PyramidIntrospector(config)
-    tools = introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = introspector.discover_tools(mcp_config)
 
     assert len(tools) > 0
     tool = tools[0]
@@ -388,7 +388,7 @@ def test_route_exclusion():
     )
     introspector = PyramidIntrospector(config)
 
-    tools = introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = introspector.discover_tools(mcp_config)
     tool_names = [tool.name for tool in tools]
 
     # Should exclude admin routes
@@ -421,7 +421,7 @@ def test_include_patterns():
     )
     introspector = PyramidIntrospector(config)
 
-    tools = introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = introspector.discover_tools(mcp_config)
     tool_names = [tool.name for tool in tools]
 
     # Should only include API routes
@@ -454,7 +454,7 @@ def test_exclude_patterns():
     )
     introspector = PyramidIntrospector(config)
 
-    tools = introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = introspector.discover_tools(mcp_config)
     tool_names = [tool.name for tool in tools]
 
     # Should exclude internal routes
@@ -488,7 +488,7 @@ def test_combined_include_exclude_patterns():
     )
     introspector = PyramidIntrospector(config)
 
-    tools = introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = introspector.discover_tools(mcp_config)
     tool_names = [tool.name for tool in tools]
 
     # Should include api_users but not api_admin or public_info
@@ -515,7 +515,7 @@ def test_tool_handler_creation():
     config.commit()
 
     introspector = PyramidIntrospector(config)
-    tools = introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = introspector.discover_tools(mcp_config)
 
     assert len(tools) > 0
     tool = tools[0]
@@ -538,7 +538,7 @@ def test_tool_handler_with_parameters():
     config.commit()
 
     introspector = PyramidIntrospector(config)
-    tools = introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = introspector.discover_tools(mcp_config)
 
     assert len(tools) > 0
     tool = tools[0]
@@ -639,7 +639,7 @@ def test_pyramid_introspector_extracts_mcp_description():
     mcp_config = MCPConfiguration(route_discovery_enabled=True)
     pyramid_introspector = PyramidIntrospector(config)
 
-    tools = pyramid_introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = pyramid_introspector.discover_tools(mcp_config)
 
     # Find our tool
     described_tool = None
@@ -672,7 +672,7 @@ def test_mcp_description_used_in_tool_generation():
     # Generate tools
     mcp_config = MCPConfiguration(route_discovery_enabled=True)
     pyramid_introspector = PyramidIntrospector(config)
-    tools = pyramid_introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = pyramid_introspector.discover_tools(mcp_config)
 
     # Find the API tool
     api_tool = None
@@ -704,7 +704,7 @@ def test_mcp_description_priority_over_docstring():
 
     mcp_config = MCPConfiguration(route_discovery_enabled=True)
     pyramid_introspector = PyramidIntrospector(config)
-    tools = pyramid_introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = pyramid_introspector.discover_tools(mcp_config)
 
     # Find our tool
     priority_tool = None
@@ -733,7 +733,7 @@ def test_empty_mcp_description_is_ignored():
 
     mcp_config = MCPConfiguration(route_discovery_enabled=True)
     pyramid_introspector = PyramidIntrospector(config)
-    tools = pyramid_introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = pyramid_introspector.discover_tools(mcp_config)
 
     # Find our tool
     empty_desc_tool = None
@@ -773,7 +773,7 @@ def test_multiple_views_with_different_descriptions():
 
     mcp_config = MCPConfiguration(route_discovery_enabled=True)
     pyramid_introspector = PyramidIntrospector(config)
-    tools = pyramid_introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = pyramid_introspector.discover_tools(mcp_config)
 
     # Check that each tool has the expected description
     tool_descriptions = {tool.name: tool.description for tool in tools}
@@ -817,7 +817,7 @@ def test_integration_with_complex_routes():
     config.commit()
 
     introspector = PyramidIntrospector(config)
-    tools = introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = introspector.discover_tools(mcp_config)
 
     assert len(tools) > 0
     tool = tools[0]
@@ -845,7 +845,7 @@ def test_description_generation():
     config.commit()
 
     introspector = PyramidIntrospector(config)
-    tools = introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = introspector.discover_tools(mcp_config)
 
     assert len(tools) > 0
     tool = tools[0]
@@ -862,7 +862,7 @@ def test_empty_configuration():
     config.commit()
 
     introspector = PyramidIntrospector(config)
-    tools = introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = introspector.discover_tools(mcp_config)
 
     # Should handle empty configuration gracefully
     assert isinstance(tools, list)

@@ -449,22 +449,6 @@ class PyramidIntrospector:
         # Store the security parameter for use in other methods
         self._security_parameter = config.security_parameter
 
-        # Use the existing comprehensive method
-        return self.discover_tools_from_pyramid(None, config)
-
-    def discover_tools_from_pyramid(
-        self, introspector: Any, config: Any
-    ) -> List[MCPTool]:
-        """Discover MCP tools from Pyramid routes.
-
-        Args:
-            introspector: Pyramid introspector instance (legacy parameter,
-                         we use self.configurator now)
-            config: MCP configuration
-
-        Returns:
-            List of discovered MCP tools
-        """
         tools: List[MCPTool] = []
 
         # Discover routes using our comprehensive discovery method

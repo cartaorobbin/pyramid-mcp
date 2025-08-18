@@ -187,7 +187,7 @@ def test_tool_generation_with_cornice_metadata(pyramid_config_with_cornice):
     mcp_config = MCPConfiguration(route_discovery_enabled=True)
     introspector = PyramidIntrospector(pyramid_config_with_cornice)
 
-    tools = introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = introspector.discover_tools(mcp_config)
     assert len(tools) > 0
 
     # Find tools generated from Cornice services
@@ -294,7 +294,7 @@ def test_end_to_end_cornice_integration():
     # Generate MCP tools
     mcp_config = MCPConfiguration(route_discovery_enabled=True)
     introspector = PyramidIntrospector(config)
-    tools = introspector.discover_tools_from_pyramid(None, mcp_config)
+    tools = introspector.discover_tools(mcp_config)
 
     # Verify tools were generated
     tool_names = [tool.name for tool in tools]

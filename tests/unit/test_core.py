@@ -229,6 +229,6 @@ def test_introspector_has_discovery_methods(pyramid_config):
 
     # Test that key methods exist
     assert hasattr(introspector, "discover_routes")
-    assert hasattr(introspector, "discover_tools_from_pyramid")
+    assert hasattr(introspector, "discover_tools")
     assert callable(introspector.discover_routes)
-    assert callable(introspector.discover_tools_from_pyramid)
+    assert callable(introspector.discover_tools)
