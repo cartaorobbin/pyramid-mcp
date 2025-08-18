@@ -312,9 +312,10 @@ def test_input_schema_complex_types():
 # =============================================================================
 
 
-def test_pattern_matching():
+def test_pattern_matching(pyramid_config):
     """Test basic pattern matching functionality."""
-    introspector = PyramidIntrospector()
+    config = pyramid_config()
+    introspector = PyramidIntrospector(config)
 
     # Test include patterns
     assert any(
@@ -337,9 +338,10 @@ def test_pattern_matching():
     )
 
 
-def test_pattern_matching_advanced():
+def test_pattern_matching_advanced(pyramid_config):
     """Test advanced pattern matching scenarios."""
-    introspector = PyramidIntrospector()
+    config = pyramid_config()
+    introspector = PyramidIntrospector(config)
 
     patterns = ["api/v1/*", "users/*", "admin/dashboard"]
 

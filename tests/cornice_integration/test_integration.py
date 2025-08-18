@@ -211,9 +211,10 @@ def test_tool_generation_with_cornice_metadata(pyramid_config_with_cornice):
 # =============================================================================
 
 
-def test_normalize_path_pattern():
+def test_normalize_path_pattern(pyramid_config):
     """Test path pattern normalization."""
-    introspector = PyramidIntrospector()
+    config = pyramid_config()
+    introspector = PyramidIntrospector(config)
 
     test_cases = [
         ("/users", "/users"),
@@ -227,9 +228,12 @@ def test_normalize_path_pattern():
         assert result == expected
 
 
-def test_extract_service_level_metadata_with_real_service(users_service):
+def test_extract_service_level_metadata_with_real_service(
+    users_service, pyramid_config
+):
     """Test extracting metadata from real Cornice service."""
-    introspector = PyramidIntrospector()
+    config = pyramid_config()
+    introspector = PyramidIntrospector(config)
     metadata = introspector._extract_service_level_metadata(users_service)
 
     assert metadata is not None
@@ -239,7 +243,7 @@ def test_extract_service_level_metadata_with_real_service(users_service):
     assert metadata["description"] == "User management service"
 
 
-def test_extract_service_level_metadata_with_minimal_service():
+def test_extract_service_level_metadata_with_minimal_service(pyramid_config):
     """Test extracting metadata from minimal Cornice service."""
     minimal_service = Service(name="minimal", path="/minimal")
 
@@ -247,7 +251,8 @@ def test_extract_service_level_metadata_with_minimal_service():
     def get_minimal(request):
         return {"status": "ok"}
 
-    introspector = PyramidIntrospector()
+    config = pyramid_config()
+    introspector = PyramidIntrospector(config)
     metadata = introspector._extract_service_level_metadata(minimal_service)
 
     assert metadata is not None
@@ -309,9 +314,10 @@ def test_end_to_end_cornice_integration():
 # =============================================================================
 
 
-def test_extract_service_level_metadata():
+def test_extract_service_level_metadata(pyramid_config):
     """Test extracting metadata from Cornice service."""
-    introspector = PyramidIntrospector()
+    config = pyramid_config()
+    introspector = PyramidIntrospector(config)
 
     service = Service(name="test_service", path="/test", description="Test service")
 
@@ -327,9 +333,10 @@ def test_extract_service_level_metadata():
     assert metadata["path"] == "/test"
 
 
-def test_extract_marshmallow_schema_info():
+def test_extract_marshmallow_schema_info(pyramid_config):
     """Test extracting Marshmallow schema information."""
-    introspector = PyramidIntrospector()
+    config = pyramid_config()
+    introspector = PyramidIntrospector(config)
 
     # Test with CreateUserSchema
     schema_info = introspector._extract_marshmallow_schema_info(CreateUserSchema())
@@ -357,9 +364,10 @@ def test_extract_marshmallow_schema_info():
     assert "age" not in required_fields  # Optional field
 
 
-def test_marshmallow_field_to_mcp_type():
+def test_marshmallow_field_to_mcp_type(pyramid_config):
     """Test conversion of Marshmallow fields to MCP types."""
-    introspector = PyramidIntrospector()
+    config = pyramid_config()
+    introspector = PyramidIntrospector(config)
 
     test_fields = {
         fields.Str(): {"type": "string"},
@@ -378,9 +386,10 @@ def test_marshmallow_field_to_mcp_type():
         ), f"Field {field_obj} should map to {expected_type}, got {result}"
 
 
-def test_add_validation_constraints():
+def test_add_validation_constraints(pyramid_config):
     """Test adding validation constraints from Marshmallow fields."""
-    introspector = PyramidIntrospector()
+    config = pyramid_config()
+    introspector = PyramidIntrospector(config)
 
     # Test the actual functionality of _add_validation_constraints
     # which handles validation constraints, not descriptions
@@ -409,7 +418,7 @@ def test_add_validation_constraints():
     assert field_def == {"type": "string"}
 
 
-def test_nested_marshmallow_schema():
+def test_nested_marshmallow_schema(pyramid_config):
     """Test handling of nested Marshmallow schemas."""
 
     class AddressSchema(Schema):
@@ -422,7 +431,8 @@ def test_nested_marshmallow_schema():
         email = fields.Email(required=True)
         address = fields.Nested(AddressSchema, required=True)
 
-    introspector = PyramidIntrospector()
+    config = pyramid_config()
+    introspector = PyramidIntrospector(config)
     schema_info = introspector._extract_marshmallow_schema_info(UserWithAddressSchema())
 
     assert schema_info is not None
@@ -496,9 +506,10 @@ def test_cornice_service_with_marshmallow_schema(
     assert "category" in properties
 
 
-def test_marshmallow_schema_without_cornice():
+def test_marshmallow_schema_without_cornice(pyramid_config):
     """Test that Marshmallow schema handling works without Cornice services."""
-    introspector = PyramidIntrospector()
+    config = pyramid_config()
+    introspector = PyramidIntrospector(config)
 
     # Test direct schema extraction
     schema_info = introspector._extract_marshmallow_schema_info(CreateProductSchema())

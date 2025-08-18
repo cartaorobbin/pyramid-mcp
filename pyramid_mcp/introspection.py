@@ -6,14 +6,27 @@ and convert them into MCP tools. Includes support for Cornice REST framework
 to extract enhanced metadata and validation information.
 """
 
+import json
 import logging
 import re
+import traceback
 from typing import Any, Callable, Dict, List, Optional, Union
+from urllib.parse import urlencode
 
+import cornice  # noqa: F401
 import marshmallow
+import marshmallow.fields as fields
+import marshmallow.validate as validate
+from cornice.service import get_services
+from pyramid.request import Request
 
 from pyramid_mcp.protocol import MCPTool
-from pyramid_mcp.schemas import BodySchema, PathParameterSchema, QueryParameterSchema
+from pyramid_mcp.schemas import (
+    BodySchema,
+    MCPContextResultSchema,
+    PathParameterSchema,
+    _safe_nested_schema_introspection,
+)
 from pyramid_mcp.security import BasicAuthSchema, BearerAuthSchema
 
 logger = logging.getLogger(__name__)
@@ -22,7 +35,7 @@ logger = logging.getLogger(__name__)
 class PyramidIntrospector:
     """Handles introspection of Pyramid applications to discover routes and views."""
 
-    def __init__(self, configurator: Optional[Any] = None):
+    def __init__(self, configurator: Any):
         """Initialize the introspector.
 
         Args:
@@ -117,7 +130,7 @@ class PyramidIntrospector:
                     view_callable = view_intr.get("callable")
                     if view_callable:
                         # Get permission from introspectable or related permissions
-                        permission = self._extract_permission(view_intr, introspector)
+                        permission = self._extract_permission(view_intr)
 
                         view_info = {
                             "callable": view_callable,
@@ -185,7 +198,9 @@ class PyramidIntrospector:
 
         return routes_info
 
-    def _extract_permission(self, view_intr: Any, introspector: Any) -> Optional[str]:
+    def _extract_permission(
+        self, view_intr: Any, introspector: Optional[Any] = None
+    ) -> Optional[str]:
         """Extract permission from view introspectable or related introspectables.
 
         First tries to get permission directly from the view introspectable.
@@ -196,7 +211,8 @@ class PyramidIntrospector:
 
         Args:
             view_intr: The view introspectable
-            introspector: Pyramid introspector instance
+            introspector: Pyramid introspector instance (optional, will be obtained
+                         from self.configurator.registry.introspector if None)
 
         Returns:
             Permission string if found, None otherwise
@@ -205,6 +221,10 @@ class PyramidIntrospector:
         permission = view_intr.get("permission")
         if permission:
             return str(permission)
+
+        # Get introspector if not provided
+        if introspector is None:
+            introspector = self.configurator.registry.introspector
 
         # If not found directly, check related permissions introspectables
         try:
@@ -255,9 +275,7 @@ class PyramidIntrospector:
         cornice_services = []
 
         try:
-            # Try to import cornice to check if it's available
-            import cornice  # noqa: F401
-            from cornice.service import get_services
+            # Get Cornice services
 
             # Get all registered Cornice services
             services = get_services()
@@ -542,8 +560,6 @@ class PyramidIntrospector:
         Returns:
             True if pattern matches, False otherwise
         """
-        import re
-
         # Handle wildcard patterns
         if "*" in pattern or "?" in pattern:
             # Pattern with wildcards - convert to regex
@@ -678,18 +694,8 @@ class PyramidIntrospector:
             if security_type:
                 security = self._convert_security_type_to_schema(security_type)
 
-            # Extract permission from view info or Cornice metadata
-            permission = None
-            # First check direct view permission
-            if "permission" in view and view["permission"]:
-                permission = view["permission"]
-            # Then check Cornice metadata
-            elif "cornice_metadata" in view:
-                cornice_metadata = view["cornice_metadata"]
-                method_specific = cornice_metadata.get("method_specific", {})
-                if method.upper() in method_specific:
-                    method_info = method_specific[method.upper()]
-                    permission = method_info.get("permission")
+            # Extract permission using the proper method that handles all cases
+            permission = self._extract_permission(view)
 
             # Extract llm_context_hint from view info
             llm_context_hint = view.get("llm_context_hint")
@@ -888,57 +894,6 @@ class PyramidIntrospector:
             )
             http_request["path"].append(path_param_data)
 
-        # Add common query parameters for known patterns
-        if method.upper() == "GET":
-            # For GET endpoints, add common parameters based on docstring analysis
-            if (
-                view_callable is not None
-                and hasattr(view_callable, "__doc__")
-                and view_callable.__doc__
-            ):
-                doc = view_callable.__doc__.lower()
-
-                # Check for name parameter in hello endpoints
-                if "hello" in doc or "name" in doc:
-                    # Use QueryParameterSchema to create proper query parameter
-                    query_param_schema = QueryParameterSchema()
-                    name_param_data = query_param_schema.load(
-                        {
-                            "name": "name",
-                            "value": "",
-                            "type": "string",
-                            "description": "Name to greet",
-                            "default": "World",
-                        }
-                    )
-                    http_request["query"].append(name_param_data)
-
-                # For user endpoints, look for common parameters
-                if "user" in doc:
-                    # Use QueryParameterSchema to create proper query parameters
-                    query_param_schema = QueryParameterSchema()
-                    limit_param_data = query_param_schema.load(
-                        {
-                            "name": "limit",
-                            "value": "",
-                            "type": "integer",
-                            "description": "Maximum number of items to return",
-                            "default": 10,
-                        }
-                    )
-                    http_request["query"].append(limit_param_data)
-
-                    offset_param_data = query_param_schema.load(
-                        {
-                            "name": "offset",
-                            "value": "",
-                            "type": "integer",
-                            "description": "Number of items to skip",
-                            "default": 0,
-                        }
-                    )
-                    http_request["query"].append(offset_param_data)
-
         # Add request body fields for methods that typically have body data
         if method.upper() in ["POST", "PUT", "PATCH"]:
             # Use BodySchema to create proper body field
@@ -1024,9 +979,6 @@ class PyramidIntrospector:
         Returns:
             Handler function for MCP tool
         """
-        import logging
-
-        logger = logging.getLogger(__name__)
 
         route_pattern = route_info.get("pattern", "")
         route_name = route_info.get("name", "")
@@ -1122,8 +1074,6 @@ class PyramidIntrospector:
                     )
 
                 # Log stack trace for debugging
-                import traceback
-
                 logger.debug(f"❌ Full traceback: {traceback.format_exc()}")
 
                 # Return error in MCP format
@@ -1156,13 +1106,6 @@ class PyramidIntrospector:
         Returns:
             Subrequest object ready for execution
         """
-        import json
-        import logging
-        import re
-
-        from pyramid.request import Request
-
-        logger = logging.getLogger(__name__)
 
         # 🐛 DEBUG: Log incoming parameters
         logger.debug(
@@ -1243,8 +1186,6 @@ class PyramidIntrospector:
 
         # Add query parameters to URL
         if query_params:
-            from urllib.parse import urlencode
-
             query_string = urlencode(query_params)
             url = f"{url}?{query_string}"
             logger.debug(f"🔧 Added query string: {query_string}")
@@ -1400,8 +1341,6 @@ class PyramidIntrospector:
         Returns:
             MCP-compatible response in new context format
         """
-        from pyramid_mcp.schemas import MCPContextResultSchema
-
         # Create MCP context using the schema - all response parsing logic
         # is handled in the schema's @pre_dump method
         schema = MCPContextResultSchema()
@@ -1421,8 +1360,6 @@ class PyramidIntrospector:
         """
         # Remove regex constraints from path parameters
         # e.g., {id:\d+} -> {id}, {filename:.+} -> {filename}
-        import re
-
         normalized = re.sub(r"\{([^}:]+):[^}]+\}", r"{\1}", pattern)
         return normalized
 
@@ -1461,8 +1398,6 @@ class PyramidIntrospector:
         Returns:
             Dictionary containing schema field information for MCP
         """
-        from pyramid_mcp.schemas import _safe_nested_schema_introspection
-
         # Use completely isolated introspection to prevent global state pollution
         result = _safe_nested_schema_introspection(schema)
         return result if isinstance(result, dict) else {}
@@ -1474,8 +1409,6 @@ class PyramidIntrospector:
         creation in Marshmallow. Instead, it inspects the field's internal attributes
         to extract the schema class directly.
         """
-        import marshmallow
-
         # CRITICAL: The 'nested' attribute contains the schema class without instances
         if hasattr(nested_field, "nested"):
             schema_attr = nested_field.nested
@@ -1506,8 +1439,6 @@ class PyramidIntrospector:
         Returns:
             Dictionary containing MCP parameter type information
         """
-        import marshmallow.fields as fields
-
         field_info: Dict[str, Any] = {}
 
         # Map Marshmallow field types to MCP types
@@ -1590,11 +1521,6 @@ class PyramidIntrospector:
             field: Marshmallow field instance
             field_info: MCP field info dictionary to update
         """
-        try:
-            import marshmallow.validate as validate
-        except ImportError:
-            return
-
         validators = field.validate
         if not validators:
             return

@@ -79,9 +79,10 @@ def test_introspector_uses_configurable_parameter(pyramid_config):
     assert pyramid_mcp.introspector._security_parameter == "pcm_security"
 
 
-def test_convert_security_type_bearer_variations():
+def test_convert_security_type_bearer_variations(pyramid_config):
     """Test conversion of various bearer auth security types."""
-    introspector = PyramidIntrospector()
+    config = pyramid_config()
+    introspector = PyramidIntrospector(config)
 
     # Test different bearer auth variations
     variations = ["bearer", "BearerAuth", "Bearer", "BEARER", "bearer_auth", "jwt"]
@@ -92,9 +93,10 @@ def test_convert_security_type_bearer_variations():
         assert result.__class__.__name__ == "BearerAuthSchema"
 
 
-def test_convert_security_type_basic_variations():
+def test_convert_security_type_basic_variations(pyramid_config):
     """Test conversion of various basic auth security types."""
-    introspector = PyramidIntrospector()
+    config = pyramid_config()
+    introspector = PyramidIntrospector(config)
 
     # Test different basic auth variations
     variations = ["basic", "BasicAuth", "Basic", "BASIC", "basic_auth"]
@@ -105,15 +107,16 @@ def test_convert_security_type_basic_variations():
         assert result.__class__.__name__ == "BasicAuthSchema"
 
 
-def test_convert_security_type_unknown():
+def test_convert_security_type_unknown(pyramid_config):
     """Test conversion of unknown security types returns None."""
-    introspector = PyramidIntrospector()
+    config = pyramid_config()
+    introspector = PyramidIntrospector(config)
 
     result = introspector._convert_security_type_to_schema("unknown_auth_type")
     assert result is None
 
 
-def test_end_to_end_with_custom_security_parameter():
+def test_end_to_end_with_custom_security_parameter(pyramid_config):
     """Test end-to-end functionality with custom security parameter."""
 
     # Test that custom security parameter is stored correctly
@@ -121,7 +124,8 @@ def test_end_to_end_with_custom_security_parameter():
     assert mcp_config.security_parameter == "pcm_security"
 
     # Test that introspector can handle custom security parameter
-    introspector = PyramidIntrospector()
+    config = pyramid_config()
+    introspector = PyramidIntrospector(config)
 
     # Mock view_info with custom security parameter
     view_info = {"pcm_security": "BearerAuth"}
@@ -139,7 +143,7 @@ def test_end_to_end_with_custom_security_parameter():
     assert security_schema.__class__.__name__ == "BearerAuthSchema"
 
 
-def test_mcp_security_parameter_backward_compatibility():
+def test_mcp_security_parameter_backward_compatibility(pyramid_config):
     """Test that existing mcp_security parameter still works.
 
     This ensures backward compatibility.
@@ -150,7 +154,8 @@ def test_mcp_security_parameter_backward_compatibility():
     assert config.security_parameter == "mcp_security"
 
     # Test that introspector can handle mcp_security parameter
-    introspector = PyramidIntrospector()
+    pyramid_conf = pyramid_config()
+    introspector = PyramidIntrospector(pyramid_conf)
 
     # Test the security conversion works for traditional values
     bearer_result = introspector._convert_security_type_to_schema("bearer")
@@ -158,11 +163,12 @@ def test_mcp_security_parameter_backward_compatibility():
     assert bearer_result.__class__.__name__ == "BearerAuthSchema"
 
 
-def test_multiple_views_with_different_security_parameters():
+def test_multiple_views_with_different_security_parameters(pyramid_config):
     """Test multiple views where some have security and some don't."""
 
     # Test that introspector can handle views with and without security
-    introspector = PyramidIntrospector()
+    config = pyramid_config()
+    introspector = PyramidIntrospector(config)
     introspector._security_parameter = "custom_security"
 
     # Test view with security
@@ -218,9 +224,10 @@ def test_none_security_parameter():
     assert config.security_parameter == "mcp_security"
 
 
-def test_case_sensitivity_in_security_types():
+def test_case_sensitivity_in_security_types(pyramid_config):
     """Test that security type matching is case-insensitive."""
-    introspector = PyramidIntrospector()
+    config = pyramid_config()
+    introspector = PyramidIntrospector(config)
 
     # Test various case combinations
     test_cases = [

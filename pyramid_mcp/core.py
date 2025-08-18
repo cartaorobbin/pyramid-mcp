@@ -68,22 +68,16 @@ class PyramidMCP:
 
     def __init__(
         self,
-        configurator: Optional[Configurator] = None,
-        wsgi_app: Optional[Callable] = None,
+        configurator: Configurator,
         config: Optional[MCPConfiguration] = None,
     ):
         """Initialize PyramidMCP.
 
         Args:
             configurator: Pyramid configurator instance
-            wsgi_app: Existing WSGI application to introspect
             config: MCP configuration options
         """
-        if not configurator and not wsgi_app:
-            raise ValueError("Either configurator or wsgi_app must be provided")
-
         self.configurator = configurator
-        self.wsgi_app = wsgi_app
         self.config = config or MCPConfiguration()
 
         # Initialize MCP protocol handler
@@ -145,11 +139,6 @@ class PyramidMCP:
                 # Register discovered tools
                 for tool in tools:
                     self.protocol_handler.register_tool(tool, self.config)
-
-        elif self.wsgi_app:
-            # For WSGI apps, we need a different approach
-            # This would require more complex introspection
-            pass
 
         # Manual tools are now registered as Pyramid views via introspection
 
@@ -384,21 +373,6 @@ class PyramidMCP:
             pass
 
         return None
-
-    @classmethod
-    def from_wsgi_app(
-        cls, wsgi_app: Callable, config: Optional[MCPConfiguration] = None
-    ) -> "PyramidMCP":
-        """Create PyramidMCP from an existing WSGI application.
-
-        Args:
-            wsgi_app: Existing WSGI application
-            config: MCP configuration
-
-        Returns:
-            PyramidMCP instance
-        """
-        return cls(wsgi_app=wsgi_app, config=config)
 
 
 class MCPSecurityPredicate:
