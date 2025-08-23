@@ -8,7 +8,11 @@ the Python attribute name.
 
 import pytest
 from cornice import Service
-from cornice.validators import marshmallow_body_validator
+from cornice.validators import (
+    marshmallow_body_validator,
+    marshmallow_querystring_validator,
+    marshmallow_validator,
+)
 from marshmallow import Schema, fields
 
 
@@ -271,3 +275,284 @@ def test_mixed_data_key_and_python_names(pyramid_app_with_services):
     assert "lastLogin" in properties
     assert "lastLogin" not in required
     assert "last_login" not in properties
+
+
+def test_tool_parameter_names_use_data_key_values(
+    pyramid_app_with_services, data_key_service
+):
+    """Test that MCP tool parameter names use data_key values, not Python names."""
+    services = [data_key_service]
+    app = pyramid_app_with_services(services)
+
+    # Get tools list to inspect the actual tool parameters
+    tools_response = app.post_json(
+        "/mcp", {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
+    )
+    assert tools_response.status_code == 200
+
+    tools = tools_response.json["result"]["tools"]
+    user_profile_tool = tools[0]  # create_user_profile
+
+    # Get the tool's input schema
+    input_schema = user_profile_tool["inputSchema"]
+    properties = input_schema["properties"]
+    required = input_schema.get("required", [])
+
+    # ASSERT: Parameter names should be the data_key values, not Python field names
+
+    # Fields with data_key should expose the data_key as parameter name
+    assert (
+        "fullName" in properties
+    ), "Parameter should use data_key 'fullName', not 'full_name'"
+    assert (
+        "emailAddress" in properties
+    ), "Parameter should use data_key 'emailAddress', not 'email_address'"
+    assert (
+        "userId" in properties
+    ), "Parameter should use data_key 'userId', not 'user_id'"
+    assert (
+        "accountType" in properties
+    ), "Parameter should use data_key 'accountType', not 'account_type'"
+
+    # Field without data_key should use Python field name
+    assert (
+        "status" in properties
+    ), "Parameter without data_key should use Python field name 'status'"
+
+    # ASSERT: Python field names should NOT be exposed as parameters
+    assert (
+        "full_name" not in properties
+    ), "Python field name 'full_name' should not be exposed when data_key exists"
+    assert (
+        "email_address" not in properties
+    ), "Python field name 'email_address' should not be exposed when data_key exists"
+    assert (
+        "user_id" not in properties
+    ), "Python field name 'user_id' should not be exposed when data_key exists"
+    assert (
+        "account_type" not in properties
+    ), "Python field name 'account_type' should not be exposed when data_key exists"
+
+    # ASSERT: Required fields should also use data_key names
+    assert "fullName" in required, "Required parameter should use data_key 'fullName'"
+    assert (
+        "emailAddress" in required
+    ), "Required parameter should use data_key 'emailAddress'"
+
+    # ASSERT: Python field names should NOT be in required list
+    assert (
+        "full_name" not in required
+    ), "Python field name 'full_name' should not be in required list"
+    assert (
+        "email_address" not in required
+    ), "Python field name 'email_address' should not be in required list"
+
+
+def test_querystring_data_key_parameters_exposed(pyramid_app_with_services):
+    """Test that querystring schema with data_key parameters are properly exposed."""
+
+    class QuerystringSchema(Schema):
+        """Schema with data_key parameters for querystring validation."""
+
+        legal_entity_id = fields.Str(
+            required=False,
+            data_key="legalEntityId",  # camelCase for API
+            metadata={"description": "Legal entity UUID for filtering"},
+        )
+        page_number = fields.Int(
+            required=False,
+            data_key="pageNumber",  # camelCase for API
+            dump_default=1,
+            metadata={"description": "Page number for pagination"},
+        )
+        page_size = fields.Int(
+            required=False,
+            data_key="pageSize",  # camelCase for API
+            dump_default=20,
+            metadata={"description": "Number of items per page"},
+        )
+        # Field without data_key for comparison
+        status = fields.Str(required=False, metadata={"description": "Status filter"})
+
+    # Create service with querystring validation
+    querystring_service = Service(
+        name="list_workspace_parts",
+        path="/workspace-parts",
+        description="List workspace parts with querystring filtering",
+    )
+
+    @querystring_service.get(
+        schema=QuerystringSchema(),
+        validators=(marshmallow_querystring_validator,),
+    )
+    def list_parts(request):
+        """List workspace parts with filtering."""
+        validated_data = request.validated
+        return {
+            "parts": [],
+            "filters": validated_data,
+            "message": "Parts listed successfully",
+        }
+
+    services = [querystring_service]
+    app = pyramid_app_with_services(services)
+
+    # Get tools list
+    tools_response = app.post_json(
+        "/mcp", {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
+    )
+    assert tools_response.status_code == 200
+
+    tools = tools_response.json["result"]["tools"]
+    workspace_parts_tool = tools[0]  # list_workspace_parts
+
+    # Get the tool's input schema
+    input_schema = workspace_parts_tool["inputSchema"]
+    properties = input_schema["properties"]
+
+    # ASSERT: Querystring parameters should be flattened with data_key names
+    assert (
+        "legalEntityId" in properties
+    ), "Should use data_key 'legalEntityId', not 'legal_entity_id'"
+    assert (
+        "pageNumber" in properties
+    ), "Should use data_key 'pageNumber', not 'page_number'"
+    assert "pageSize" in properties, "Should use data_key 'pageSize', not 'page_size'"
+    assert (
+        "status" in properties
+    ), "Field without data_key should use Python name 'status'"
+
+    # ASSERT: Python field names should NOT be in the schema
+    assert (
+        "legal_entity_id" not in properties
+    ), "Python name should not appear when data_key exists"
+    assert (
+        "page_number" not in properties
+    ), "Python name should not appear when data_key exists"
+    assert (
+        "page_size" not in properties
+    ), "Python name should not appear when data_key exists"
+
+    # ASSERT: Verify the parameter types and descriptions are correct
+    assert properties["legalEntityId"]["type"] == "string"
+    assert (
+        properties["legalEntityId"]["description"] == "Legal entity UUID for filtering"
+    )
+
+    assert properties["pageNumber"]["type"] == "integer"
+    assert properties["pageNumber"]["default"] == 1
+    assert properties["pageNumber"]["description"] == "Page number for pagination"
+
+    assert properties["pageSize"]["type"] == "integer"
+    assert properties["pageSize"]["default"] == 20
+    assert properties["pageSize"]["description"] == "Number of items per page"
+
+
+def test_querystring_field_with_marshmallow_validator(pyramid_app_with_services):
+    """Test schema with nested querystring field using marshmallow_validator."""
+
+    # Define the querystring schema separately
+    class QuerystringSchema(Schema):
+        """Querystring schema with data_key parameters."""
+
+        legal_entity_id = fields.Str(
+            required=False,
+            data_key="legalEntityId",  # camelCase for API
+            metadata={"description": "Legal entity UUID for filtering"},
+        )
+        page_number = fields.Int(
+            required=False,
+            data_key="pageNumber",  # camelCase for API
+            dump_default=1,
+            metadata={"description": "Page number for pagination"},
+        )
+        page_size = fields.Int(
+            required=False,
+            data_key="pageSize",  # camelCase for API
+            dump_default=20,
+            metadata={"description": "Number of items per page"},
+        )
+        # Field without data_key for comparison
+        status = fields.Str(required=False, metadata={"description": "Status filter"})
+
+    # Main schema with nested querystring field
+    class SchemaWithQuerystring(Schema):
+        """Schema with nested querystring field."""
+
+        querystring = fields.Nested(
+            QuerystringSchema,
+            metadata={"description": "Query parameters for filtering"},
+        )
+
+    # Create service with nested querystring field
+    querystring_field_service = Service(
+        name="list_workspace_parts_with_qs_field",
+        path="/workspace-parts-qs-field",
+        description="List workspace parts with nested querystring field",
+    )
+
+    @querystring_field_service.get(
+        schema=SchemaWithQuerystring(),
+        validators=(marshmallow_validator,),
+    )
+    def list_parts_with_qs_field(request):
+        """List workspace parts with nested querystring field."""
+        validated_data = request.validated
+        return {
+            "parts": [],
+            "filters": validated_data,
+            "message": "Parts listed successfully with nested querystring field",
+        }
+
+    services = [querystring_field_service]
+    app = pyramid_app_with_services(services)
+
+    # Get tools list
+    tools_response = app.post_json(
+        "/mcp", {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
+    )
+    assert tools_response.status_code == 200
+
+    tools = tools_response.json["result"]["tools"]
+    qs_field_tool = tools[0]  # list_workspace_parts_with_qs_field
+
+    # Get the tool's input schema
+    input_schema = qs_field_tool["inputSchema"]
+    properties = input_schema["properties"]
+
+    # ASSERT: Nested schemas are flattened, parameters use data_key names
+    assert (
+        "legalEntityId" in properties
+    ), "Should use data_key 'legalEntityId', not 'legal_entity_id'"
+    assert (
+        "pageNumber" in properties
+    ), "Should use data_key 'pageNumber', not 'page_number'"
+    assert "pageSize" in properties, "Should use data_key 'pageSize', not 'page_size'"
+    assert (
+        "status" in properties
+    ), "Field without data_key should use Python name 'status'"
+
+    # ASSERT: Python field names should NOT be in the schema
+    assert (
+        "legal_entity_id" not in properties
+    ), "Python name should not appear when data_key exists"
+    assert (
+        "page_number" not in properties
+    ), "Python name should not appear when data_key exists"
+    assert (
+        "page_size" not in properties
+    ), "Python name should not appear when data_key exists"
+
+    # ASSERT: Verify the parameter types and descriptions are correct
+    assert properties["legalEntityId"]["type"] == "string"
+    assert (
+        properties["legalEntityId"]["description"] == "Legal entity UUID for filtering"
+    )
+
+    assert properties["pageNumber"]["type"] == "integer"
+    assert properties["pageNumber"]["default"] == 1
+    assert properties["pageNumber"]["description"] == "Page number for pagination"
+
+    assert properties["pageSize"]["type"] == "integer"
+    assert properties["pageSize"]["default"] == 20
+    assert properties["pageSize"]["description"] == "Number of items per page"
