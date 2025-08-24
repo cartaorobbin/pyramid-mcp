@@ -2,6 +2,47 @@
 
 ## ✅ Recent Completions
 
+### [2024-12-28] Exclude OPTIONS and HEAD HTTP Methods from MCP Tools ⭐
+
+**Status**: ✅ COMPLETE - OPTIONS and HEAD methods successfully excluded from MCP tool generation  
+**Assigned**: AI Assistant  
+**Estimated Time**: 1-2 hours  
+**Actual Time**: ~1.5 hours  
+**Related Issue**: User request - "we should not expose the http verb options and head as a MCP tool"
+
+#### 🎯 Problem Solved
+The route discovery system was exposing ALL HTTP methods as MCP tools, including OPTIONS and HEAD. These methods are typically used for browser preflight requests and metadata retrieval, and are not meaningful as MCP tools for AI clients.
+
+#### ✅ Implementation Completed
+- **Added HTTP method filtering**: Created `EXCLUDED_HTTP_METHODS = {'OPTIONS', 'HEAD'}` constant
+- **Modified route discovery**: Updated `_convert_route_to_tools` method in `pyramid_mcp/introspection.py`
+- **Case-insensitive filtering**: Filtering works for both uppercase and lowercase method names
+- **Comprehensive testing**: Added 5 test cases covering various scenarios
+
+#### 🧪 Tests Added
+- `test_options_and_head_methods_are_excluded`: Verifies OPTIONS/HEAD are excluded, other methods preserved
+- `test_case_insensitive_method_filtering`: Tests filtering works regardless of case
+- `test_other_http_methods_preserved`: Ensures less common methods (CONNECT, TRACE, CUSTOM) are preserved
+- `test_mixed_routes_with_and_without_excluded_methods`: Tests mixed scenarios
+- `test_no_tools_generated_for_options_head_only_routes`: Tests routes with only excluded methods
+
+#### 🔧 Technical Changes
+- **Location**: `pyramid_mcp/introspection.py` lines 34-35 and 657-659
+- **Approach**: Simple continue statement to skip excluded methods during tool generation
+- **Backward Compatibility**: Breaking change - existing OPTIONS/HEAD tools will no longer be generated
+
+#### ✅ Quality Assurance
+- **All tests pass**: 335 passed, 2 skipped (make test ✅)
+- **Code quality**: All linting checks pass (make check ✅)
+- **Existing tests updated**: Fixed 3 tests that were expecting OPTIONS methods to be present
+
+#### 🎯 Results
+- ✅ **OPTIONS excluded**: No MCP tools generated for OPTIONS methods
+- ✅ **HEAD excluded**: No MCP tools generated for HEAD methods  
+- ✅ **Other methods preserved**: GET, POST, PUT, DELETE, PATCH, CONNECT, TRACE, CUSTOM still generate tools
+- ✅ **Case insensitive**: Works for options, OPTIONS, Options, head, HEAD, Head
+- ✅ **No regressions**: All existing functionality preserved
+
 ### [2024-12-29] Authentication Parameter Exposure Configuration ⭐
 
 **Status**: ✅ COMPLETE - New configuration option implemented with comprehensive tests

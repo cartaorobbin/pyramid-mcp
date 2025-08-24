@@ -31,6 +31,9 @@ from pyramid_mcp.security import BasicAuthSchema, BearerAuthSchema
 
 logger = logging.getLogger(__name__)
 
+# HTTP methods that should not be exposed as MCP tools
+EXCLUDED_HTTP_METHODS = {"OPTIONS", "HEAD"}
+
 
 class PyramidIntrospector:
     """Handles introspection of Pyramid applications to discover routes and views."""
@@ -651,6 +654,10 @@ class PyramidIntrospector:
 
         # Create MCP tool for each HTTP method
         for method, method_views in views_by_method.items():
+            # Skip OPTIONS and HEAD methods - they are not meaningful as MCP tools
+            if method.upper() in EXCLUDED_HTTP_METHODS:
+                continue
+
             # Use the first view for this method (most specific)
             view = method_views[0]
             view_callable = view.get("callable")

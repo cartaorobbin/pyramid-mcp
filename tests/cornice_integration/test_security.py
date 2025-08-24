@@ -130,7 +130,7 @@ def test_secure_endpoints_authentication_integration(
     tools = tools_response.json["result"]["tools"]
 
     # Get the secure POST tool by index (no conditional logic)
-    secure_post_tool = tools[2]  # create_secure_service
+    secure_post_tool = tools[1]  # create_secure_service (POST is now index 1, not 2)
 
     # Test with valid schema data
     call_response = app.post_json(
@@ -365,7 +365,7 @@ def test_cornice_service_schema_validation_with_security(
     tools = tools_response.json["result"]["tools"]
 
     # Get the secure POST tool by index (no conditional logic)
-    secure_post_tool = tools[2]  # create_secure_service
+    secure_post_tool = tools[1]  # create_secure_service (POST is now index 1, not 2)
 
     # Test with invalid schema data (missing required field)
     call_response = app.post_json(
@@ -409,7 +409,7 @@ def test_cornice_tool_input_schema_includes_security_fields(
     tools = tools_response.json["result"]["tools"]
 
     # Check secure POST tool has proper input schema (no conditional logic)
-    secure_post_tool = tools[2]  # create_secure_service
+    secure_post_tool = tools[1]  # create_secure_service (POST is now index 1, not 2)
     input_schema = secure_post_tool["inputSchema"]
     assert "type" in input_schema
     assert input_schema["type"] == "object"
