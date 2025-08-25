@@ -329,7 +329,14 @@ class PyramidIntrospector:
         Returns:
             Cornice service info if found, None otherwise
         """
-        for service_info in cornice_services:
+        # 🐛 FIX: Sort services by name length (descending) to prefer more
+        # specific matches
+        # This prevents "buggy_service" from matching "buggy_service_detail"
+        sorted_services = sorted(
+            cornice_services, key=lambda s: len(s.get("name", "")), reverse=True
+        )
+
+        for service_info in sorted_services:
             # Match by service name (Cornice often uses service name as route name)
             if service_info["name"] == route_name:
                 return service_info
@@ -338,8 +345,16 @@ class PyramidIntrospector:
             if service_info["path"] == route_pattern:
                 return service_info
 
+        # Second pass: Check prefix matching only if no exact matches found
+        for service_info in sorted_services:
             # Check if route name contains service name (common pattern)
-            if service_info["name"] and route_name.startswith(service_info["name"]):
+            # But only if it's not a substring of a longer service name we
+            # already checked
+            if (
+                service_info["name"]
+                and route_name.startswith(service_info["name"])
+                and service_info["name"] != route_name
+            ):  # Avoid duplicate exact matches
                 return service_info
 
         return None
@@ -412,6 +427,31 @@ class PyramidIntrospector:
                 )
 
             if method_matches or view_matches:
+                # 🔍 DEEP DEBUG: Special logging for workspace parts path
+                service_path = cornice_service.get("path", "")
+                if (
+                    "/api/v1/workspaces/parts" in service_path
+                    or "workspace" in service_path.lower()
+                ):
+                    logger.info(
+                        f"🔍 WORKSPACE PARTS DEBUG - Service path: {service_path}"
+                    )
+                    logger.info(
+                        f"   Service name: {cornice_service.get('name', 'N/A')}"
+                    )
+                    logger.info(f"   Method: {method}")
+                    logger.info(f"   View callable: {view}")
+                    logger.info(
+                        f"   View callable name: {getattr(view, '__name__', 'N/A')}"
+                    )
+                    logger.info(f"   Method matches: {method_matches}")
+                    logger.info(f"   View matches: {view_matches}")
+                    logger.info(f"   Args keys: {list(args.keys())}")
+                    logger.info(f"   Schema in args: {args.get('schema')}")
+                    logger.info(f"   Schema type: {type(args.get('schema'))}")
+                    logger.info(f"   Validators in args: {args.get('validators', [])}")
+                    logger.info(f"   Full args: {args}")
+
                 method_metadata = {
                     "method": method,
                     "validators": args.get("validators", []),
@@ -658,8 +698,22 @@ class PyramidIntrospector:
             if method.upper() in EXCLUDED_HTTP_METHODS:
                 continue
 
-            # Use the first view for this method (most specific)
-            view = method_views[0]
+            # 🐛 FIX: Find the view that matches this specific route pattern
+            # Instead of just using the first view, find the one that belongs
+            # to this route
+            view = None
+            for candidate_view in method_views:
+                # Check if this view belongs to the current route by comparing
+                # route names
+                candidate_route_name = candidate_view.get("route_name", "")
+                if candidate_route_name == route_name:
+                    view = candidate_view
+                    break
+
+            # Fallback to first view if no exact match found (backward compatibility)
+            if view is None:
+                view = method_views[0]
+
             view_callable = view.get("callable")
 
             if not view_callable:
@@ -853,6 +907,7 @@ class PyramidIntrospector:
         # Check for Marshmallow schema in Cornice metadata first
         if view_info and "cornice_metadata" in view_info:
             cornice_metadata = view_info["cornice_metadata"]
+
             method_specific = cornice_metadata.get("method_specific", {})
 
             # Look for schema in method-specific metadata
@@ -864,8 +919,23 @@ class PyramidIntrospector:
                     # Extract Marshmallow schema information and return it directly
                     schema_info = self._extract_marshmallow_schema_info(schema)
                     if schema_info:
-                        # Return Marshmallow schema directly instead of HTTP structure
+                        # Return Marshmallow schema directly instead of HTTP
+                        # structure
                         return schema_info
+                    else:
+                        logger.warning(
+                            f"Schema extraction returned empty result for "
+                            f"{method} {pattern}"
+                        )
+                else:
+                    logger.debug(
+                        f"No schema found in method info for {method} {pattern}"
+                    )
+            else:
+                logger.debug(
+                    f"Method {method.upper()} not found in method_specific "
+                    f"for {pattern}"
+                )
 
         # Extract path parameters from route pattern
         path_params = re.findall(r"\{([^}]+)\}", pattern)
@@ -1375,9 +1445,17 @@ class PyramidIntrospector:
         Returns:
             Dictionary containing schema field information for MCP
         """
-        # Use completely isolated introspection to prevent global state pollution
-        result = _safe_nested_schema_introspection(schema)
-        return result if isinstance(result, dict) else {}
+        # Use completely isolated introspection to prevent global state
+        # pollution
+        try:
+            result = _safe_nested_schema_introspection(schema)
+            return result
+        except Exception as e:
+            logger.error(f"   ❌ Exception in _extract_marshmallow_schema_info: {e}")
+            import traceback
+
+            logger.error(f"   Traceback: {traceback.format_exc()}")
+            return {}
 
     def _get_nested_schema_class_safely(self, nested_field: Any) -> Optional[type]:
         """Get the schema class from a Nested field WITHOUT triggering instances.

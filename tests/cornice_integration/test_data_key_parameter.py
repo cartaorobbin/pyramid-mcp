@@ -520,39 +520,48 @@ def test_querystring_field_with_marshmallow_validator(pyramid_app_with_services)
     input_schema = qs_field_tool["inputSchema"]
     properties = input_schema["properties"]
 
-    # ASSERT: Nested schemas are flattened, parameters use data_key names
+    # ASSERT: Nested schemas preserve structure, querystring contains the parameters
+    assert "querystring" in properties, "Should have querystring field"
+    querystring_props = properties["querystring"]["properties"]
+
+    # ASSERT: Parameters use data_key names within nested structure
     assert (
-        "legalEntityId" in properties
+        "legalEntityId" in querystring_props
     ), "Should use data_key 'legalEntityId', not 'legal_entity_id'"
     assert (
-        "pageNumber" in properties
+        "pageNumber" in querystring_props
     ), "Should use data_key 'pageNumber', not 'page_number'"
-    assert "pageSize" in properties, "Should use data_key 'pageSize', not 'page_size'"
     assert (
-        "status" in properties
+        "pageSize" in querystring_props
+    ), "Should use data_key 'pageSize', not 'page_size'"
+    assert (
+        "status" in querystring_props
     ), "Field without data_key should use Python name 'status'"
 
-    # ASSERT: Python field names should NOT be in the schema
+    # ASSERT: Python field names should NOT be in the nested schema
     assert (
-        "legal_entity_id" not in properties
+        "legal_entity_id" not in querystring_props
     ), "Python name should not appear when data_key exists"
     assert (
-        "page_number" not in properties
+        "page_number" not in querystring_props
     ), "Python name should not appear when data_key exists"
     assert (
-        "page_size" not in properties
+        "page_size" not in querystring_props
     ), "Python name should not appear when data_key exists"
 
     # ASSERT: Verify the parameter types and descriptions are correct
-    assert properties["legalEntityId"]["type"] == "string"
+    assert querystring_props["legalEntityId"]["type"] == "string"
     assert (
-        properties["legalEntityId"]["description"] == "Legal entity UUID for filtering"
+        querystring_props["legalEntityId"]["description"]
+        == "Legal entity UUID for filtering"
     )
 
-    assert properties["pageNumber"]["type"] == "integer"
-    assert properties["pageNumber"]["default"] == 1
-    assert properties["pageNumber"]["description"] == "Page number for pagination"
+    assert querystring_props["pageNumber"]["type"] == "integer"
+    assert querystring_props["pageNumber"]["default"] == 1
+    assert (
+        querystring_props["pageNumber"]["description"] == "Page number for pagination"
+    )
 
-    assert properties["pageSize"]["type"] == "integer"
-    assert properties["pageSize"]["default"] == 20
-    assert properties["pageSize"]["description"] == "Number of items per page"
+    assert querystring_props["pageSize"]["type"] == "integer"
+    assert querystring_props["pageSize"]["default"] == 20
+    assert querystring_props["pageSize"]["description"] == "Number of items per page"
