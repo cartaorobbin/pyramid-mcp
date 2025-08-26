@@ -7,31 +7,31 @@ and HEAD HTTP methods while preserving all other HTTP methods.
 
 
 # Define view functions for different HTTP methods
-def test_view_get(request):
+def view_get(request):
     return {"method": "GET"}
 
 
-def test_view_post(request):
+def view_post(request):
     return {"method": "POST"}
 
 
-def test_view_put(request):
+def view_put(request):
     return {"method": "PUT"}
 
 
-def test_view_delete(request):
+def view_delete(request):
     return {"method": "DELETE"}
 
 
-def test_view_patch(request):
+def view_patch(request):
     return {"method": "PATCH"}
 
 
-def test_view_options(request):
+def view_options(request):
     return {"method": "OPTIONS"}
 
 
-def test_view_head(request):
+def view_head(request):
     return {"method": "HEAD"}
 
 
@@ -46,37 +46,37 @@ def test_options_and_head_methods_are_excluded(pyramid_app):
     # Use unique route names to avoid conflicts
     views = [
         (
-            test_view_get,
+            view_get,
             "multi_method_route_get",
             {"request_method": "GET", "renderer": "json"},
         ),
         (
-            test_view_post,
+            view_post,
             "multi_method_route_post",
             {"request_method": "POST", "renderer": "json"},
         ),
         (
-            test_view_put,
+            view_put,
             "multi_method_route_put",
             {"request_method": "PUT", "renderer": "json"},
         ),
         (
-            test_view_delete,
+            view_delete,
             "multi_method_route_delete",
             {"request_method": "DELETE", "renderer": "json"},
         ),
         (
-            test_view_patch,
+            view_patch,
             "multi_method_route_patch",
             {"request_method": "PATCH", "renderer": "json"},
         ),
         (
-            test_view_options,
+            view_options,
             "multi_method_route_options",
             {"request_method": "OPTIONS", "renderer": "json"},
         ),
         (
-            test_view_head,
+            view_head,
             "multi_method_route_head",
             {"request_method": "HEAD", "renderer": "json"},
         ),
@@ -122,28 +122,28 @@ def test_case_insensitive_method_filtering(pyramid_app):
         "mcp.server_name": "test-case-insensitive",
     }
 
-    def test_view(request):
+    def my_view(request):
         return {"method": "test"}
 
     # Add views with different case variations - use unique route names
     views = [
         (
-            test_view,
+            my_view,
             "case_test_route_options",
             {"request_method": "options", "renderer": "json"},
         ),  # lowercase
         (
-            test_view,
+            my_view,
             "case_test_route_head",
             {"request_method": "HEAD", "renderer": "json"},
         ),  # uppercase
         (
-            test_view,
+            my_view,
             "case_test_route_options2",
             {"request_method": "Options", "renderer": "json"},
         ),  # mixed case
         (
-            test_view,
+            my_view,
             "case_test_route_get",
             {"request_method": "get", "renderer": "json"},
         ),  # lowercase GET (should be included)
@@ -182,23 +182,23 @@ def test_other_http_methods_preserved(pyramid_app):
         "mcp.server_name": "test-extended-methods",
     }
 
-    def test_view(request):
+    def my_view(request):
         return {"method": "test"}
 
     # Add views for extended HTTP methods - use unique route names
     views = [
         (
-            test_view,
+            my_view,
             "extended_methods_route_connect",
             {"request_method": "CONNECT", "renderer": "json"},
         ),
         (
-            test_view,
+            my_view,
             "extended_methods_route_trace",
             {"request_method": "TRACE", "renderer": "json"},
         ),
         (
-            test_view,
+            my_view,
             "extended_methods_route_custom",
             {"request_method": "CUSTOM", "renderer": "json"},
         ),  # Custom method
@@ -235,10 +235,10 @@ def test_mixed_routes_with_and_without_excluded_methods(pyramid_app):
         "mcp.server_name": "test-mixed-routes",
     }
 
-    def view_with_excluded(request):
+    def my_with_excluded(request):
         return {"type": "with_excluded"}
 
-    def view_without_excluded(request):
+    def my_without_excluded(request):
         return {"type": "without_excluded"}
 
     # Route 1: Has OPTIONS and HEAD methods
@@ -246,27 +246,27 @@ def test_mixed_routes_with_and_without_excluded_methods(pyramid_app):
     # Use unique route names to avoid conflicts
     views = [
         (
-            view_with_excluded,
+            my_with_excluded,
             "route_with_excluded_get",
             {"request_method": "GET", "renderer": "json"},
         ),
         (
-            view_with_excluded,
+            my_with_excluded,
             "route_with_excluded_options",
             {"request_method": "OPTIONS", "renderer": "json"},
         ),
         (
-            view_with_excluded,
+            my_with_excluded,
             "route_with_excluded_head",
             {"request_method": "HEAD", "renderer": "json"},
         ),
         (
-            view_without_excluded,
+            my_without_excluded,
             "route_without_excluded_get",
             {"request_method": "GET", "renderer": "json"},
         ),
         (
-            view_without_excluded,
+            my_without_excluded,
             "route_without_excluded_post",
             {"request_method": "POST", "renderer": "json"},
         ),

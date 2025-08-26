@@ -265,10 +265,13 @@ def test_bearer_auth_with_valid_token_grants_access(pyramid_app_with_services):
 
     assert call_response_with_auth.status_code == 200
     # Verify successful authentication and expected response content
-    expected_response = (
-        "{'message': 'Bearer auth endpoint', 'has_auth': True, 'auth_type': 'bearer'}"
-    )
-    actual_response = call_response_with_auth.json["result"]["content"][0]["text"]
+    expected_response = {
+        "message": "Bearer auth endpoint",
+        "has_auth": True,
+        "auth_type": "bearer",
+    }
+    # breakpoint()
+    actual_response = call_response_with_auth.json["result"]["content"][0]["data"]
     assert actual_response == expected_response
 
 
@@ -342,10 +345,12 @@ def test_expose_auth_as_params_disabled_uses_header_auth(pyramid_app_with_servic
 
     assert call_response_with_auth.status_code == 200
     # Verify successful authentication via header and expected response content
-    expected_response = (
-        "{'message': 'Bearer auth endpoint', 'has_auth': True, 'auth_type': 'bearer'}"
-    )
-    actual_response = call_response_with_auth.json["result"]["content"][0]["text"]
+    expected_response = {
+        "message": "Bearer auth endpoint",
+        "has_auth": True,
+        "auth_type": "bearer",
+    }
+    actual_response = call_response_with_auth.json["result"]["content"][0]["data"]
     assert actual_response == expected_response
 
 

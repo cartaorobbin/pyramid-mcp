@@ -7,9 +7,42 @@ of HTTP requests with path parameters, query parameters, request body, and heade
 """
 
 from typing import Any, Dict, Optional
+from uuid import UUID
 
 import marshmallow.fields as fields
 from marshmallow import Schema, missing, pre_dump, validate
+
+
+class JSONSerializableField(fields.Raw):
+    """Custom field that handles JSON serialization of special objects like UUID."""
+
+    def _serialize(self, value: Any, attr: str | None, obj: Any, **kwargs: Any) -> Any:
+        """Serialize value, converting UUID and other special objects to strings."""
+        if isinstance(value, UUID):
+            return str(value)
+        elif isinstance(value, dict):
+            # Recursively handle nested dictionaries that might contain UUIDs
+            return self._serialize_dict(value)
+        elif isinstance(value, (list, tuple)):
+            # Handle lists that might contain UUIDs
+            return [self._serialize(item, attr, obj, **kwargs) for item in value]
+        return value
+
+    def _serialize_dict(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Recursively serialize dictionary values, converting UUIDs to strings."""
+        result: Dict[str, Any] = {}
+        for key, value in data.items():
+            if isinstance(value, UUID):
+                result[key] = str(value)
+            elif isinstance(value, dict):
+                result[key] = self._serialize_dict(value)
+            elif isinstance(value, (list, tuple)):
+                result[key] = [
+                    str(item) if isinstance(item, UUID) else item for item in value
+                ]
+            else:
+                result[key] = value
+        return result
 
 
 class PathParameterSchema(Schema):
@@ -354,7 +387,7 @@ class MCPContentItemSchema(Schema):
         allow_none=True,
         metadata={"description": "Text content for type=text"},
     )
-    data = fields.Raw(
+    data = JSONSerializableField(
         allow_none=True,
         metadata={"description": "Raw data content for other types"},
     )
@@ -375,7 +408,7 @@ class MCPContentItemSchema(Schema):
             # For dict content, provide both text representation and raw data
             return {
                 "type": "text",
-                "text": str(obj),
+                "text": "IMPORTANT: All that is at data key.",
                 "data": obj,
             }
         else:
@@ -393,7 +426,7 @@ class MCPRepresentationSchema(Schema):
         required=True,
         metadata={"description": "Data format (e.g., 'raw_json', 'text', 'xml')"},
     )
-    content = fields.Raw(
+    content = JSONSerializableField(
         required=True, metadata={"description": "The actual data content"}
     )
     encoding = fields.Str(
