@@ -919,7 +919,32 @@ class PyramidIntrospector:
                     # Extract Marshmallow schema and structure it properly
                     schema_info = self._extract_marshmallow_schema_info(schema)
                     if schema_info:
-                        # Create structured HTTP schema based on method
+                        # Check if schema has explicit structure fields
+                        schema_properties = schema_info.get("properties", {})
+                        has_explicit_structure = any(
+                            field in schema_properties
+                            for field in ["path", "querystring", "body"]
+                        )
+
+                        if has_explicit_structure:
+                            # Schema has explicit structure - use it directly
+                            result: Dict[str, Any] = {
+                                "type": "object",
+                                "properties": {},
+                                "required": [],
+                                "additionalProperties": False,
+                            }
+
+                            # Copy explicit structure fields to their proper places
+                            for field_name in ["path", "querystring", "body"]:
+                                if field_name in schema_properties:
+                                    result["properties"][
+                                        field_name
+                                    ] = schema_properties[field_name]
+
+                            return result
+
+                        # Schema lacks explicit structure - apply defaults
                         if method.upper() in ["GET", "DELETE"]:
                             # GET/DELETE typically use query parameters
                             return {

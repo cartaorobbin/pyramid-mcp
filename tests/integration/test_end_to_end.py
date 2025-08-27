@@ -105,7 +105,7 @@ def test_auto_discovered_tools_call_real_views(end_to_end_test_config):
         "method": "tools/call",
         "params": {
             "name": "manual_calculator",
-            "arguments": {"operation": "add", "a": 10, "b": 5},
+            "arguments": {"body": {"operation": "add", "a": 10, "b": 5}},
         },
     }
 
@@ -307,7 +307,7 @@ def test_complete_pyramid_mcp_workflow(workflow_test_config):
             "method": "tools/call",
             "params": {
                 "name": "workflow_calculator",
-                "arguments": {"operation": "sum", "values": [1, 2, 3, 4, 5]},
+                "arguments": {"body": {"operation": "sum", "values": [1, 2, 3, 4, 5]}},
             },
             "id": 3,
         }
@@ -315,25 +315,16 @@ def test_complete_pyramid_mcp_workflow(workflow_test_config):
         calc_response = app.post_json("/mcp", calc_request)
         assert calc_response.status_code == 200
 
-        # Handle MCP response format
+        # Expect MCP context format
         calc_data = calc_response.json["result"]
-        if "content" in calc_data:
-            content_item = calc_data["content"][0]
-            if "data" in content_item and "result" in content_item["data"]:
-                calc_result = content_item["data"]["result"]
-            elif "text" in content_item:
-                calc_result = content_item["text"]
-            else:
-                calc_result = str(content_item)
-        else:
-            calc_result = str(calc_data)
+        assert calc_data["type"] == "mcp/context"
+        assert "representation" in calc_data
 
-        # Handle both success and error cases (sum of 1+2+3+4+5 = 15)
-        is_success = "15" in calc_result
-        is_error_handled = "error" in calc_result.lower()
-        assert (
-            is_success or is_error_handled
-        ), f"Expected success or handled error, got: {calc_result}"
+        # Extract result from representation
+        calc_result = calc_data["representation"]["content"]
+
+        # Should contain the sum result (1+2+3+4+5 = 15)
+        assert "15" in str(calc_result)
 
     elif "calculate" in tool_names:
         # Use the existing calculate tool from fixtures
@@ -342,7 +333,7 @@ def test_complete_pyramid_mcp_workflow(workflow_test_config):
             "method": "tools/call",
             "params": {
                 "name": "calculate",
-                "arguments": {"operation": "add", "a": 10, "b": 5},
+                "arguments": {"body": {"operation": "add", "a": 10, "b": 5}},
             },
             "id": 3,
         }
@@ -350,26 +341,16 @@ def test_complete_pyramid_mcp_workflow(workflow_test_config):
         calc_response = app.post_json("/mcp", calc_request)
         assert calc_response.status_code == 200
 
-        # Handle MCP response format
+        # Expect MCP context format
         calc_data = calc_response.json["result"]
-        if "content" in calc_data:
-            content_item = calc_data["content"][0]
-            if "data" in content_item and "result" in content_item["data"]:
-                calc_result = content_item["data"]["result"]
-            elif "text" in content_item:
-                calc_result = content_item["text"]
-            else:
-                calc_result = str(content_item)
-        else:
-            calc_result = str(calc_data)
+        assert calc_data["type"] == "mcp/context"
+        assert "representation" in calc_data
 
-        # Handle both success and error cases (tool may return 15 or 105
-        # depending on implementation)
-        is_success = "15" in calc_result or "105" in calc_result
-        is_error_handled = "error" in calc_result.lower()
-        assert (
-            is_success or is_error_handled
-        ), f"Expected success or handled error, got: {calc_result}"
+        # Extract result from representation
+        calc_result = calc_data["representation"]["content"]
+
+        # Should contain the calculation result (10 + 5 = 15)
+        assert "15" in str(calc_result)
 
     # 5. Test text processor or available tool
     if "text_processor" in tool_names:
@@ -378,7 +359,7 @@ def test_complete_pyramid_mcp_workflow(workflow_test_config):
             "method": "tools/call",
             "params": {
                 "name": "text_processor",
-                "arguments": {"action": "upper", "text": "hello world"},
+                "arguments": {"body": {"action": "upper", "text": "hello world"}},
             },
             "id": 4,
         }
@@ -420,7 +401,7 @@ def test_complete_pyramid_mcp_workflow(workflow_test_config):
             "method": "tools/call",
             "params": {
                 "name": "calculate",
-                "arguments": {"operation": "invalid", "a": 1, "b": 2},
+                "arguments": {"body": {"operation": "invalid", "a": 1, "b": 2}},
             },
             "id": 5,
         }
@@ -476,7 +457,7 @@ def test_multi_step_integration_scenario(multi_step_test_config):
             "method": "tools/call",
             "params": {
                 "name": "data_analyzer",
-                "arguments": {"data_type": "numbers", "analysis": "validate"},
+                "arguments": {"body": {"data_type": "numbers", "analysis": "validate"}},
             },
             "id": 3,
         },
@@ -505,7 +486,7 @@ def test_multi_step_integration_scenario(multi_step_test_config):
             "method": "tools/call",
             "params": {
                 "name": "data_analyzer",
-                "arguments": {"data_type": "letters", "analysis": "describe"},
+                "arguments": {"body": {"data_type": "letters", "analysis": "describe"}},
             },
             "id": 4,
         },
@@ -535,7 +516,7 @@ def test_multi_step_integration_scenario(multi_step_test_config):
             "method": "tools/call",
             "params": {
                 "name": "manual_calculator",
-                "arguments": {"operation": "multiply", "a": 6, "b": 7},
+                "arguments": {"body": {"operation": "multiply", "a": 6, "b": 7}},
             },
             "id": 5,
         },
@@ -655,7 +636,7 @@ def test_dynamic_tool_registration_workflow(dynamic_test_config):
             "method": "tools/call",
             "params": {
                 "name": "dynamic_counter",
-                "arguments": {"operation": "add", "value": 5},
+                "arguments": {"body": {"operation": "add", "value": 5}},
             },
             "id": 3,
         },
@@ -683,7 +664,7 @@ def test_dynamic_tool_registration_workflow(dynamic_test_config):
             "method": "tools/call",
             "params": {
                 "name": "dynamic_counter",
-                "arguments": {"operation": "add", "value": 3},
+                "arguments": {"body": {"operation": "add", "value": 3}},
             },
             "id": 4,
         },
@@ -698,30 +679,23 @@ def test_dynamic_tool_registration_workflow(dynamic_test_config):
             "method": "tools/call",
             "params": {
                 "name": "counter_reporter",
-                "arguments": {"report_type": "summary"},
+                "arguments": {"body": {"report_type": "summary"}},
             },
             "id": 5,
         },
     )
     assert reporter_response.status_code == 200
 
-    # Handle response format for reporter tool
+    # Expect MCP context format
     reporter_data = reporter_response.json["result"]
-    if "content" in reporter_data:
-        content_item = reporter_data["content"][0]
-        if "data" in content_item and "result" in content_item["data"]:
-            summary_result = content_item["data"]["result"]
-        else:
-            summary_result = str(content_item)
-    else:
-        summary_result = str(reporter_data)
+    assert reporter_data["type"] == "mcp/context"
+    assert "representation" in reporter_data
 
-    # Test that the reporter shows the counter state (handle both success and error)
-    is_success = "Counter is at" in summary_result or "operations" in summary_result
-    is_error_handled = "error" in summary_result.lower()
-    assert (
-        is_success or is_error_handled
-    ), f"Expected success or handled error, got: {summary_result}"
+    # Extract result from representation
+    summary_result = reporter_data["representation"]["content"]
+
+    # Should show counter operations
+    assert "operations" in str(summary_result)
 
     # ✅ Dynamic tool registration workflow completed successfully!
     #
@@ -793,7 +767,7 @@ def test_performance_and_concurrency_simulation(pyramid_app):
             "method": "tools/call",
             "params": {
                 "name": "performance_test",
-                "arguments": {"iterations": 50, "operation": "compute"},
+                "arguments": {"body": {"iterations": 50, "operation": "compute"}},
             },
             "id": i + 1,
         }

@@ -94,7 +94,7 @@ def test_mcp_call_tool_calculation(integration_app):
         "method": "tools/call",
         "params": {
             "name": "calculate",
-            "arguments": {"operation": "add", "a": 10, "b": 5},
+            "arguments": {"body": {"operation": "add", "a": 10, "b": 5}},
         },
         "id": 3,
     }
@@ -191,7 +191,7 @@ def test_mcp_tool_validation_error(integration_app):
         "method": "tools/call",
         "params": {
             "name": "calculate",
-            "arguments": {"operation": "invalid_operation", "a": 10, "b": 5},
+            "arguments": {"body": {"operation": "invalid_operation", "a": 10, "b": 5}},
         },
         "id": 6,
     }
@@ -476,7 +476,10 @@ def test_route_discovery_end_to_end():
         "jsonrpc": "2.0",
         "id": 3,
         "method": "tools/call",
-        "params": {"name": "manual_integration_tool", "arguments": {"text": "test"}},
+        "params": {
+            "name": "manual_integration_tool",
+            "arguments": {"body": {"text": "test"}},
+        },
     }
 
     response = app.post_json("/mcp", mcp_call_request)  # type: ignore

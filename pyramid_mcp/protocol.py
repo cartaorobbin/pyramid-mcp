@@ -693,40 +693,30 @@ class MCPProtocolHandler:
         if hasattr(tool, "_internal_route_method") and tool._internal_route_method:
             method = tool._internal_route_method
 
-        # Extract path parameters from route pattern
-        path_params = re.findall(r"\{([^}]+)\}", route_pattern)
-        path_param_names = [param.split(":")[0] for param in path_params]
+        # Note: Path parameters are now handled by structured parameter format
 
         # Extract parameters from structured objects (path, querystring, body)
         path_values = {}
-        remaining_args = {}
-
-        args_copy = tool_args.copy()
+        querystring_args = {}
+        body_args = {}
 
         # Handle structured path parameter object
-        if "path" in args_copy:
-            path_obj = args_copy.pop("path")
+        if "path" in tool_args:
+            path_obj = tool_args["path"]
             if isinstance(path_obj, dict):
                 path_values.update(path_obj)
 
         # Handle structured querystring parameter object
-        if "querystring" in args_copy:
-            querystring_obj = args_copy.pop("querystring")
+        if "querystring" in tool_args:
+            querystring_obj = tool_args["querystring"]
             if isinstance(querystring_obj, dict):
-                remaining_args.update(querystring_obj)
+                querystring_args.update(querystring_obj)
 
         # Handle structured body parameter object
-        if "body" in args_copy:
-            body_obj = args_copy.pop("body")
+        if "body" in tool_args:
+            body_obj = tool_args["body"]
             if isinstance(body_obj, dict):
-                remaining_args.update(body_obj)
-
-        # Handle any remaining top-level parameters (for backward compatibility)
-        for key, value in args_copy.items():
-            if key in path_param_names:
-                path_values[key] = value
-            else:
-                remaining_args[key] = value
+                body_args.update(body_obj)
 
         # Build the actual URL by replacing path parameters in the pattern
         tool_url = route_pattern
@@ -741,18 +731,14 @@ class MCPProtocolHandler:
             )
             logger.debug(f"🔧 DEBUG: Replaced {param_name}: '{old_url}' -> '{tool_url}'")
 
-        # Handle remaining parameters based on HTTP method
-        if method.upper() in ["POST", "PUT", "PATCH"]:
-            # For POST/PUT/PATCH, put remaining args in body
-            body_data = remaining_args
-            query_params: Dict[str, str] = {}
-        else:
-            # For GET/DELETE, use remaining args as query parameters
-            body_data = {}
-            query_params = {}
-            for key, value in remaining_args.items():
-                if isinstance(value, (str, int, float, bool)):
-                    query_params[key] = str(value)
+        # Handle parameters based on their structured location
+        body_data = body_args.copy()
+        query_params: Dict[str, str] = {}
+
+        # Add querystring parameters to query params
+        for key, value in querystring_args.items():
+            if isinstance(value, (str, int, float, bool)):
+                query_params[key] = str(value)
 
         # Add query parameters to URL if any
         if query_params:

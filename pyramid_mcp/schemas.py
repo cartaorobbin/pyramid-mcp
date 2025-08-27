@@ -197,10 +197,26 @@ def _get_nested_schema_class_safely(nested_field: Any) -> Optional[type]:
     # CRITICAL: The 'nested' attribute contains the schema class without instances
     if hasattr(nested_field, "nested"):
         schema_attr = nested_field.nested
+
         if isinstance(schema_attr, type) and issubclass(
             schema_attr, marshmallow.Schema
         ):
             return schema_attr
+
+        # Handle lambda functions: call them to get the schema class
+        if callable(schema_attr):
+            try:
+                schema_class = schema_attr()
+                if isinstance(schema_class, type) and issubclass(
+                    schema_class, marshmallow.Schema
+                ):
+                    return schema_class
+                elif isinstance(schema_class, marshmallow.Schema):
+                    # If it returns an instance, get the class
+                    return schema_class.__class__
+            except Exception:
+                # If calling the lambda fails, continue to fallback methods
+                pass
 
     # Fallback: Check other possible attribute names
     for attr_name in ["_schema", "schema_class", "_schema_class", "_nested"]:

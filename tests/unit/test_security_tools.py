@@ -131,7 +131,7 @@ def test_tool_decorator_execution_via_mcp(pyramid_app):
             "id": 2,
             "params": {
                 "name": "decorator_verification_tool",
-                "arguments": {"message": "test_message"},
+                "arguments": {"body": {"message": "test_message"}},
             },
         },
     )

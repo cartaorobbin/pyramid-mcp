@@ -133,7 +133,7 @@ def test_mcp_calls_protected_route_with_jwt_succeeds(auth_test_config, valid_jwt
             "params": {
                 "name": "get_protected_user",
                 "arguments": {
-                    "id": 1,
+                    "body": {"id": 1},
                     "auth": {
                         "auth_token": valid_jwt_token
                     },  # Auth passed as tool argument

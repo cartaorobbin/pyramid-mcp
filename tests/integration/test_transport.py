@@ -204,7 +204,7 @@ def test_stdio_transport_call_tool_success():
         "method": "tools/call",
         "params": {
             "name": "secure_calculator",  # This tool is available in secure example
-            "arguments": {"operation": "add", "a": 5, "b": 3},
+            "arguments": {"body": {"operation": "add", "a": 5, "b": 3}},
         },
     }
 
@@ -259,7 +259,7 @@ def test_stdio_transport_call_tool_auth_required():
         "method": "tools/call",
         "params": {
             "name": "get_secure_calculator",  # This tool should require auth
-            "arguments": {"operation": "add", "a": 5, "b": 3},
+            "arguments": {"body": {"operation": "add", "a": 5, "b": 3}},
         },
     }
 
