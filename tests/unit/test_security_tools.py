@@ -201,7 +201,7 @@ def test_tool_decorator_with_permissions(pyramid_app):
             "id": 3,
             "params": {
                 "name": "decorator_secure_data",
-                "arguments": {"data_id": 1, "auth_token": "valid_jwt_token"},
+                "arguments": {"data_id": 1, "auth": {"auth_token": "valid_jwt_token"}},
             },
         },
     )
@@ -238,20 +238,31 @@ def test_unified_security_architecture_tool_input_schemas(pyramid_app):
     tools = tools_response.json["result"]["tools"]
     tools_by_name = {tool["name"]: tool for tool in tools}
 
-    # Check secure tool has auth_token in input schema
+    # Check secure tool has auth_token in input schema under auth object
     secure_tool = tools_by_name.get("decorator_secure_data")
     assert secure_tool is not None
     input_schema = secure_tool["inputSchema"]
-    assert "auth_token" in input_schema["properties"]
-    assert "auth_token" in input_schema["required"]
-    assert "data_id" in input_schema["properties"]  # Original parameter preserved
 
-    # Check public tool doesn't have auth_token in input schema
+    # Auth parameters should be under auth object
+    assert "auth" in input_schema["properties"]
+    auth_props = input_schema["properties"]["auth"]["properties"]
+    assert "auth_token" in auth_props  # Auth token under auth object
+
+    # POST request parameters should be under body
+    assert "body" in input_schema["properties"]
+    body_props = input_schema["properties"]["body"]["properties"]
+    assert "data_id" in body_props  # Original parameter preserved in body
+
+    # Check public tool doesn't have auth object in input schema
     public_tool = tools_by_name.get("decorator_public_info")
     assert public_tool is not None
     input_schema = public_tool["inputSchema"]
-    assert "auth_token" not in input_schema.get("properties", {})
-    assert "info_id" in input_schema["properties"]  # Original parameter preserved
+    assert "auth" not in input_schema.get("properties", {})
+
+    # POST request parameters should be under body
+    assert "body" in input_schema["properties"]
+    body_props = input_schema["properties"]["body"]["properties"]
+    assert "info_id" in body_props  # Original parameter preserved in body
 
 
 def test_tool_security_parameter_integration():

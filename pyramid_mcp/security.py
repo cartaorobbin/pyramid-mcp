@@ -133,15 +133,18 @@ def merge_auth_into_schema(
         # Generate JSON schema from the auth schema
         auth_json_schema = create_json_schema_from_marshmallow(security.__class__)
 
-        # Merge authentication properties into the base schema
+        # Wrap authentication properties in an 'auth' object for consistency
         if "properties" in auth_json_schema:
-            merged_schema["properties"].update(auth_json_schema["properties"])
+            merged_schema["properties"]["auth"] = {
+                "type": "object",
+                "properties": auth_json_schema["properties"],
+                "required": auth_json_schema.get("required", []),
+                "additionalProperties": False,
+                "description": "Authentication parameters",
+            }
 
-        # Merge required fields
-        if "required" in auth_json_schema:
-            for field in auth_json_schema["required"]:
-                if field not in merged_schema["required"]:
-                    merged_schema["required"].append(field)
+        # No required fields at top level - auth object itself is not required
+        # (some tools might work without auth)
 
     return merged_schema
 
@@ -163,7 +166,7 @@ def extract_auth_credentials(
         Dictionary with extracted authentication credentials
 
     Example:
-        args = {"data": "hello", "auth_token": "abc123"}
+        args = {"data": "hello", "auth": {"auth_token": "abc123"}}
         auth = BearerAuthSchema()
         result = extract_auth_credentials(args, auth)
         # result = {"bearer_token": "abc123"}
@@ -173,14 +176,19 @@ def extract_auth_credentials(
 
     credentials = {}
 
+    # Extract auth object from tool arguments
+    auth_obj = tool_args.get("auth", {})
+    if not isinstance(auth_obj, dict):
+        return {}
+
     if isinstance(security, BearerAuthSchema):
-        token = tool_args.get("auth_token")
+        token = auth_obj.get("auth_token")
         if token:
             credentials["bearer_token"] = token
 
     elif isinstance(security, BasicAuthSchema):
-        username = tool_args.get("username")
-        password = tool_args.get("password")
+        username = auth_obj.get("username")
+        password = auth_obj.get("password")
         if username and password:
             credentials["username"] = username
             credentials["password"] = password
@@ -343,7 +351,7 @@ def remove_auth_from_tool_args(
         New dictionary with authentication parameters removed
 
     Example:
-        args = {"data": "hello", "auth_token": "abc123"}
+        args = {"data": "hello", "auth": {"auth_token": "abc123"}}
         auth = BearerAuthSchema()
         clean_args = remove_auth_from_tool_args(args, auth)
         # clean_args = {"data": "hello"}
@@ -351,14 +359,8 @@ def remove_auth_from_tool_args(
     if not security:
         return tool_args
 
-    # Create a copy and remove auth parameters
+    # Create a copy and remove the entire auth object
     clean_args = tool_args.copy()
-
-    if isinstance(security, BearerAuthSchema):
-        clean_args.pop("auth_token", None)
-
-    elif isinstance(security, BasicAuthSchema):
-        clean_args.pop("username", None)
-        clean_args.pop("password", None)
+    clean_args.pop("auth", None)
 
     return clean_args

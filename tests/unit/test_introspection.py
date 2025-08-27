@@ -256,8 +256,9 @@ def test_input_schema_generation():
     assert tool.input_schema is not None
     assert "properties" in tool.input_schema
 
-    # Should include route parameter
-    assert "id" in tool.input_schema["properties"]
+    # Should include route parameter under path object
+    assert "path" in tool.input_schema["properties"]
+    assert "id" in tool.input_schema["properties"]["path"]["properties"]
 
 
 def test_input_schema_with_annotations():
@@ -303,8 +304,12 @@ def test_input_schema_complex_types():
         properties = tool.input_schema["properties"]
         expected_params = ["version", "user_id", "post_id"]
 
-    for param in expected_params:
-        assert param in properties
+        # Parameters should be under path object
+        assert "path" in properties
+        path_properties = properties["path"]["properties"]
+
+        for param in expected_params:
+            assert param in path_properties
 
 
 # =============================================================================
@@ -546,7 +551,10 @@ def test_tool_handler_with_parameters():
     # Tool should have handler and input schema
     assert tool.handler is not None
     assert tool.input_schema is not None
-    assert "id" in tool.input_schema["properties"]
+
+    # Path parameter should be under path object
+    assert "path" in tool.input_schema["properties"]
+    assert "id" in tool.input_schema["properties"]["path"]["properties"]
 
 
 # =============================================================================
@@ -827,8 +835,12 @@ def test_integration_with_complex_routes():
         properties = tool.input_schema["properties"]
         expected_params = ["version", "user_id", "action"]
 
-    for param in expected_params:
-        assert param in properties, f"Missing parameter: {param}"
+        # Parameters should be under path object
+        assert "path" in properties
+        path_properties = properties["path"]["properties"]
+
+        for param in expected_params:
+            assert param in path_properties, f"Missing parameter: {param}"
 
 
 def test_description_generation():

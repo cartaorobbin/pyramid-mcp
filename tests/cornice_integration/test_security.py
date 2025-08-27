@@ -257,7 +257,7 @@ def test_bearer_auth_with_valid_token_grants_access(pyramid_app_with_services):
             "method": "tools/call",
             "params": {
                 "name": bearer_tool["name"],
-                "arguments": {"auth_token": "test_bearer_token"},
+                "arguments": {"auth": {"auth_token": "test_bearer_token"}},
             },
             "id": 3,
         },
@@ -422,8 +422,13 @@ def test_cornice_tool_input_schema_includes_security_fields(
 
     # Verify the POST tool has the expected schema fields
     properties = input_schema["properties"]
-    assert "name" in properties
-    assert "email" in properties
+
+    # POST requests should have body structure
+    assert "body" in properties, "POST request should have body structure"
+    body_props = properties["body"]["properties"]
+
+    assert "name" in body_props
+    assert "email" in body_props
 
 
 @pytest.fixture

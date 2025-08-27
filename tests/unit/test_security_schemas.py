@@ -113,9 +113,13 @@ def test_merge_auth_into_schema_with_bearer_auth(bearer_auth_schema):
 
     result = merge_auth_into_schema(base_schema, bearer_auth_schema)
 
-    assert "auth_token" in result["properties"]
-    assert result["properties"]["auth_token"]["type"] == "string"
-    assert "auth_token" in result["required"]
+    # Auth parameters should be under auth object
+    assert "auth" in result["properties"]
+    auth_props = result["properties"]["auth"]["properties"]
+    auth_required = result["properties"]["auth"]["required"]
+    assert "auth_token" in auth_props
+    assert auth_props["auth_token"]["type"] == "string"
+    assert "auth_token" in auth_required
     assert "data" in result["properties"]  # Original field preserved
     assert "data" in result["required"]  # Original requirement preserved
 
@@ -130,13 +134,18 @@ def test_merge_auth_into_schema_with_basic_auth(basic_auth_schema):
 
     result = merge_auth_into_schema(base_schema, basic_auth_schema)
 
-    assert "username" in result["properties"]
-    assert "password" in result["properties"]
-    assert result["properties"]["username"]["type"] == "string"
-    assert result["properties"]["password"]["type"] == "string"
-    assert "username" in result["required"]
-    assert "password" in result["required"]
+    # Auth parameters should be under auth object
+    assert "auth" in result["properties"]
+    auth_props = result["properties"]["auth"]["properties"]
+    auth_required = result["properties"]["auth"]["required"]
+    assert "username" in auth_props
+    assert "password" in auth_props
+    assert auth_props["username"]["type"] == "string"
+    assert auth_props["password"]["type"] == "string"
+    assert "username" in auth_required
+    assert "password" in auth_required
     assert "message" in result["properties"]  # Original field preserved
+    assert "message" in result["required"]  # Original requirement preserved
 
 
 def test_merge_auth_into_schema_with_none():
@@ -157,8 +166,12 @@ def test_merge_auth_into_schema_empty_base():
 
     result = merge_auth_into_schema(base_schema, BearerAuthSchema())
 
-    assert "auth_token" in result["properties"]
-    assert "auth_token" in result["required"]
+    # Auth parameters should be under auth object
+    assert "auth" in result["properties"]
+    auth_props = result["properties"]["auth"]["properties"]
+    auth_required = result["properties"]["auth"]["required"]
+    assert "auth_token" in auth_props
+    assert "auth_token" in auth_required
     assert len(result["properties"]) == 1
 
 

@@ -94,35 +94,50 @@ def test_schema_extraction_bug(pyramid_app_with_services):
     # Assert complete inputSchema for each of the 3 services
 
     # Service 1: /buggy with SchemaA - should have querystring field
-    # (nested properties may be missing due to schema extraction issue)
+    # GET requests with Marshmallow schemas create structured querystring
     list_tool = tools_by_name["buggy_list"]
-    expected_list_schema = {
-        "type": "object",
-        "properties": {"querystring": {"type": "object"}},
-        "required": [],
-        "additionalProperties": False,
-    }
-    assert list_tool["inputSchema"] == expected_list_schema
+    list_schema = list_tool["inputSchema"]
+
+    # Should have querystring structure
+    assert list_schema["type"] == "object"
+    assert "querystring" in list_schema["properties"]
+    assert list_schema["properties"]["querystring"]["type"] == "object"
+    assert "properties" in list_schema["properties"]["querystring"]
+    assert list_schema["additionalProperties"] is False
 
     # Service 2: /buggy/detail with SchemaB - should have querystring field
-    # (nested properties may be missing due to schema extraction issue)
+    # GET requests with Marshmallow schemas create structured querystring
     detail_tool = tools_by_name["get_buggy_detail"]
-    expected_detail_schema = {
-        "type": "object",
-        "properties": {"querystring": {"type": "object"}},
-        "required": [],
-        "additionalProperties": False,
-    }
-    assert detail_tool["inputSchema"] == expected_detail_schema
+    detail_schema = detail_tool["inputSchema"]
 
-    # Service 3: /buggy/{uuid:.*} with no schema - should have only uuid path param
+    # Should have querystring structure
+    assert detail_schema["type"] == "object"
+    assert "querystring" in detail_schema["properties"]
+    assert detail_schema["properties"]["querystring"]["type"] == "object"
+    assert "properties" in detail_schema["properties"]["querystring"]
+    assert detail_schema["additionalProperties"] is False
+
+    # Service 3: /buggy/{uuid:.*} with no schema
+    # Should have only uuid path param under path object
     item_tool = tools_by_name["get_buggy_item"]
     expected_item_schema = {
         "type": "object",
         "properties": {
-            "uuid": {"type": "string", "description": "Path parameter: uuid"}
+            "path": {
+                "type": "object",
+                "properties": {
+                    "uuid": {
+                        "type": "string",
+                        "description": "Path parameter: uuid",
+                        "default": None,
+                    }
+                },
+                "required": [],
+                "additionalProperties": False,
+                "description": "Path parameters for the request",
+            }
         },
-        "required": ["uuid"],
+        "required": [],
         "additionalProperties": False,
     }
     assert item_tool["inputSchema"] == expected_item_schema

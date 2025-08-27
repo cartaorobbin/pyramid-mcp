@@ -916,12 +916,44 @@ class PyramidIntrospector:
                 schema = method_info.get("schema")
 
                 if schema:
-                    # Extract Marshmallow schema information and return it directly
+                    # Extract Marshmallow schema and structure it properly
                     schema_info = self._extract_marshmallow_schema_info(schema)
                     if schema_info:
-                        # Return Marshmallow schema directly instead of HTTP
-                        # structure
-                        return schema_info
+                        # Create structured HTTP schema based on method
+                        if method.upper() in ["GET", "DELETE"]:
+                            # GET/DELETE typically use query parameters
+                            return {
+                                "type": "object",
+                                "properties": {
+                                    "querystring": {
+                                        "type": "object",
+                                        "properties": schema_info["properties"],
+                                        "required": schema_info.get("required", []),
+                                        "additionalProperties": False,
+                                        "description": (
+                                            "Query parameters for the request"
+                                        ),
+                                    }
+                                },
+                                "required": [],
+                                "additionalProperties": False,
+                            }
+                        else:
+                            # POST/PUT/PATCH typically use request body
+                            return {
+                                "type": "object",
+                                "properties": {
+                                    "body": {
+                                        "type": "object",
+                                        "properties": schema_info["properties"],
+                                        "required": schema_info.get("required", []),
+                                        "additionalProperties": False,
+                                        "description": "Request body parameters",
+                                    }
+                                },
+                                "required": [],
+                                "additionalProperties": False,
+                            }
                     else:
                         logger.warning(
                             f"Schema extraction returned empty result for "
@@ -970,9 +1002,9 @@ class PyramidIntrospector:
             )
             http_request["body"].append(body_field_data)
 
-        # Convert to proper JSON schema format with "type": "object"
+        # Convert to proper JSON schema format maintaining HTTP structure
         if http_request["path"] or http_request["query"] or http_request["body"]:
-            # Create proper JSON schema structure
+            # Create proper JSON schema structure that maintains HTTP semantics
             json_schema: Dict[str, Any] = {
                 "type": "object",
                 "properties": {},
@@ -980,52 +1012,73 @@ class PyramidIntrospector:
                 "additionalProperties": False,
             }
 
-            # Add path parameters to properties
-            for path_param in http_request["path"]:
-                param_name = path_param["name"]
-                json_schema["properties"][param_name] = {
-                    "type": path_param.get("type", "string"),
-                    "description": path_param.get(
-                        "description", f"Path parameter: {param_name}"
-                    ),
-                }
-                json_schema["required"].append(param_name)
-
-            # Add query parameters to properties
-            for query_param in http_request["query"]:
-                param_name = query_param["name"]
-                param_schema = {
-                    "type": query_param.get("type", "string"),
-                    "description": query_param.get(
-                        "description", f"Query parameter: {param_name}"
-                    ),
-                }
-
-                # Add default value if present
-                if "default" in query_param:
-                    param_schema["default"] = query_param["default"]
-
-                json_schema["properties"][param_name] = param_schema
-
-                # Only add to required if no default value
-                if "default" not in query_param and query_param.get("required", False):
-                    json_schema["required"].append(param_name)
-
-            # Add body parameters to properties
-            for body_param in http_request["body"]:
-                param_name = body_param["name"]
-                json_schema["properties"][param_name] = {
-                    "type": body_param.get("type", "string"),
-                    "description": body_param.get(
-                        "description", f"Request body parameter: {param_name}"
-                    ),
-                }
-                if body_param.get("required", False):
-                    json_schema["required"].append(param_name)
+            # Add all parameter types using the same structure
+            self._add_parameter_object_to_schema(
+                json_schema,
+                http_request["path"],
+                "path",
+                "Path parameters for the request",
+            )
+            self._add_parameter_object_to_schema(
+                json_schema,
+                http_request["query"],
+                "querystring",
+                "Query parameters for the request",
+            )
+            self._add_parameter_object_to_schema(
+                json_schema, http_request["body"], "body", "Request body parameters"
+            )
 
             return json_schema
 
         return None
+
+    def _add_parameter_object_to_schema(
+        self,
+        json_schema: Dict[str, Any],
+        param_list: List[Dict[str, Any]],
+        object_name: str,
+        description: str,
+    ) -> None:
+        """Add a parameter object (path, query, or body) to the JSON schema.
+
+        Args:
+            json_schema: The main JSON schema to modify
+            param_list: List of parameters to add
+            object_name: Name of the object (path, querystring, body)
+            description: Description for the parameter object
+        """
+        if param_list:
+            properties: Dict[str, Any] = {}
+            required: List[str] = []
+
+            for param in param_list:
+                param_name = param["name"]
+                param_schema = {
+                    "type": param.get("type", "string"),
+                    "description": param.get(
+                        "description", f"{description}: {param_name}"
+                    ),
+                }
+
+                # Add default value if present
+                if "default" in param:
+                    param_schema["default"] = param["default"]
+
+                properties[param_name] = param_schema
+
+                # Add to required if no default value and required is True
+                if "default" not in param and param.get("required", False):
+                    required.append(param_name)
+
+            # Create nested object
+            json_schema["properties"][object_name] = {
+                "type": "object",
+                "properties": properties,
+                "required": required,
+                "additionalProperties": False,
+                "description": description,
+            }
 
     def _create_route_handler(
         self, route_info: Dict[str, Any], view_info: Dict[str, Any], method: str

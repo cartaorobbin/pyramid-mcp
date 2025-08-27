@@ -500,10 +500,14 @@ def test_cornice_service_with_marshmallow_schema(
     assert "properties" in input_schema
     properties = input_schema["properties"]
 
+    # POST requests should have body structure
+    assert "body" in properties, "POST request should have body structure"
+    body_props = properties["body"]["properties"]
+
     # Should include Marshmallow schema fields
-    assert "name" in properties
-    assert "price" in properties
-    assert "category" in properties
+    assert "name" in body_props
+    assert "price" in body_props
+    assert "category" in body_props
 
 
 def test_marshmallow_schema_without_cornice(pyramid_config):

@@ -25,53 +25,91 @@ def test_mcp_configuration_custom_expose_auth_as_params():
     assert config.expose_auth_as_params is False
 
 
-@pytest.mark.parametrize(
-    "expose_auth,security_schema,expected_fields",
-    [
-        # Bearer auth with expose=True should include auth_token
-        (True, BearerAuthSchema(), ["auth_token"]),
-        # Bearer auth with expose=False should not include auth_token
-        (False, BearerAuthSchema(), []),
-        # Basic auth with expose=True should include username and password
-        (True, BasicAuthSchema(), ["username", "password"]),
-        # Basic auth with expose=False should not include username and password
-        (False, BasicAuthSchema(), []),
-    ],
-)
-def test_mcp_tool_auth_param_exposure(expose_auth, security_schema, expected_fields):
-    """Test MCPTool.to_dict() with different auth schemas and expose settings."""
-    config = MCPConfiguration(expose_auth_as_params=expose_auth)
-
+def test_mcp_tool_bearer_auth_expose_true_includes_auth_token():
+    """Test that Bearer auth with expose=True includes auth_token under auth object."""
+    config = MCPConfiguration(expose_auth_as_params=True)
     tool = MCPTool(
         name="test_tool",
-        description="Test tool with auth",
-        security=security_schema,
+        description="Test tool with Bearer auth",
+        security=BearerAuthSchema(),
         config=config,
     )
 
     tool_dict = tool.to_dict()
-
-    # Verify schema structure
-    assert "inputSchema" in tool_dict
     schema = tool_dict["inputSchema"]
-    assert "properties" in schema
-    assert "required" in schema
 
-    # Check expected fields presence/absence
-    for field in expected_fields:
-        assert field in schema["properties"], f"Expected field '{field}' in properties"
-        assert field in schema["required"], f"Expected field '{field}' in required"
+    # Should have auth object with auth_token
+    assert "auth" in schema["properties"]
+    auth_props = schema["properties"]["auth"]["properties"]
+    auth_required = schema["properties"]["auth"]["required"]
 
-    # Check that no unexpected auth fields are present
-    auth_fields = ["auth_token", "username", "password"]
-    unexpected_fields = set(auth_fields) - set(expected_fields)
-    for field in unexpected_fields:
-        assert (
-            field not in schema["properties"]
-        ), f"Unexpected field '{field}' in properties"
-        assert (
-            field not in schema["required"]
-        ), f"Unexpected field '{field}' in required"
+    assert "auth_token" in auth_props
+    assert "auth_token" in auth_required
+
+    # Should not have basic auth fields
+    assert "username" not in auth_props
+    assert "password" not in auth_props
+
+
+def test_mcp_tool_bearer_auth_expose_false_excludes_auth_object():
+    """Test that Bearer auth with expose=False excludes auth object."""
+    config = MCPConfiguration(expose_auth_as_params=False)
+    tool = MCPTool(
+        name="test_tool",
+        description="Test tool with Bearer auth",
+        security=BearerAuthSchema(),
+        config=config,
+    )
+
+    tool_dict = tool.to_dict()
+    schema = tool_dict["inputSchema"]
+
+    # Should not have auth object
+    assert "auth" not in schema["properties"]
+
+
+def test_mcp_tool_basic_auth_expose_true_includes_username_password():
+    """Test that Basic auth with expose=True includes credentials under auth."""
+    config = MCPConfiguration(expose_auth_as_params=True)
+    tool = MCPTool(
+        name="test_tool",
+        description="Test tool with Basic auth",
+        security=BasicAuthSchema(),
+        config=config,
+    )
+
+    tool_dict = tool.to_dict()
+    schema = tool_dict["inputSchema"]
+
+    # Should have auth object with username and password
+    assert "auth" in schema["properties"]
+    auth_props = schema["properties"]["auth"]["properties"]
+    auth_required = schema["properties"]["auth"]["required"]
+
+    assert "username" in auth_props
+    assert "password" in auth_props
+    assert "username" in auth_required
+    assert "password" in auth_required
+
+    # Should not have bearer auth fields
+    assert "auth_token" not in auth_props
+
+
+def test_mcp_tool_basic_auth_expose_false_excludes_auth_object():
+    """Test that Basic auth with expose=False excludes auth object."""
+    config = MCPConfiguration(expose_auth_as_params=False)
+    tool = MCPTool(
+        name="test_tool",
+        description="Test tool with Basic auth",
+        security=BasicAuthSchema(),
+        config=config,
+    )
+
+    tool_dict = tool.to_dict()
+    schema = tool_dict["inputSchema"]
+
+    # Should not have auth object
+    assert "auth" not in schema["properties"]
 
 
 def test_mcp_tool_no_security_expose_setting_irrelevant():
@@ -109,16 +147,9 @@ def test_mcp_tool_default_config_creation():
     assert tool.config.expose_auth_as_params is True
 
 
-@pytest.mark.parametrize(
-    "expose_auth,should_include_auth",
-    [
-        (True, True),
-        (False, False),
-    ],
-)
-def test_mcp_tool_existing_schema_with_auth(expose_auth, should_include_auth):
-    """Test auth params merged/not merged with existing schema based on expose."""
-    config = MCPConfiguration(expose_auth_as_params=expose_auth)
+def test_mcp_tool_existing_schema_with_auth_expose_true_merges_auth():
+    """Test that auth params are merged under auth object when expose=True."""
+    config = MCPConfiguration(expose_auth_as_params=True)
     security = BearerAuthSchema()
 
     existing_schema = {
@@ -138,17 +169,46 @@ def test_mcp_tool_existing_schema_with_auth(expose_auth, should_include_auth):
     tool_dict = tool.to_dict()
     schema = tool_dict["inputSchema"]
 
-    # Should always have original parameters
+    # Should have original parameters
     assert "query" in schema["properties"]
     assert "query" in schema["required"]
 
-    # Auth parameters should be present/absent based on setting
-    if should_include_auth:
-        assert "auth_token" in schema["properties"]
-        assert "auth_token" in schema["required"]
-    else:
-        assert "auth_token" not in schema["properties"]
-        assert "auth_token" not in schema["required"]
+    # Should have auth object with auth_token
+    assert "auth" in schema["properties"]
+    auth_props = schema["properties"]["auth"]["properties"]
+    auth_required = schema["properties"]["auth"]["required"]
+    assert "auth_token" in auth_props
+    assert "auth_token" in auth_required
+
+
+def test_mcp_tool_existing_schema_with_auth_expose_false_excludes_auth():
+    """Test that auth params are excluded when expose=False."""
+    config = MCPConfiguration(expose_auth_as_params=False)
+    security = BearerAuthSchema()
+
+    existing_schema = {
+        "type": "object",
+        "properties": {"query": {"type": "string", "description": "Search query"}},
+        "required": ["query"],
+    }
+
+    tool = MCPTool(
+        name="test_tool",
+        description="Test tool with existing schema",
+        input_schema=existing_schema,
+        security=security,
+        config=config,
+    )
+
+    tool_dict = tool.to_dict()
+    schema = tool_dict["inputSchema"]
+
+    # Should have original parameters
+    assert "query" in schema["properties"]
+    assert "query" in schema["required"]
+
+    # Should not have auth object
+    assert "auth" not in schema["properties"]
 
 
 @pytest.mark.parametrize(

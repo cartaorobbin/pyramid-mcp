@@ -26,7 +26,7 @@ from pyramid_mcp.security import (
 
 def test_extract_auth_credentials_bearer_success():
     """Test successful extraction of Bearer auth credentials."""
-    tool_args = {"data": "test", "auth_token": "bearer_token_123"}
+    tool_args = {"data": "test", "auth": {"auth_token": "bearer_token_123"}}
     schema = BearerAuthSchema()
 
     credentials = extract_auth_credentials(tool_args, schema)
@@ -36,7 +36,10 @@ def test_extract_auth_credentials_bearer_success():
 
 def test_extract_auth_credentials_basic_success():
     """Test successful extraction of Basic auth credentials."""
-    tool_args = {"data": "test", "username": "testuser", "password": "testpass"}
+    tool_args = {
+        "data": "test",
+        "auth": {"username": "testuser", "password": "testpass"},
+    }
     schema = BasicAuthSchema()
 
     credentials = extract_auth_credentials(tool_args, schema)
@@ -58,7 +61,7 @@ def test_extract_auth_credentials_bearer_missing_token():
 
 def test_extract_auth_credentials_basic_missing_credentials():
     """Test extraction with missing Basic auth credentials."""
-    tool_args = {"data": "test", "username": "testuser"}  # Missing password
+    tool_args = {"data": "test", "auth": {"username": "testuser"}}  # Missing password
     schema = BasicAuthSchema()
 
     credentials = extract_auth_credentials(tool_args, schema)
@@ -78,7 +81,7 @@ def test_extract_auth_credentials_with_none_schema():
 
 def test_extract_auth_credentials_partial_bearer():
     """Test extraction with partial Bearer credentials."""
-    tool_args = {"data": "test", "auth_token": ""}  # Empty token
+    tool_args = {"data": "test", "auth": {"auth_token": ""}}  # Empty token
     schema = BearerAuthSchema()
 
     credentials = extract_auth_credentials(tool_args, schema)
@@ -91,9 +94,11 @@ def test_extract_auth_credentials_extra_fields():
     """Test extraction ignores extra fields not in schema."""
     tool_args = {
         "data": "test",
-        "auth_token": "token123",
-        "extra_field": "ignored",
-        "another_field": "also_ignored",
+        "auth": {
+            "auth_token": "token123",
+            "extra_field": "ignored",
+            "another_field": "also_ignored",
+        },
     }
     schema = BearerAuthSchema()
 
@@ -196,12 +201,16 @@ def test_create_auth_headers_basic_empty_credentials():
 
 def test_remove_auth_from_tool_args_bearer():
     """Test removal of Bearer auth parameters from tool arguments."""
-    tool_args = {"data": "test", "auth_token": "token123", "other_param": "value"}
+    tool_args = {
+        "data": "test",
+        "auth": {"auth_token": "token123"},
+        "other_param": "value",
+    }
     schema = BearerAuthSchema()
 
     cleaned_args = remove_auth_from_tool_args(tool_args, schema)
 
-    assert "auth_token" not in cleaned_args
+    assert "auth" not in cleaned_args
     assert cleaned_args["data"] == "test"
     assert cleaned_args["other_param"] == "value"
 
@@ -210,28 +219,29 @@ def test_remove_auth_from_tool_args_basic():
     """Test removal of Basic auth parameters from tool arguments."""
     tool_args = {
         "data": "test",
-        "username": "testuser",
-        "password": "testpass",
+        "auth": {
+            "username": "testuser",
+            "password": "testpass",
+        },
         "other_param": "value",
     }
     schema = BasicAuthSchema()
 
     cleaned_args = remove_auth_from_tool_args(tool_args, schema)
 
-    assert "username" not in cleaned_args
-    assert "password" not in cleaned_args
+    assert "auth" not in cleaned_args
     assert cleaned_args["data"] == "test"
     assert cleaned_args["other_param"] == "value"
 
 
 def test_remove_auth_from_tool_args_with_none_schema():
     """Test removal with None schema returns original args."""
-    tool_args = {"data": "test", "auth_token": "token123"}
+    tool_args = {"data": "test", "auth": {"auth_token": "token123"}}
 
     cleaned_args = remove_auth_from_tool_args(tool_args, None)
 
     assert cleaned_args == tool_args
-    assert "auth_token" in cleaned_args
+    assert "auth" in cleaned_args
 
 
 def test_remove_auth_from_tool_args_no_auth_fields():
@@ -256,7 +266,7 @@ def test_remove_auth_from_tool_args_empty_args():
 
 def test_remove_auth_from_tool_args_preserves_original():
     """Test that removal doesn't modify the original tool_args."""
-    original_args = {"data": "test", "auth_token": "token123"}
+    original_args = {"data": "test", "auth": {"auth_token": "token123"}}
     tool_args = original_args.copy()
     schema = BearerAuthSchema()
 
@@ -264,6 +274,6 @@ def test_remove_auth_from_tool_args_preserves_original():
 
     # Original should be unchanged
     assert tool_args == original_args
-    assert "auth_token" in tool_args
-    # Cleaned should not have auth fields
-    assert "auth_token" not in cleaned_args
+    assert "auth" in tool_args
+    # Cleaned should not have auth object
+    assert "auth" not in cleaned_args

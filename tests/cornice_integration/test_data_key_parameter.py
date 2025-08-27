@@ -95,33 +95,37 @@ def test_data_key_fields_appear_in_tool_schema(
 
     properties = input_schema["properties"]
 
+    # POST requests should have body structure
+    assert "body" in properties, "POST request should have body structure"
+    body_props = properties["body"]["properties"]
+
     # Verify data_key field names are used (camelCase), not Python names (snake_case)
-    assert "fullName" in properties, "Should use data_key 'fullName', not 'full_name'"
+    assert "fullName" in body_props, "Should use data_key 'fullName', not 'full_name'"
     assert (
-        "emailAddress" in properties
+        "emailAddress" in body_props
     ), "Should use data_key 'emailAddress', not 'email_address'"
-    assert "userId" in properties, "Should use data_key 'userId', not 'user_id'"
+    assert "userId" in body_props, "Should use data_key 'userId', not 'user_id'"
     assert (
-        "accountType" in properties
+        "accountType" in body_props
     ), "Should use data_key 'accountType', not 'account_type'"
 
     # Field without data_key should use Python name
     assert (
-        "status" in properties
+        "status" in body_props
     ), "Field without data_key should use Python name 'status'"
 
     # Verify Python names are NOT in the schema
     assert (
-        "full_name" not in properties
+        "full_name" not in body_props
     ), "Python name 'full_name' should not appear in schema"
     assert (
-        "email_address" not in properties
+        "email_address" not in body_props
     ), "Python name 'email_address' should not appear in schema"
     assert (
-        "user_id" not in properties
+        "user_id" not in body_props
     ), "Python name 'user_id' should not appear in schema"
     assert (
-        "account_type" not in properties
+        "account_type" not in body_props
     ), "Python name 'account_type' should not appear in schema"
 
 
@@ -140,7 +144,13 @@ def test_data_key_required_fields_mapping(pyramid_app_with_services, data_key_se
     user_profile_tool = tools[0]  # create_user_profile
 
     input_schema = user_profile_tool["inputSchema"]
-    required = input_schema.get("required", [])
+
+    # POST requests should have body structure with required fields
+    assert (
+        "body" in input_schema["properties"]
+    ), "POST request should have body structure"
+    body_schema = input_schema["properties"]["body"]
+    required = body_schema.get("required", [])
 
     # Required fields should use data_key names, not Python names
     assert "fullName" in required, "Required field should use data_key 'fullName'"
@@ -177,12 +187,16 @@ def test_data_key_field_descriptions_preserved(
     input_schema = user_profile_tool["inputSchema"]
     properties = input_schema["properties"]
 
+    # POST requests should have body structure
+    assert "body" in properties, "POST request should have body structure"
+    body_props = properties["body"]["properties"]
+
     # Verify descriptions are preserved for data_key fields
-    assert properties["fullName"]["description"] == "User's full name"
-    assert properties["emailAddress"]["description"] == "User's email address"
-    assert properties["userId"]["description"] == "User ID number"
-    assert properties["accountType"]["description"] == "Type of user account"
-    assert properties["status"]["description"] == "User status"
+    assert body_props["fullName"]["description"] == "User's full name"
+    assert body_props["emailAddress"]["description"] == "User's email address"
+    assert body_props["userId"]["description"] == "User ID number"
+    assert body_props["accountType"]["description"] == "Type of user account"
+    assert body_props["status"]["description"] == "User status"
 
 
 def test_data_key_field_types_correct(pyramid_app_with_services, data_key_service):
@@ -202,14 +216,18 @@ def test_data_key_field_types_correct(pyramid_app_with_services, data_key_servic
     input_schema = user_profile_tool["inputSchema"]
     properties = input_schema["properties"]
 
+    # POST requests should have body structure
+    assert "body" in properties, "POST request should have body structure"
+    body_props = properties["body"]["properties"]
+
     # Verify field types are correct
-    assert properties["fullName"]["type"] == "string"
+    assert body_props["fullName"]["type"] == "string"
     assert (
-        properties["emailAddress"]["type"] == "string"
+        body_props["emailAddress"]["type"] == "string"
     )  # Email field should be string type
-    assert properties["userId"]["type"] == "integer"
-    assert properties["accountType"]["type"] == "string"
-    assert properties["status"]["type"] == "string"
+    assert body_props["userId"]["type"] == "integer"
+    assert body_props["accountType"]["type"] == "string"
+    assert body_props["status"]["type"] == "string"
 
 
 def test_mixed_data_key_and_python_names(pyramid_app_with_services):
@@ -259,22 +277,26 @@ def test_mixed_data_key_and_python_names(pyramid_app_with_services):
 
     input_schema = mixed_tool["inputSchema"]
     properties = input_schema["properties"]
-    required = input_schema.get("required", [])
+
+    # POST requests should have body structure
+    assert "body" in properties, "POST request should have body structure"
+    body_props = properties["body"]["properties"]
+    body_required = properties["body"].get("required", [])
 
     # data_key field should use the key name
-    assert "firstName" in properties
-    assert "firstName" in required
-    assert "first_name" not in properties
-    assert "first_name" not in required
+    assert "firstName" in body_props
+    assert "firstName" in body_required
+    assert "first_name" not in body_props
+    assert "first_name" not in body_required
 
     # Regular field should use Python name
-    assert "age" in properties
-    assert "age" in required
+    assert "age" in body_props
+    assert "age" in body_required
 
     # Optional data_key field should use key name
-    assert "lastLogin" in properties
-    assert "lastLogin" not in required
-    assert "last_login" not in properties
+    assert "lastLogin" in body_props
+    assert "lastLogin" not in body_required
+    assert "last_login" not in body_props
 
 
 def test_tool_parameter_names_use_data_key_values(
@@ -296,55 +318,61 @@ def test_tool_parameter_names_use_data_key_values(
     # Get the tool's input schema
     input_schema = user_profile_tool["inputSchema"]
     properties = input_schema["properties"]
-    required = input_schema.get("required", [])
+
+    # POST requests should have body structure
+    assert "body" in properties, "POST request should have body structure"
+    body_props = properties["body"]["properties"]
+    body_required = properties["body"].get("required", [])
 
     # ASSERT: Parameter names should be the data_key values, not Python field names
 
     # Fields with data_key should expose the data_key as parameter name
     assert (
-        "fullName" in properties
+        "fullName" in body_props
     ), "Parameter should use data_key 'fullName', not 'full_name'"
     assert (
-        "emailAddress" in properties
+        "emailAddress" in body_props
     ), "Parameter should use data_key 'emailAddress', not 'email_address'"
     assert (
-        "userId" in properties
+        "userId" in body_props
     ), "Parameter should use data_key 'userId', not 'user_id'"
     assert (
-        "accountType" in properties
+        "accountType" in body_props
     ), "Parameter should use data_key 'accountType', not 'account_type'"
 
     # Field without data_key should use Python field name
     assert (
-        "status" in properties
+        "status" in body_props
     ), "Parameter without data_key should use Python field name 'status'"
 
     # ASSERT: Python field names should NOT be exposed as parameters
     assert (
-        "full_name" not in properties
+        "full_name" not in body_props
     ), "Python field name 'full_name' should not be exposed when data_key exists"
     assert (
-        "email_address" not in properties
+        "email_address" not in body_props
     ), "Python field name 'email_address' should not be exposed when data_key exists"
     assert (
-        "user_id" not in properties
+        "user_id" not in body_props
     ), "Python field name 'user_id' should not be exposed when data_key exists"
     assert (
-        "account_type" not in properties
+        "account_type" not in body_props
     ), "Python field name 'account_type' should not be exposed when data_key exists"
 
     # ASSERT: Required fields should also use data_key names
-    assert "fullName" in required, "Required parameter should use data_key 'fullName'"
     assert (
-        "emailAddress" in required
+        "fullName" in body_required
+    ), "Required parameter should use data_key 'fullName'"
+    assert (
+        "emailAddress" in body_required
     ), "Required parameter should use data_key 'emailAddress'"
 
     # ASSERT: Python field names should NOT be in required list
     assert (
-        "full_name" not in required
+        "full_name" not in body_required
     ), "Python field name 'full_name' should not be in required list"
     assert (
-        "email_address" not in required
+        "email_address" not in body_required
     ), "Python field name 'email_address' should not be in required list"
 
 
@@ -410,42 +438,57 @@ def test_querystring_data_key_parameters_exposed(pyramid_app_with_services):
     input_schema = workspace_parts_tool["inputSchema"]
     properties = input_schema["properties"]
 
-    # ASSERT: Querystring parameters should be flattened with data_key names
+    # ASSERT: Querystring parameters should be under 'querystring' object
     assert (
-        "legalEntityId" in properties
+        "querystring" in properties
+    ), "GET request with schema should have querystring object"
+
+    inner_querystring_props = properties["querystring"]["properties"]
+
+    # ASSERT: Querystring parameters should use data_key names
+    assert (
+        "legalEntityId" in inner_querystring_props
     ), "Should use data_key 'legalEntityId', not 'legal_entity_id'"
     assert (
-        "pageNumber" in properties
+        "pageNumber" in inner_querystring_props
     ), "Should use data_key 'pageNumber', not 'page_number'"
-    assert "pageSize" in properties, "Should use data_key 'pageSize', not 'page_size'"
     assert (
-        "status" in properties
+        "pageSize" in inner_querystring_props
+    ), "Should use data_key 'pageSize', not 'page_size'"
+    assert (
+        "status" in inner_querystring_props
     ), "Field without data_key should use Python name 'status'"
 
-    # ASSERT: Python field names should NOT be in the schema
+    # ASSERT: Python field names should NOT be in the querystring schema
     assert (
-        "legal_entity_id" not in properties
+        "legal_entity_id" not in inner_querystring_props
     ), "Python name should not appear when data_key exists"
     assert (
-        "page_number" not in properties
+        "page_number" not in inner_querystring_props
     ), "Python name should not appear when data_key exists"
     assert (
-        "page_size" not in properties
+        "page_size" not in inner_querystring_props
     ), "Python name should not appear when data_key exists"
 
     # ASSERT: Verify the parameter types and descriptions are correct
-    assert properties["legalEntityId"]["type"] == "string"
+    assert inner_querystring_props["legalEntityId"]["type"] == "string"
     assert (
-        properties["legalEntityId"]["description"] == "Legal entity UUID for filtering"
+        inner_querystring_props["legalEntityId"]["description"]
+        == "Legal entity UUID for filtering"
     )
 
-    assert properties["pageNumber"]["type"] == "integer"
-    assert properties["pageNumber"]["default"] == 1
-    assert properties["pageNumber"]["description"] == "Page number for pagination"
+    assert inner_querystring_props["pageNumber"]["type"] == "integer"
+    assert inner_querystring_props["pageNumber"]["default"] == 1
+    assert (
+        inner_querystring_props["pageNumber"]["description"]
+        == "Page number for pagination"
+    )
 
-    assert properties["pageSize"]["type"] == "integer"
-    assert properties["pageSize"]["default"] == 20
-    assert properties["pageSize"]["description"] == "Number of items per page"
+    assert inner_querystring_props["pageSize"]["type"] == "integer"
+    assert inner_querystring_props["pageSize"]["default"] == 20
+    assert (
+        inner_querystring_props["pageSize"]["description"] == "Number of items per page"
+    )
 
 
 def test_querystring_field_with_marshmallow_validator(pyramid_app_with_services):
@@ -520,48 +563,58 @@ def test_querystring_field_with_marshmallow_validator(pyramid_app_with_services)
     input_schema = qs_field_tool["inputSchema"]
     properties = input_schema["properties"]
 
-    # ASSERT: Nested schemas preserve structure, querystring contains the parameters
-    assert "querystring" in properties, "Should have querystring field"
-    querystring_props = properties["querystring"]["properties"]
+    # ASSERT: GET requests with nested querystring schema create double-nested structure
+    assert "querystring" in properties, "GET request should have querystring field"
+
+    # The outer querystring is from our method-based wrapping
+    outer_querystring = properties["querystring"]["properties"]
+
+    # The inner querystring is from the original nested schema
+    assert "querystring" in outer_querystring, "Should have nested querystring field"
+    inner_inner_querystring_props = outer_querystring["querystring"]["properties"]
 
     # ASSERT: Parameters use data_key names within nested structure
     assert (
-        "legalEntityId" in querystring_props
+        "legalEntityId" in inner_inner_querystring_props
     ), "Should use data_key 'legalEntityId', not 'legal_entity_id'"
     assert (
-        "pageNumber" in querystring_props
+        "pageNumber" in inner_inner_querystring_props
     ), "Should use data_key 'pageNumber', not 'page_number'"
     assert (
-        "pageSize" in querystring_props
+        "pageSize" in inner_inner_querystring_props
     ), "Should use data_key 'pageSize', not 'page_size'"
     assert (
-        "status" in querystring_props
+        "status" in inner_inner_querystring_props
     ), "Field without data_key should use Python name 'status'"
 
     # ASSERT: Python field names should NOT be in the nested schema
     assert (
-        "legal_entity_id" not in querystring_props
+        "legal_entity_id" not in inner_inner_querystring_props
     ), "Python name should not appear when data_key exists"
     assert (
-        "page_number" not in querystring_props
+        "page_number" not in inner_inner_querystring_props
     ), "Python name should not appear when data_key exists"
     assert (
-        "page_size" not in querystring_props
+        "page_size" not in inner_inner_querystring_props
     ), "Python name should not appear when data_key exists"
 
     # ASSERT: Verify the parameter types and descriptions are correct
-    assert querystring_props["legalEntityId"]["type"] == "string"
+    assert inner_inner_querystring_props["legalEntityId"]["type"] == "string"
     assert (
-        querystring_props["legalEntityId"]["description"]
+        inner_inner_querystring_props["legalEntityId"]["description"]
         == "Legal entity UUID for filtering"
     )
 
-    assert querystring_props["pageNumber"]["type"] == "integer"
-    assert querystring_props["pageNumber"]["default"] == 1
+    assert inner_inner_querystring_props["pageNumber"]["type"] == "integer"
+    assert inner_inner_querystring_props["pageNumber"]["default"] == 1
     assert (
-        querystring_props["pageNumber"]["description"] == "Page number for pagination"
+        inner_inner_querystring_props["pageNumber"]["description"]
+        == "Page number for pagination"
     )
 
-    assert querystring_props["pageSize"]["type"] == "integer"
-    assert querystring_props["pageSize"]["default"] == 20
-    assert querystring_props["pageSize"]["description"] == "Number of items per page"
+    assert inner_inner_querystring_props["pageSize"]["type"] == "integer"
+    assert inner_inner_querystring_props["pageSize"]["default"] == 20
+    assert (
+        inner_inner_querystring_props["pageSize"]["description"]
+        == "Number of items per page"
+    )

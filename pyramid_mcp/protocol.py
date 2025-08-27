@@ -485,7 +485,7 @@ class MCPProtocolHandler:
 
         try:
             # Use the existing subrequest creation logic - it handles everything!
-            subrequest = self._create_unified_tool_subrequest(request, tool, {})
+            subrequest = self._create_tool_subrequest(request, tool, {}, {})
 
             # Check permission using security policy
             has_permission = policy.permits(
@@ -555,32 +555,14 @@ class MCPProtocolHandler:
         logger.debug(f"📞 Tool arguments: {tool_args}")
 
         try:
-            # Extract auth credentials from request body
-            # (only for tools with security schemas)
-            auth_token = None
-            if "auth_token" in tool_args and tool.security:
-                # Only remove auth_token if tool has security schema
-                auth_token = tool_args.pop("auth_token")
-            elif "auth_token" in tool_args and not tool.security:
-                # For tools without security schema, peek at the token
-                # but don't remove it
-                auth_token = tool_args.get("auth_token")
+            # Extract auth credentials and create security headers
+            auth_token = self._extract_auth_token(tool_args, tool.security)
+            security_headers = self._make_security_headers(auth_token, request)
 
-            # Create unified subrequest for both route-based and manual tools
-            subrequest = self._create_unified_tool_subrequest(request, tool, tool_args)
-
-            # Add auth headers to subrequest
-            if auth_token:
-                auth_header = f"Bearer {auth_token}"
-                subrequest.headers["Authorization"] = auth_header
-            elif (
-                self.config
-                and not self.config.expose_auth_as_params
-                and "Authorization" in request.headers
-            ):
-                # When expose_auth_as_params=false, use HTTP header auth directly
-                auth_header = request.headers["Authorization"]
-                subrequest.headers["Authorization"] = auth_header
+            # Create subrequest for tool execution
+            subrequest = self._create_tool_subrequest(
+                request, tool, tool_args, security_headers
+            )
 
             # Execute subrequest - Pyramid handles auth, permissions, and execution
             response = request.invoke_subrequest(subrequest)
@@ -591,7 +573,7 @@ class MCPProtocolHandler:
             # Prepare data for schema transformation
             view_info = {
                 "tool_name": tool_name,
-                "url": f"/_internal/mcp-tool/{tool_name}",
+                "url": subrequest.url,
             }
 
             # Include llm_context_hint if the tool has one
@@ -627,8 +609,62 @@ class MCPProtocolHandler:
                 ),
             )
 
-    def _create_unified_tool_subrequest(
-        self, request: Request, tool: MCPTool, tool_args: Dict[str, Any]
+    def _extract_auth_token(
+        self, tool_args: Dict[str, Any], security_schema: Any
+    ) -> Optional[str]:
+        """Extract auth token from tool arguments.
+
+        Args:
+            tool_args: Tool arguments from MCP call
+            security_schema: Tool's security schema (if any)
+
+        Returns:
+            Extracted auth token or None
+        """
+        auth_obj = tool_args.get("auth", {})
+        if isinstance(auth_obj, dict) and security_schema:
+            # Extract auth_token from auth object for tools with security schema
+            auth_token = auth_obj.get("auth_token")
+            # Remove the entire auth object from tool_args
+            tool_args.pop("auth", None)
+            return auth_token
+        elif isinstance(auth_obj, dict) and not security_schema:
+            # For tools without security schema, peek at the token but don't remove it
+            return auth_obj.get("auth_token")
+        return None
+
+    def _make_security_headers(
+        self, auth_token: Optional[str], request: Request
+    ) -> Dict[str, str]:
+        """Create security headers for subrequest.
+
+        Args:
+            auth_token: Extracted auth token (if any)
+            request: Original pyramid request
+
+        Returns:
+            Dictionary of security headers to add to subrequest
+        """
+        headers = {}
+
+        if auth_token:
+            headers["Authorization"] = f"Bearer {auth_token}"
+        elif (
+            self.config
+            and not self.config.expose_auth_as_params
+            and "Authorization" in request.headers
+        ):
+            # When expose_auth_as_params=false, use HTTP header auth directly
+            headers["Authorization"] = request.headers["Authorization"]
+
+        return headers
+
+    def _create_tool_subrequest(
+        self,
+        request: Request,
+        tool: MCPTool,
+        tool_args: Dict[str, Any],
+        headers: Dict[str, str],
     ) -> Request:
         """Create a subrequest for tool execution.
 
@@ -639,6 +675,7 @@ class MCPProtocolHandler:
             request: Original pyramid request
             tool: Tool to execute
             tool_args: Tool arguments
+            headers: Security headers to add to subrequest
 
         Returns:
             Subrequest configured for tool execution
@@ -660,18 +697,31 @@ class MCPProtocolHandler:
         path_params = re.findall(r"\{([^}]+)\}", route_pattern)
         path_param_names = [param.split(":")[0] for param in path_params]
 
-        # Separate path parameters from other parameters
+        # Extract parameters from structured objects (path, querystring, body)
         path_values = {}
         remaining_args = {}
 
-        # Handle special querystring parameter first
         args_copy = tool_args.copy()
-        if "querystring" in args_copy:
-            querystring_value = args_copy.pop("querystring")
-            if isinstance(querystring_value, dict):
-                remaining_args.update(querystring_value)
 
-        # Separate path parameters from remaining args
+        # Handle structured path parameter object
+        if "path" in args_copy:
+            path_obj = args_copy.pop("path")
+            if isinstance(path_obj, dict):
+                path_values.update(path_obj)
+
+        # Handle structured querystring parameter object
+        if "querystring" in args_copy:
+            querystring_obj = args_copy.pop("querystring")
+            if isinstance(querystring_obj, dict):
+                remaining_args.update(querystring_obj)
+
+        # Handle structured body parameter object
+        if "body" in args_copy:
+            body_obj = args_copy.pop("body")
+            if isinstance(body_obj, dict):
+                remaining_args.update(body_obj)
+
+        # Handle any remaining top-level parameters (for backward compatibility)
         for key, value in args_copy.items():
             if key in path_param_names:
                 path_values[key] = value
@@ -722,6 +772,10 @@ class MCPProtocolHandler:
 
         # Copy environment and context from parent request
         self._copy_request_context(request, subrequest)
+
+        # Add security headers
+        for header_name, header_value in headers.items():
+            subrequest.headers[header_name] = header_value
 
         logger.info(f"Created subrequest: {subrequest.method} {subrequest.url}")
         logger.debug(f"Subrequest context: {type(subrequest.context).__name__}")

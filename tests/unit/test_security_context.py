@@ -267,7 +267,7 @@ def test_context_factory_integration_with_mcp_tools(pyramid_app):
             "id": 5,
             "params": {
                 "name": "context_protected_data",
-                "arguments": {"id": 1, "auth_token": "valid_jwt_token"},
+                "arguments": {"id": 1, "auth": {"auth_token": "valid_jwt_token"}},
             },
         },
     )
