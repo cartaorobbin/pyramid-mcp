@@ -208,151 +208,64 @@ def test_data_key_fields_appear_in_tool_schema(
     )
     assert tools_response.status_code == 200
 
-    tools = tools_response.json["result"]["tools"]
-    user_profile_tool = tools[0]  # create_user_profile
-
-    # Check that the tool has proper input schema
-    assert "inputSchema" in user_profile_tool
-    input_schema = user_profile_tool["inputSchema"]
-    assert "properties" in input_schema
-
-    properties = input_schema["properties"]
-
-    # POST requests should have body structure
-    assert "body" in properties, "POST request should have body structure"
-    body_props = properties["body"]["properties"]
-
-    # Verify data_key field names are used (camelCase), not Python names (snake_case)
-    assert "fullName" in body_props, "Should use data_key 'fullName', not 'full_name'"
-    assert (
-        "emailAddress" in body_props
-    ), "Should use data_key 'emailAddress', not 'email_address'"
-    assert "userId" in body_props, "Should use data_key 'userId', not 'user_id'"
-    assert (
-        "accountType" in body_props
-    ), "Should use data_key 'accountType', not 'account_type'"
-
-    # Field without data_key should use Python name
-    assert (
-        "status" in body_props
-    ), "Field without data_key should use Python name 'status'"
-
-    # Verify Python names are NOT in the schema
-    assert (
-        "full_name" not in body_props
-    ), "Python name 'full_name' should not appear in schema"
-    assert (
-        "email_address" not in body_props
-    ), "Python name 'email_address' should not appear in schema"
-    assert (
-        "user_id" not in body_props
-    ), "Python name 'user_id' should not appear in schema"
-    assert (
-        "account_type" not in body_props
-    ), "Python name 'account_type' should not appear in schema"
-
-
-def test_data_key_required_fields_mapping(
-    pyramid_app_with_services, user_profile_service
-):
-    """Test that required fields with data_key are correctly mapped in required list."""
-    services = [user_profile_service]
-    app = pyramid_app_with_services(services)
-
-    # Get tools list
-    tools_response = app.post_json(
-        "/mcp", {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
-    )
-    assert tools_response.status_code == 200
-
-    tools = tools_response.json["result"]["tools"]
-    user_profile_tool = tools[0]  # create_user_profile
-
-    input_schema = user_profile_tool["inputSchema"]
-
-    # POST requests should have body structure with required fields
-    assert (
-        "body" in input_schema["properties"]
-    ), "POST request should have body structure"
-    body_schema = input_schema["properties"]["body"]
-    required = body_schema.get("required", [])
-
-    # Required fields should use data_key names, not Python names
-    assert "fullName" in required, "Required field should use data_key 'fullName'"
-    assert (
-        "emailAddress" in required
-    ), "Required field should use data_key 'emailAddress'"
-
-    # Optional fields should not be in required list
-    assert "userId" not in required, "Optional field should not be required"
-    assert "accountType" not in required, "Optional field should not be required"
-    assert "status" not in required, "Optional field should not be required"
-
-    # Python names should NOT be in required list
-    assert "full_name" not in required, "Python name should not be in required list"
-    assert "email_address" not in required, "Python name should not be in required list"
+    # Assert the complete tools list response structure
+    assert tools_response.json == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "tools": [
+                {
+                    "name": "create_user_profile",
+                    "description": "Create user profile with data_key field mapping.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "body": {
+                                "type": "object",
+                                "properties": {
+                                    "fullName": {
+                                        "type": "string",
+                                        "description": "User's full name",
+                                    },
+                                    "emailAddress": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "description": "User's email address",
+                                    },
+                                    "userId": {
+                                        "type": "integer",
+                                        "description": "User ID number",
+                                    },
+                                    "accountType": {
+                                        "type": "string",
+                                        "description": "Type of user account",
+                                        "default": "standard",
+                                    },
+                                    "status": {
+                                        "type": "string",
+                                        "description": "User status",
+                                        "default": "active",
+                                    },
+                                },
+                                "required": ["fullName", "emailAddress"],
+                                "additionalProperties": False,
+                                "description": "Request body parameters",
+                            }
+                        },
+                        "required": [],
+                        "additionalProperties": False,
+                    },
+                }
+            ]
+        },
+    }
 
 
-def test_data_key_field_descriptions_preserved(
-    pyramid_app_with_services, user_profile_service
-):
-    """Test that field descriptions are preserved when using data_key."""
-    services = [user_profile_service]
-    app = pyramid_app_with_services(services)
-
-    # Get tools list
-    tools_response = app.post_json(
-        "/mcp", {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
-    )
-    assert tools_response.status_code == 200
-
-    tools = tools_response.json["result"]["tools"]
-    user_profile_tool = tools[0]  # create_user_profile
-
-    input_schema = user_profile_tool["inputSchema"]
-    properties = input_schema["properties"]
-
-    # POST requests should have body structure
-    assert "body" in properties, "POST request should have body structure"
-    body_props = properties["body"]["properties"]
-
-    # Verify descriptions are preserved for data_key fields
-    assert body_props["fullName"]["description"] == "User's full name"
-    assert body_props["emailAddress"]["description"] == "User's email address"
-    assert body_props["userId"]["description"] == "User ID number"
-    assert body_props["accountType"]["description"] == "Type of user account"
-    assert body_props["status"]["description"] == "User status"
-
-
-def test_data_key_field_types_correct(pyramid_app_with_services, user_profile_service):
-    """Test that field types are correctly determined for data_key fields."""
-    services = [user_profile_service]
-    app = pyramid_app_with_services(services)
-
-    # Get tools list
-    tools_response = app.post_json(
-        "/mcp", {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
-    )
-    assert tools_response.status_code == 200
-
-    tools = tools_response.json["result"]["tools"]
-    user_profile_tool = tools[0]  # create_user_profile
-
-    input_schema = user_profile_tool["inputSchema"]
-    properties = input_schema["properties"]
-
-    # POST requests should have body structure
-    assert "body" in properties, "POST request should have body structure"
-    body_props = properties["body"]["properties"]
-
-    # Verify field types are correct
-    assert body_props["fullName"]["type"] == "string"
-    assert (
-        body_props["emailAddress"]["type"] == "string"
-    )  # Email field should be string type
-    assert body_props["userId"]["type"] == "integer"
-    assert body_props["accountType"]["type"] == "string"
-    assert body_props["status"]["type"] == "string"
+# Note: test_data_key_required_fields_mapping,
+# test_data_key_field_descriptions_preserved,
+# and test_data_key_field_types_correct are now covered by
+# test_data_key_fields_appear_in_tool_schema which tests the complete schema
+# structure including field types, descriptions, and required fields.
 
 
 def test_mixed_data_key_and_python_names(pyramid_app_with_services):
@@ -397,108 +310,52 @@ def test_mixed_data_key_and_python_names(pyramid_app_with_services):
     )
     assert tools_response.status_code == 200
 
-    tools = tools_response.json["result"]["tools"]
-    mixed_tool = tools[0]  # create_mixed
+    # Assert the complete tools list response structure
+    assert tools_response.json == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "tools": [
+                {
+                    "name": "create_mixed_service",
+                    "description": "Create with mixed field names.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "body": {
+                                "type": "object",
+                                "properties": {
+                                    "firstName": {
+                                        "type": "string",
+                                        "description": "First name",
+                                    },
+                                    "age": {
+                                        "type": "integer",
+                                        "description": "User age",
+                                    },
+                                    "lastLogin": {
+                                        "type": "string",
+                                        "format": "date-time",
+                                        "description": "Last login timestamp",
+                                    },
+                                },
+                                "required": ["firstName", "age"],
+                                "additionalProperties": False,
+                                "description": "Request body parameters",
+                            }
+                        },
+                        "required": [],
+                        "additionalProperties": False,
+                    },
+                }
+            ]
+        },
+    }
 
-    input_schema = mixed_tool["inputSchema"]
-    properties = input_schema["properties"]
 
-    # POST requests should have body structure
-    assert "body" in properties, "POST request should have body structure"
-    body_props = properties["body"]["properties"]
-    body_required = properties["body"].get("required", [])
-
-    # data_key field should use the key name
-    assert "firstName" in body_props
-    assert "firstName" in body_required
-    assert "first_name" not in body_props
-    assert "first_name" not in body_required
-
-    # Regular field should use Python name
-    assert "age" in body_props
-    assert "age" in body_required
-
-    # Optional data_key field should use key name
-    assert "lastLogin" in body_props
-    assert "lastLogin" not in body_required
-    assert "last_login" not in body_props
-
-
-def test_tool_parameter_names_use_data_key_values(
-    pyramid_app_with_services, user_profile_service
-):
-    """Test that MCP tool parameter names use data_key values, not Python names."""
-    services = [user_profile_service]
-    app = pyramid_app_with_services(services)
-
-    # Get tools list to inspect the actual tool parameters
-    tools_response = app.post_json(
-        "/mcp", {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
-    )
-    assert tools_response.status_code == 200
-
-    tools = tools_response.json["result"]["tools"]
-    user_profile_tool = tools[0]  # create_user_profile
-
-    # Get the tool's input schema
-    input_schema = user_profile_tool["inputSchema"]
-    properties = input_schema["properties"]
-
-    # POST requests should have body structure
-    assert "body" in properties, "POST request should have body structure"
-    body_props = properties["body"]["properties"]
-    body_required = properties["body"].get("required", [])
-
-    # ASSERT: Parameter names should be the data_key values, not Python field names
-
-    # Fields with data_key should expose the data_key as parameter name
-    assert (
-        "fullName" in body_props
-    ), "Parameter should use data_key 'fullName', not 'full_name'"
-    assert (
-        "emailAddress" in body_props
-    ), "Parameter should use data_key 'emailAddress', not 'email_address'"
-    assert (
-        "userId" in body_props
-    ), "Parameter should use data_key 'userId', not 'user_id'"
-    assert (
-        "accountType" in body_props
-    ), "Parameter should use data_key 'accountType', not 'account_type'"
-
-    # Field without data_key should use Python field name
-    assert (
-        "status" in body_props
-    ), "Parameter without data_key should use Python field name 'status'"
-
-    # ASSERT: Python field names should NOT be exposed as parameters
-    assert (
-        "full_name" not in body_props
-    ), "Python field name 'full_name' should not be exposed when data_key exists"
-    assert (
-        "email_address" not in body_props
-    ), "Python field name 'email_address' should not be exposed when data_key exists"
-    assert (
-        "user_id" not in body_props
-    ), "Python field name 'user_id' should not be exposed when data_key exists"
-    assert (
-        "account_type" not in body_props
-    ), "Python field name 'account_type' should not be exposed when data_key exists"
-
-    # ASSERT: Required fields should also use data_key names
-    assert (
-        "fullName" in body_required
-    ), "Required parameter should use data_key 'fullName'"
-    assert (
-        "emailAddress" in body_required
-    ), "Required parameter should use data_key 'emailAddress'"
-
-    # ASSERT: Python field names should NOT be in required list
-    assert (
-        "full_name" not in body_required
-    ), "Python field name 'full_name' should not be in required list"
-    assert (
-        "email_address" not in body_required
-    ), "Python field name 'email_address' should not be in required list"
+# Note: test_tool_parameter_names_use_data_key_values is now covered by
+# test_data_key_fields_appear_in_tool_schema which tests the complete tool schema
+# structure.
 
 
 # =============================================================================
@@ -535,21 +392,38 @@ def test_simple_body_parameter_validation(
 
     # Should succeed with validated body parameters
     assert response.status_code == 200
-    result = response.json
-    assert result["id"] == 1
-    assert "result" in result
 
-    # The actual response data should be in the MCP context format
-    mcp_result = result["result"]
-    assert mcp_result["type"] == "mcp/context"
+    # Assert the complete response structure
+    actual_response = response.json
+    fetched_at = actual_response["result"]["source"]["fetched_at"]
 
-    # Extract the actual response content
-    actual_content = mcp_result["content"][0]["data"]
-
-    # Verify that the validated body parameters were used
-    assert actual_content["message"] == "Hello World"
-    assert actual_content["priority"] == 5
-    assert actual_content["status"] == "created"
+    assert actual_response == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "IMPORTANT: All that is at data key.",
+                    "data": {
+                        "message": "Hello World",
+                        "priority": 5,
+                        "status": "created",
+                    },
+                }
+            ],
+            "type": "mcp/context",
+            "version": "1.0",
+            "source": {
+                "kind": "rest_api",
+                "name": "PyramidAPI",
+                "url": "http://localhost/simple-body",
+                "fetched_at": fetched_at,
+            },
+            "tags": ["api_response"],
+            "llm_context_hint": "This is a response from a Pyramid API",
+        },
+    }
 
 
 def test_simple_body_parameter_schema_generation(
@@ -565,36 +439,43 @@ def test_simple_body_parameter_schema_generation(
     )
     assert tools_response.status_code == 200
 
-    tools = tools_response.json["result"]["tools"]
-    simple_tool = tools[0]  # simple_body
-
-    # Check that the tool has proper input schema
-    assert "inputSchema" in simple_tool
-    input_schema = simple_tool["inputSchema"]
-    assert "properties" in input_schema
-
-    properties = input_schema["properties"]
-
-    # POST requests should have body structure
-    assert "body" in properties, "POST request should have body structure"
-    body_props = properties["body"]["properties"]
-    body_required = properties["body"].get("required", [])
-
-    # Verify simple schema fields
-    assert "message" in body_props, "Should have 'message' field"
-    assert "priority" in body_props, "Should have 'priority' field"
-
-    # Verify field types
-    assert body_props["message"]["type"] == "string"
-    assert body_props["priority"]["type"] == "integer"
-
-    # Verify required fields
-    assert "message" in body_required, "Message should be required"
-    assert "priority" not in body_required, "Priority should be optional"
-
-    # Verify descriptions
-    assert body_props["message"]["description"] == "Test message"
-    assert body_props["priority"]["description"] == "Message priority"
+    # Assert the complete tools list response structure
+    assert tools_response.json == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "tools": [
+                {
+                    "name": "create_simple_body",
+                    "description": "Create simple message with body validation.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "body": {
+                                "type": "object",
+                                "properties": {
+                                    "message": {
+                                        "type": "string",
+                                        "description": "Test message",
+                                    },
+                                    "priority": {
+                                        "type": "integer",
+                                        "default": 1,
+                                        "description": "Message priority",
+                                    },
+                                },
+                                "required": ["message"],
+                                "additionalProperties": False,
+                                "description": "Request body parameters",
+                            }
+                        },
+                        "required": [],
+                        "additionalProperties": False,
+                    },
+                }
+            ]
+        },
+    }
 
 
 # =============================================================================
@@ -642,25 +523,45 @@ def test_nested_body_parameter_validation(
 
     # Should succeed with validated nested body parameters
     assert response.status_code == 200
-    result = response.json
-    assert result["id"] == 1
-    assert "result" in result
 
-    # The actual response data should be in the MCP context format
-    mcp_result = result["result"]
-    assert mcp_result["type"] == "mcp/context"
+    # Assert the complete response structure
+    actual_response = response.json
+    fetched_at = actual_response["result"]["source"]["fetched_at"]
 
-    # Extract the actual response content
-    actual_content = mcp_result["content"][0]["data"]
-
-    # Verify that the validated nested body parameters were used
-    user_data = actual_content["user"]
-    assert user_data["name"] == "John Doe"
-    assert user_data["email"] == "john@example.com"
-    assert user_data["address"]["street"] == "123 Main St"
-    assert user_data["address"]["city"] == "Anytown"
-    assert user_data["address"]["zip_code"] == "12345"
-    assert actual_content["status"] == "created"
+    assert actual_response == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "IMPORTANT: All that is at data key.",
+                    "data": {
+                        "user": {
+                            "name": "John Doe",
+                            "email": "john@example.com",
+                            "address": {
+                                "street": "123 Main St",
+                                "city": "Anytown",
+                                "zip_code": "12345",
+                            },
+                        },
+                        "status": "created",
+                    },
+                }
+            ],
+            "type": "mcp/context",
+            "version": "1.0",
+            "source": {
+                "kind": "rest_api",
+                "name": "PyramidAPI",
+                "url": "http://localhost/nested-body",
+                "fetched_at": fetched_at,
+            },
+            "tags": ["api_response"],
+            "llm_context_hint": "This is a response from a Pyramid API",
+        },
+    }
 
 
 def test_nested_body_parameter_schema_generation(
@@ -676,48 +577,63 @@ def test_nested_body_parameter_schema_generation(
     )
     assert tools_response.status_code == 200
 
-    tools = tools_response.json["result"]["tools"]
-    nested_tool = tools[0]  # nested_body
-
-    # Check that the tool has proper input schema
-    assert "inputSchema" in nested_tool
-    input_schema = nested_tool["inputSchema"]
-    assert "properties" in input_schema
-
-    properties = input_schema["properties"]
-
-    # POST requests should have body structure
-    assert "body" in properties, "POST request should have body structure"
-    body_props = properties["body"]["properties"]
-    body_required = properties["body"].get("required", [])
-
-    # Verify main schema fields
-    assert "name" in body_props, "Should have 'name' field"
-    assert "email" in body_props, "Should have 'email' field"
-    assert "address" in body_props, "Should have 'address' field"
-
-    # Verify field types
-    assert body_props["name"]["type"] == "string"
-    assert body_props["email"]["type"] == "string"
-    assert body_props["address"]["type"] == "object"
-
-    # Verify required fields
-    assert "name" in body_required, "Name should be required"
-    assert "email" in body_required, "Email should be required"
-    assert "address" in body_required, "Address should be required"
-
-    # Verify nested address schema
-    address_props = body_props["address"]["properties"]
-    address_required = body_props["address"].get("required", [])
-
-    assert "street" in address_props, "Address should have 'street' field"
-    assert "city" in address_props, "Address should have 'city' field"
-    assert "zip_code" in address_props, "Address should have 'zip_code' field"
-
-    # All address fields should be required
-    assert "street" in address_required, "Street should be required"
-    assert "city" in address_required, "City should be required"
-    assert "zip_code" in address_required, "ZIP code should be required"
+    # Assert the complete tools list response structure
+    assert tools_response.json == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "tools": [
+                {
+                    "name": "create_nested_body",
+                    "description": "Create user with nested address validation.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "body": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "description": "Full name",
+                                    },
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "description": "Email address",
+                                    },
+                                    "address": {
+                                        "type": "object",
+                                        "properties": {
+                                            "street": {
+                                                "type": "string",
+                                                "description": "Street address",
+                                            },
+                                            "city": {
+                                                "type": "string",
+                                                "description": "City",
+                                            },
+                                            "zip_code": {
+                                                "type": "string",
+                                                "description": "ZIP code",
+                                            },
+                                        },
+                                        "required": ["street", "city", "zip_code"],
+                                        "additionalProperties": False,
+                                        "description": "Address information",
+                                    },
+                                },
+                                "required": ["name", "email", "address"],
+                                "additionalProperties": False,
+                                "description": "Request body parameters",
+                            }
+                        },
+                        "required": [],
+                        "additionalProperties": False,
+                    },
+                }
+            ]
+        },
+    }
 
 
 # =============================================================================
@@ -838,27 +754,56 @@ def test_complex_body_schema_generation_with_pre_load(pyramid_app_with_services)
     )
     assert tools_response.status_code == 200
 
-    tools = tools_response.json["result"]["tools"]
-    complex_tool = tools[0]  # users_complex
-
-    # Check that the tool has proper input schema
-    assert "inputSchema" in complex_tool
-    input_schema = complex_tool["inputSchema"]
-    assert "properties" in input_schema
-
-    properties = input_schema["properties"]
-
-    # POST requests should have body structure
-    assert "body" in properties, "POST request should have body structure"
-    body_props = properties["body"]["properties"]
-
-    # Verify complex schema structure (should reflect the nested ParentSchema)
-    assert "name" in body_props, "Should have 'name' field from ParentSchema"
-    assert "response" in body_props, "Should have 'response' field from ParentSchema"
-
-    # Verify nested response schema
-    if "response" in body_props and "properties" in body_props["response"]:
-        response_props = body_props["response"]["properties"]
-        assert "path" in response_props, "Response should have 'path' field"
-        assert "method" in response_props, "Response should have 'method' field"
-        assert "sub" in response_props, "Response should have 'sub' field"
+    # Assert the complete tools list response structure
+    assert tools_response.json == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "tools": [
+                {
+                    "name": "create_users_complex",
+                    "description": "Create users with complex schema validation.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "body": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                    },
+                                    "response": {
+                                        "type": "object",
+                                        "properties": {
+                                            "path": {
+                                                "type": "string",
+                                            },
+                                            "method": {
+                                                "type": "string",
+                                            },
+                                            "sub": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "path": {
+                                                        "type": "string",
+                                                    }
+                                                },
+                                                "required": ["path"],
+                                                "additionalProperties": False,
+                                            },
+                                        },
+                                        "required": ["path", "method"],
+                                        "additionalProperties": False,
+                                    },
+                                },
+                                "required": ["name"],
+                                "additionalProperties": False,
+                            }
+                        },
+                        "required": [],
+                        "additionalProperties": False,
+                    },
+                }
+            ]
+        },
+    }
