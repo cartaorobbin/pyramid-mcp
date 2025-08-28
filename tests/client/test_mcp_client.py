@@ -124,11 +124,10 @@ def test_calculate_tool_add_operation(mcp_client: MCPClientSimulator) -> None:
     # Expect new MCP context format
     mcp_result = response["result"]
     assert mcp_result["type"] == "mcp/context"
-    assert "representation" in mcp_result
+    assert "content" in mcp_result
 
-    # Extract content from representation
-    representation = mcp_result["representation"]
-    result_content = representation["content"]
+    # Extract content from new structure
+    result_content = mcp_result["content"][0]["data"]
 
     # Extract result directly from content
     result = str(result_content)
@@ -154,11 +153,10 @@ def test_calculate_tool_multiply_operation(mcp_client: MCPClientSimulator) -> No
     # Expect new MCP context format
     mcp_result = response["result"]
     assert mcp_result["type"] == "mcp/context"
-    assert "representation" in mcp_result
+    assert "content" in mcp_result
 
-    # Extract content from representation
-    representation = mcp_result["representation"]
-    result_content = representation["content"]
+    # Extract content from new structure
+    result_content = mcp_result["content"][0]["data"]
 
     # Extract result directly from content
     result = str(result_content)
@@ -178,11 +176,10 @@ def test_get_user_count_tool(mcp_client: MCPClientSimulator) -> None:
     # Expect new MCP context format
     mcp_result = response["result"]
     assert mcp_result["type"] == "mcp/context"
-    assert "representation" in mcp_result
+    assert "content" in mcp_result
 
-    # Extract content from representation
-    representation = mcp_result["representation"]
-    result_content = representation["content"]
+    # Extract content from new structure
+    result_content = mcp_result["content"][0]["data"]
 
     # Extract result directly from content
     result = str(result_content)
@@ -216,11 +213,10 @@ def test_tool_with_validation_error(mcp_client: MCPClientSimulator) -> None:
     # Expect new MCP context format
     mcp_result = response["result"]
     assert mcp_result["type"] == "mcp/context"
-    assert "representation" in mcp_result
+    assert "content" in mcp_result
 
-    # Extract content from representation
-    representation = mcp_result["representation"]
-    result_content = representation["content"]
+    # Extract content from new structure
+    result_content = mcp_result["content"][0]["data"]
 
     # Extract result directly from content
     result = str(result_content)
@@ -329,11 +325,10 @@ def test_user_count_tool_vs_users_endpoint(
     # Extract count from MCP response with new context format
     mcp_result = mcp_response["result"]
     assert mcp_result["type"] == "mcp/context"
-    assert "representation" in mcp_result
+    assert "content" in mcp_result
 
-    # Extract content from representation
-    representation = mcp_result["representation"]
-    result_content = representation["content"]
+    # Extract content from new structure
+    result_content = mcp_result["content"][0]["data"]
 
     # Extract result directly from content
     mcp_content = str(result_content)

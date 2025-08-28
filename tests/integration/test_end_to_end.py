@@ -120,11 +120,10 @@ def test_auto_discovered_tools_call_real_views(end_to_end_test_config):
     assert result["type"] == "mcp/context"
     assert result["version"] == "1.0"
     assert "source" in result
-    assert "representation" in result
+    assert "content" in result
 
-    # Get the content from the representation
-    representation = result["representation"]
-    result_content = representation["content"]
+    # Get the content from the new structure - this test expects text response
+    result_content = result["content"][0]["text"]
 
     # Extract result directly from content
 
@@ -152,7 +151,7 @@ def test_auto_discovered_tools_call_real_views(end_to_end_test_config):
     # Should get real JSON from the actual view in new MCP context format
     mcp_result = response.json["result"]
     assert mcp_result["type"] == "mcp/context"
-    result_content = mcp_result["representation"]["content"]
+    result_content = mcp_result["content"][0]["text"]
 
     # Extract result directly from content
     result_text = str(result_content)
@@ -175,7 +174,7 @@ def test_auto_discovered_tools_call_real_views(end_to_end_test_config):
     # Extract result from new MCP context format
     mcp_result = response.json["result"]
     assert mcp_result["type"] == "mcp/context"
-    result_content = mcp_result["representation"]["content"]
+    result_content = mcp_result["content"][0]["text"]
 
     # Extract result directly from content
     result_text = str(result_content)
@@ -243,7 +242,7 @@ def test_comparison_simulation_vs_real():
         # Extract result from new MCP context format
         mcp_result = call_response.json["result"]
         assert mcp_result["type"] == "mcp/context"
-        result_content = mcp_result["representation"]["content"]
+        result_content = mcp_result["content"][0]["text"]
 
         # Extract result directly from content
         result_text = str(result_content)
@@ -318,10 +317,10 @@ def test_complete_pyramid_mcp_workflow(workflow_test_config):
         # Expect MCP context format
         calc_data = calc_response.json["result"]
         assert calc_data["type"] == "mcp/context"
-        assert "representation" in calc_data
+        assert "content" in calc_data
 
-        # Extract result from representation
-        calc_result = calc_data["representation"]["content"]
+        # Extract result from new structure
+        calc_result = calc_data["content"][0]["text"]
 
         # Should contain the sum result (1+2+3+4+5 = 15)
         assert "15" in str(calc_result)
@@ -344,10 +343,10 @@ def test_complete_pyramid_mcp_workflow(workflow_test_config):
         # Expect MCP context format
         calc_data = calc_response.json["result"]
         assert calc_data["type"] == "mcp/context"
-        assert "representation" in calc_data
+        assert "content" in calc_data
 
-        # Extract result from representation
-        calc_result = calc_data["representation"]["content"]
+        # Extract result from new structure
+        calc_result = calc_data["content"][0]["text"]
 
         # Should contain the calculation result (10 + 5 = 15)
         assert "15" in str(calc_result)
@@ -370,7 +369,7 @@ def test_complete_pyramid_mcp_workflow(workflow_test_config):
         # Extract result from new MCP context format
         mcp_result = text_response.json["result"]
         assert mcp_result["type"] == "mcp/context"
-        result_content = mcp_result["representation"]["content"]
+        result_content = mcp_result["content"][0]["text"]
 
         # Extract result directly from content
         text_result = str(result_content)
@@ -391,8 +390,8 @@ def test_complete_pyramid_mcp_workflow(workflow_test_config):
         # Just verify we got a response in new MCP context format
         result = user_count_response.json["result"]
         assert result["type"] == "mcp/context"
-        assert "representation" in result
-        assert result["representation"]["content"]
+        assert "content" in result
+        assert result["content"][0]
 
     # 6. Test error handling with available tool
     if "calculate" in tool_names:
@@ -467,11 +466,10 @@ def test_multi_step_integration_scenario(multi_step_test_config):
     # Expect new MCP context format
     result_data = analyze_response.json["result"]
     assert result_data["type"] == "mcp/context"
-    assert "representation" in result_data
+    assert "content" in result_data
 
-    # Extract content from representation
-    representation = result_data["representation"]
-    result_content = representation["content"]
+    # Extract content from new structure
+    result_content = result_data["content"][0]["text"]
 
     # Extract result directly from content
     result_text = str(result_content)
@@ -496,11 +494,10 @@ def test_multi_step_integration_scenario(multi_step_test_config):
     # Expect new MCP context format for second call
     result_data2 = analyze_response2.json["result"]
     assert result_data2["type"] == "mcp/context"
-    assert "representation" in result_data2
+    assert "content" in result_data2
 
-    # Extract content from representation
-    representation2 = result_data2["representation"]
-    result_content2 = representation2["content"]
+    # Extract content from new structure
+    result_content2 = result_data2["content"][0]["text"]
 
     # Extract result directly from content
     result2 = str(result_content2)
@@ -644,11 +641,10 @@ def test_dynamic_tool_registration_workflow(dynamic_test_config):
     assert add_response1.status_code == 200
     result1_data = add_response1.json["result"]
     assert result1_data["type"] == "mcp/context"
-    assert "representation" in result1_data
+    assert "content" in result1_data
 
-    # Extract content from representation
-    representation = result1_data["representation"]
-    result_content = representation["content"]
+    # Extract content from new structure
+    result_content = result1_data["content"][0]["text"]
 
     # Extract result directly from content
     result = str(result_content)
@@ -689,10 +685,10 @@ def test_dynamic_tool_registration_workflow(dynamic_test_config):
     # Expect MCP context format
     reporter_data = reporter_response.json["result"]
     assert reporter_data["type"] == "mcp/context"
-    assert "representation" in reporter_data
+    assert "content" in reporter_data
 
-    # Extract result from representation
-    summary_result = reporter_data["representation"]["content"]
+    # Extract result from new structure
+    summary_result = reporter_data["content"][0]["text"]
 
     # Should show counter operations
     assert "operations" in str(summary_result)
@@ -778,11 +774,10 @@ def test_performance_and_concurrency_simulation(pyramid_app):
         # Expect new MCP context format
         result_data = response.json["result"]
         assert result_data["type"] == "mcp/context"
-        assert "representation" in result_data
+        assert "content" in result_data
 
-        # Extract content from representation
-        representation = result_data["representation"]
-        result_content = representation["content"]
+        # Extract content from new structure
+        result_content = result_data["content"][0]["text"]
 
         # Extract result directly from content
         result = str(result_content)

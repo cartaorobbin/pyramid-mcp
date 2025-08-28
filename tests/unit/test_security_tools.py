@@ -155,8 +155,8 @@ def test_tool_decorator_execution_via_mcp(pyramid_app):
     assert public_response.status_code == 200
     result = public_response.json["result"]
     # The tool response is now in MCP context format
-    assert "representation" in result
-    assert "content" in result["representation"]
+    assert "content" in result
+    assert len(result["content"]) > 0
 
 
 def test_tool_decorator_with_permissions(pyramid_app):
@@ -208,8 +208,8 @@ def test_tool_decorator_with_permissions(pyramid_app):
     assert secure_with_auth_response.status_code == 200
     result = secure_with_auth_response.json["result"]
     # The tool response is now in MCP context format
-    assert "representation" in result
-    assert "content" in result["representation"]
+    assert "content" in result
+    assert len(result["content"]) > 0
 
 
 def test_unified_security_architecture_tool_input_schemas(pyramid_app):

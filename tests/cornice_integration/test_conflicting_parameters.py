@@ -348,7 +348,7 @@ def test_uuid_conflict_execution_same_values(
     mcp_result = result["result"]
     assert mcp_result["type"] == "mcp/context"
 
-    actual_content = mcp_result["representation"]["content"]
+    actual_content = mcp_result["content"][0]["data"]
 
     # Both UUIDs should be preserved
     assert actual_content["path_uuid"] == test_uuid
@@ -408,7 +408,7 @@ def test_uuid_conflict_execution_different_values(
     mcp_result = result["result"]
     assert mcp_result["type"] == "mcp/context"
 
-    actual_content = mcp_result["representation"]["content"]
+    actual_content = mcp_result["content"][0]["data"]
 
     # Different UUIDs should be preserved separately
     assert actual_content["path_uuid"] == path_uuid
@@ -526,7 +526,7 @@ def test_triple_conflict_execution_all_different_ids(
     mcp_result = result["result"]
     assert mcp_result["type"] == "mcp/context"
 
-    actual_content = mcp_result["representation"]["content"]
+    actual_content = mcp_result["content"][0]["data"]
 
     # Verify response contains all three IDs with correct structure
     assert actual_content["path_id"] == 123
@@ -580,7 +580,7 @@ def test_triple_conflict_execution_partial_ids(
     mcp_result = result["result"]
     assert mcp_result["type"] == "mcp/context"
 
-    actual_content = mcp_result["representation"]["content"]
+    actual_content = mcp_result["content"][0]["data"]
 
     # Verify partial response structure
     assert actual_content["path_id"] == 100
@@ -692,7 +692,7 @@ def test_data_key_conflict_execution(
     mcp_result = result["result"]
     assert mcp_result["type"] == "mcp/context"
 
-    actual_content = mcp_result["representation"]["content"]
+    actual_content = mcp_result["content"][0]["data"]
 
     # The service returns validation errors due to parameter mapping issues
     # This indicates there's still an issue with how parameters are sent to services
@@ -799,7 +799,7 @@ def test_parameter_conflict_resolution(pyramid_app_with_services):
     mcp_result = result["result"]
     assert mcp_result["type"] == "mcp/context"
 
-    actual_content = mcp_result["representation"]["content"]
+    actual_content = mcp_result["content"][0]["data"]
 
     # Use flexible assertions for conflict resolution
     content_str = str(actual_content)

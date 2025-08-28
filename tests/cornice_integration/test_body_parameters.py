@@ -544,7 +544,7 @@ def test_simple_body_parameter_validation(
     assert mcp_result["type"] == "mcp/context"
 
     # Extract the actual response content
-    actual_content = mcp_result["representation"]["content"]
+    actual_content = mcp_result["content"][0]["data"]
 
     # Verify that the validated body parameters were used
     assert actual_content["message"] == "Hello World"
@@ -651,7 +651,7 @@ def test_nested_body_parameter_validation(
     assert mcp_result["type"] == "mcp/context"
 
     # Extract the actual response content
-    actual_content = mcp_result["representation"]["content"]
+    actual_content = mcp_result["content"][0]["data"]
 
     # Verify that the validated nested body parameters were used
     user_data = actual_content["user"]
@@ -777,28 +777,42 @@ def test_complex_body_with_pre_load_hooks(settings, pyramid_app_with_services, l
 
     # Should succeed with complex body validation
     assert response.status_code == 200
-    result = response.json
-    assert result["id"] == 1
-    assert "result" in result
+    # Assert the complete response structure
+    actual_response = response.json
+    fetched_at = actual_response["result"]["source"]["fetched_at"]
 
-    # The actual response data should be in the MCP context format
-    mcp_result = result["result"]
-    assert mcp_result["type"] == "mcp/context"
-
-    # Extract the actual response content - should contain pre_load processed data
-    actual_content = mcp_result["representation"]["content"]
-
-    # Verify the complex nested structure was processed
-    assert "body" in actual_content
-    body_data = actual_content["body"]
-    assert body_data["name"] == "John Doe"
-    assert "response" in body_data
-
-    # The pre_load hooks should have added path information
-    response_data = body_data["response"]
-    assert response_data["method"] == "POST"
-    assert "path" in response_data  # Added by pre_load hook
-    assert "sub" in response_data  # Added by pre_load hook
+    assert actual_response == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "IMPORTANT: All that is at data key.",
+                    "data": {
+                        "body": {
+                            "name": "John Doe",
+                            "response": {
+                                "path": "/api/v1/users",
+                                "method": "POST",
+                                "sub": {"path": "/api/v1/users"},
+                            },
+                        }
+                    },
+                }
+            ],
+            "type": "mcp/context",
+            "version": "1.0",
+            "source": {
+                "kind": "rest_api",
+                "name": "PyramidAPI",
+                "url": "http://localhost/api/v1/users",
+                "fetched_at": fetched_at,
+            },
+            "tags": ["api_response"],
+            "llm_context_hint": "This is a response from a Pyramid API",
+        },
+    }
 
 
 def test_complex_body_schema_generation_with_pre_load(pyramid_app_with_services):

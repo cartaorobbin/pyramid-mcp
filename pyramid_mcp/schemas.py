@@ -203,6 +203,10 @@ def _get_nested_schema_class_safely(nested_field: Any) -> Optional[type]:
         ):
             return schema_attr
 
+        # Handle schema instances: get the class from the instance
+        if isinstance(schema_attr, marshmallow.Schema):
+            return schema_attr.__class__
+
         # Handle lambda functions: call them to get the schema class
         if callable(schema_attr):
             try:
@@ -420,8 +424,8 @@ class MCPContentItemSchema(Schema):
             return obj
 
         # Transform raw content into content item
-        if isinstance(obj, dict):
-            # For dict content, provide both text representation and raw data
+        if isinstance(obj, (dict, list)):
+            # For dict/list content, provide both text representation and raw data
             return {
                 "type": "text",
                 "text": "IMPORTANT: All that is at data key.",
@@ -433,21 +437,6 @@ class MCPContentItemSchema(Schema):
                 "type": "text",
                 "text": str(obj),
             }
-
-
-class MCPRepresentationSchema(Schema):
-    """Schema for MCP context representation."""
-
-    format = fields.Str(
-        required=True,
-        metadata={"description": "Data format (e.g., 'raw_json', 'text', 'xml')"},
-    )
-    content = JSONSerializableField(
-        required=True, metadata={"description": "The actual data content"}
-    )
-    encoding = fields.Str(
-        allow_none=True, metadata={"description": "Content encoding if applicable"}
-    )
 
 
 class MCPContextResultSchema(Schema):
@@ -474,11 +463,6 @@ class MCPContextResultSchema(Schema):
         MCPSourceSchema,
         required=True,
         metadata={"description": "Information about the data source"},
-    )
-    representation = fields.Nested(
-        MCPRepresentationSchema,
-        required=True,
-        metadata={"description": "The data representation"},
     )
     tags = fields.List(
         fields.Str(),
@@ -521,10 +505,8 @@ class MCPContextResultSchema(Schema):
                 hasattr(response, "headers")
                 and response.headers.get("Content-Type") == "application/json"
             ):
-                content_format = "raw_json"
                 content = response.json
             else:
-                content_format = "text"
                 content = response.text if hasattr(response, "text") else str(response)
 
             # Check for custom llm_context_hint from view predicate
@@ -554,7 +536,6 @@ class MCPContextResultSchema(Schema):
                     "url": view_info.get("url")
                     or "https://legal-entity-rest.io.geru.com.br",
                 },
-                "representation": {"format": content_format, "content": content},
             }
         else:
             # Case 2: Simple tool result format
@@ -563,12 +544,6 @@ class MCPContextResultSchema(Schema):
             source_name = obj.get("source_name", "MCP Tool")
             tags = obj.get("tags", ["tool_response"])
             llm_hint = obj.get("llm_context_hint", "Result from an MCP tool")
-
-            # Determine content format based on type
-            if isinstance(content, dict):
-                content_format = "raw_json"
-            else:
-                content_format = "text"
 
             ret = {
                 "content": [
@@ -583,7 +558,6 @@ class MCPContextResultSchema(Schema):
                     "name": source_name,
                     "fetched_at": fetched_at,
                 },
-                "representation": {"format": content_format, "content": content},
             }
 
         return ret

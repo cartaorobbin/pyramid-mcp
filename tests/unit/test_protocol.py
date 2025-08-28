@@ -205,8 +205,8 @@ def test_call_tool_request(pyramid_app):
     assert response.json["jsonrpc"] == "2.0"
     assert response.json["id"] == 4
     assert "result" in response.json
-    assert "representation" in response.json["result"]
-    assert "content" in response.json["result"]["representation"]
+    assert "content" in response.json["result"]
+    assert len(response.json["result"]["content"]) > 0
 
 
 def test_call_tool_with_string_result(pyramid_app):
@@ -229,8 +229,8 @@ def test_call_tool_with_string_result(pyramid_app):
     assert response.json["id"] == 5
     assert "result" in response.json
     # Test that string result is properly converted to MCP format
-    assert "representation" in response.json["result"]
-    assert "content" in response.json["result"]["representation"]
+    assert "content" in response.json["result"]
+    assert len(response.json["result"]["content"]) > 0
 
 
 # =============================================================================

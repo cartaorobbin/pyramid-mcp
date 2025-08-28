@@ -152,8 +152,8 @@ def test_mcp_calls_protected_route_with_jwt_succeeds(auth_test_config, valid_jwt
     # Expect new MCP context format
     mcp_result = result["result"]
     assert mcp_result["type"] == "mcp/context"
-    assert "representation" in mcp_result
-    content = mcp_result["representation"]["content"]
+    assert "content" in mcp_result
+    content = mcp_result["content"][0]["data"]
 
     # The content IS the tool result
     tool_result = content
@@ -230,8 +230,8 @@ def test_mcp_calls_public_route_always_succeeds(auth_test_config):
     # Expect new MCP context format
     mcp_result = result["result"]
     assert mcp_result["type"] == "mcp/context"
-    assert "representation" in mcp_result
-    content = mcp_result["representation"]["content"]
+    assert "content" in mcp_result
+    content = mcp_result["content"][0]["data"]
 
     # The content IS the tool result
     tool_result = content

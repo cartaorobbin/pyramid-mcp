@@ -107,11 +107,10 @@ def test_mcp_call_tool_calculation(integration_app):
     assert "result" in data
     result_data = data["result"]
     assert result_data["type"] == "mcp/context"
-    assert "representation" in result_data
+    assert "content" in result_data
 
-    # Extract content from representation
-    representation = result_data["representation"]
-    result_content = representation["content"]
+    # Extract content from new structure
+    result_content = result_data["content"][0]["text"]
 
     # Extract result directly from content
     result_text = str(result_content)
@@ -202,9 +201,9 @@ def test_mcp_tool_validation_error(integration_app):
     data = response.json
 
     # Should return an error for invalid operation (in MCP format)
-    # MCP wraps errors in result.representation.content structure
+    # MCP wraps errors in result.content structure
     assert "result" in data
-    result_content = str(data["result"]["representation"]["content"])
+    result_content = str(data["result"]["content"][0]["text"])
     assert "error" in result_content.lower()
     assert "unknown operation" in result_content.lower()
 
@@ -489,11 +488,10 @@ def test_route_discovery_end_to_end():
     # Expect exact MCP response format without conditional logic
     result_data = data["result"]
     assert result_data["type"] == "mcp/context"
-    assert "representation" in result_data
+    assert "content" in result_data
 
-    # Extract content from representation
-    representation = result_data["representation"]
-    result_content = representation["content"]
+    # Extract content from new structure
+    result_content = result_data["content"][0]["text"]
 
     # Extract result directly from content
     result_text = str(result_content)

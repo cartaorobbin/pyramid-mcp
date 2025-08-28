@@ -52,22 +52,38 @@ def test_path_parameter_resolution(pyramid_app_with_services, logs):
 
     # Should succeed and return the person data
     assert response.status_code == 200
-    result = response.json
-    assert result["id"] == 1
-    assert "result" in result
 
-    # The actual person data should be in the MCP context format
-    mcp_result = result["result"]
-    assert mcp_result["type"] == "mcp/context"
+    # Assert the complete response structure
+    actual_response = response.json
+    fetched_at = actual_response["result"]["source"]["fetched_at"]
 
-    # Extract the actual response content
-    actual_content = mcp_result["representation"]["content"]
-    expected_content = {
-        "person_id": "17143981885",
-        "name": "Person 17143981885",
-        "status": "found",
+    assert actual_response == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "IMPORTANT: All that is at data key.",
+                    "data": {
+                        "person_id": "17143981885",
+                        "name": "Person 17143981885",
+                        "status": "found",
+                    },
+                }
+            ],
+            "type": "mcp/context",
+            "version": "1.0",
+            "source": {
+                "kind": "rest_api",
+                "name": "PyramidAPI",
+                "url": "http://localhost/api/v1/persons/17143981885",
+                "fetched_at": fetched_at,
+            },
+            "tags": ["api_response"],
+            "llm_context_hint": "This is a response from a Pyramid API",
+        },
     }
-    assert actual_content == expected_content
 
     # Verify the URL was properly constructed using logassert
     # The final URL should have the resolved parameter
@@ -121,23 +137,39 @@ def test_multiple_path_parameters_resolution(pyramid_app_with_services, logs):
 
     # Should succeed and return the post data
     assert response.status_code == 200
-    result = response.json
-    assert result["id"] == 2
-    assert "result" in result
 
-    # The actual post data should be in the MCP context format
-    mcp_result = result["result"]
-    assert mcp_result["type"] == "mcp/context"
+    # Assert the complete response structure
+    actual_response = response.json
+    fetched_at = actual_response["result"]["source"]["fetched_at"]
 
-    # Extract the actual response content
-    actual_content = mcp_result["representation"]["content"]
-    expected_content = {
-        "user_id": "123",
-        "post_id": "abc-def-456",
-        "title": "Post abc-def-456 by User 123",
-        "status": "published",
+    assert actual_response == {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "result": {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "IMPORTANT: All that is at data key.",
+                    "data": {
+                        "user_id": "123",
+                        "post_id": "abc-def-456",
+                        "title": "Post abc-def-456 by User 123",
+                        "status": "published",
+                    },
+                }
+            ],
+            "type": "mcp/context",
+            "version": "1.0",
+            "source": {
+                "kind": "rest_api",
+                "name": "PyramidAPI",
+                "url": "http://localhost/api/v1/users/123/posts/abc-def-456",
+                "fetched_at": fetched_at,
+            },
+            "tags": ["api_response"],
+            "llm_context_hint": "This is a response from a Pyramid API",
+        },
     }
-    assert actual_content == expected_content
 
     # Verify both path parameters were properly resolved
     assert "FINAL URL: /api/v1/users/123/posts/abc-def-456" in logs.debug
@@ -200,22 +232,38 @@ def test_path_parameter_resolution_from_schema(uuid, pyramid_app_with_services, 
 
     # Should succeed and return the person data
     assert response.status_code == 200
-    result = response.json
-    assert result["id"] == 1
-    assert "result" in result
 
-    # The actual person data should be in the MCP context format
-    mcp_result = result["result"]
-    assert mcp_result["type"] == "mcp/context"
+    # Assert the complete response structure
+    actual_response = response.json
+    fetched_at = actual_response["result"]["source"]["fetched_at"]
 
-    # Extract the actual response content
-    actual_content = mcp_result["representation"]["content"]
-    expected_content = {
-        "person_id": uuid,
-        "name": f"Person {uuid}",
-        "status": "found",
+    assert actual_response == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "IMPORTANT: All that is at data key.",
+                    "data": {
+                        "person_id": uuid,
+                        "name": f"Person {uuid}",
+                        "status": "found",
+                    },
+                }
+            ],
+            "type": "mcp/context",
+            "version": "1.0",
+            "source": {
+                "kind": "rest_api",
+                "name": "PyramidAPI",
+                "url": f"http://localhost/api/v1/persons/{uuid}",
+                "fetched_at": fetched_at,
+            },
+            "tags": ["api_response"],
+            "llm_context_hint": "This is a response from a Pyramid API",
+        },
     }
-    assert actual_content == expected_content
 
     # Verify the URL was properly constructed using logassert
     # The final URL should have the resolved parameter
@@ -281,23 +329,38 @@ def test_path_parameter_resolution_from_schema_marshmallow_validator(
 
     # Should succeed and return the person data
     assert response.status_code == 200
-    result = response.json
-    assert result["id"] == 1
-    assert "result" in result
 
-    # The actual person data should be in the MCP context format
-    mcp_result = result["result"]
-    assert mcp_result["type"] == "mcp/context"
+    # Assert the complete response structure
+    actual_response = response.json
+    fetched_at = actual_response["result"]["source"]["fetched_at"]
 
-    # Extract the actual response content
-    actual_content = mcp_result["representation"]["content"]
-    expected_content = {
-        "person_id": uuid,  # This will be the string UUID from the parameter
-        "name": f"Person {uuid}",
-        "status": "found",
+    assert actual_response == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "IMPORTANT: All that is at data key.",
+                    "data": {
+                        "person_id": uuid,  # String UUID from parameter
+                        "name": f"Person {uuid}",
+                        "status": "found",
+                    },
+                }
+            ],
+            "type": "mcp/context",
+            "version": "1.0",
+            "source": {
+                "kind": "rest_api",
+                "name": "PyramidAPI",
+                "url": f"http://localhost/api/v1/persons/{uuid}",
+                "fetched_at": fetched_at,
+            },
+            "tags": ["api_response"],
+            "llm_context_hint": "This is a response from a Pyramid API",
+        },
     }
-
-    assert actual_content == expected_content
 
     # Verify the URL was properly constructed using logassert
     # The final URL should have the resolved parameter
@@ -359,13 +422,12 @@ def test_list_tools_path_parameter_resolution_from_schema_marshmallow_validator(
                                 "properties": {
                                     "uuid": {
                                         "type": "string",
-                                        "description": "Path parameter: uuid",
-                                        "default": None,
+                                        "format": "uuid",
+                                        "description": "UUID",
                                     }
                                 },
-                                "required": [],
+                                "required": ["uuid"],
                                 "additionalProperties": False,
-                                "description": "Path parameters for the request",
                             }
                         },
                         "required": [],

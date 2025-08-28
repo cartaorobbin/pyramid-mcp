@@ -237,8 +237,8 @@ def test_context_factory_integration_with_mcp_tools(pyramid_app):
     assert public_response.status_code == 200
     result = public_response.json["result"]
     # The tool response is now in MCP context format
-    assert "representation" in result
-    assert "content" in result["representation"]
+    assert "content" in result
+    assert len(result["content"]) > 0
 
     # Test protected tool without auth - should fail
     protected_response = app.post_json(
@@ -274,8 +274,8 @@ def test_context_factory_integration_with_mcp_tools(pyramid_app):
     assert protected_with_auth_response.status_code == 200
     result = protected_with_auth_response.json["result"]
     # The tool response is now in MCP context format
-    assert "representation" in result
-    assert "content" in result["representation"]
+    assert "content" in result
+    assert len(result["content"]) > 0
     # The specific data fields are now in the content, not directly accessible
 
 
