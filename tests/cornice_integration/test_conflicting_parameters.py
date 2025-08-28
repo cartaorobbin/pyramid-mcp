@@ -262,43 +262,59 @@ def test_uuid_conflict_schema_generation(
     )
     assert tools_response.status_code == 200
 
-    tools = tools_response.json["result"]["tools"]
-    conflict_tool = tools[0]  # uuid_conflict_service
-
-    # Check that the tool has proper input schema with both path and body UUIDs
-    input_schema = conflict_tool["inputSchema"]
-    properties = input_schema["properties"]
-
-    # Should have both path and body structures
-    assert "path" in properties, "Should have path structure"
-    assert "body" in properties, "Should have body structure"
-
-    # Verify path UUID
-    path_props = properties["path"]["properties"]
-    assert "uuid" in path_props, "Path should have 'uuid' field"
-    assert path_props["uuid"]["type"] == "string"
-    assert path_props["uuid"]["format"] == "uuid"
-    assert path_props["uuid"]["description"] == "Item UUID in path"
-
-    # Verify body UUID (different from path UUID)
-    body_props = properties["body"]["properties"]
-    assert "uuid" in body_props, "Body should have 'uuid' field"
-    assert body_props["uuid"]["type"] == "string"
-    assert body_props["uuid"]["format"] == "uuid"
-    assert body_props["uuid"]["description"] == "Related UUID in body"
-
-    # Verify other body fields
-    assert "name" in body_props, "Body should have 'name' field"
-    assert "action" in body_props, "Body should have 'action' field"
-
-    # Verify required fields
-    path_required = properties["path"].get("required", [])
-    body_required = properties["body"].get("required", [])
-
-    assert "uuid" in path_required, "Path UUID should be required"
-    assert "uuid" in body_required, "Body UUID should be required"
-    assert "name" in body_required, "Body name should be required"
-    assert "action" not in body_required, "Body action should be optional"
+    # Assert the complete tools list response structure
+    assert tools_response.json == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "tools": [
+                {
+                    "name": "create_uuid_conflict_service",
+                    "description": "Handle request with UUID in both path and body.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "object",
+                                "properties": {
+                                    "uuid": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "description": "Item UUID in path",
+                                    }
+                                },
+                                "required": ["uuid"],
+                                "additionalProperties": False,
+                            },
+                            "body": {
+                                "type": "object",
+                                "properties": {
+                                    "uuid": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "description": "Related UUID in body",
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "description": "Item name",
+                                    },
+                                    "action": {
+                                        "type": "string",
+                                        "description": "Action to perform",
+                                        "default": "update",
+                                    },
+                                },
+                                "required": ["uuid", "name"],
+                                "additionalProperties": False,
+                            },
+                        },
+                        "required": [],
+                        "additionalProperties": False,
+                    },
+                }
+            ]
+        },
+    }
 
 
 def test_uuid_conflict_execution_same_values(
@@ -340,23 +356,40 @@ def test_uuid_conflict_execution_same_values(
 
     # Should succeed
     assert response.status_code == 200
-    result = response.json
-    assert result["id"] == 1
-    assert "result" in result
 
-    # Verify response content
-    mcp_result = result["result"]
-    assert mcp_result["type"] == "mcp/context"
+    # Assert the complete response structure
+    actual_response = response.json
+    fetched_at = actual_response["result"]["source"]["fetched_at"]
 
-    actual_content = mcp_result["content"][0]["data"]
-
-    # Both UUIDs should be preserved
-    assert actual_content["path_uuid"] == test_uuid
-    assert actual_content["body_uuid"] == test_uuid
-    assert actual_content["are_same"] is True
-    assert actual_content["body_data"]["name"] == "Test Item"
-    assert actual_content["body_data"]["action"] == "create"
-    assert actual_content["status"] == "processed"
+    assert actual_response == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "IMPORTANT: All that is at data key.",
+                    "data": {
+                        "path_uuid": test_uuid,
+                        "body_uuid": test_uuid,
+                        "are_same": True,
+                        "body_data": {"name": "Test Item", "action": "create"},
+                        "status": "processed",
+                    },
+                }
+            ],
+            "type": "mcp/context",
+            "version": "1.0",
+            "source": {
+                "kind": "rest_api",
+                "name": "PyramidAPI",
+                "url": f"http://localhost/api/v1/items/{test_uuid}",
+                "fetched_at": fetched_at,
+            },
+            "tags": ["api_response"],
+            "llm_context_hint": "This is a response from a Pyramid API",
+        },
+    }
 
 
 def test_uuid_conflict_execution_different_values(
@@ -400,23 +433,40 @@ def test_uuid_conflict_execution_different_values(
 
     # Should succeed
     assert response.status_code == 200
-    result = response.json
-    assert result["id"] == 1
-    assert "result" in result
 
-    # Verify response content
-    mcp_result = result["result"]
-    assert mcp_result["type"] == "mcp/context"
+    # Assert the complete response structure
+    actual_response = response.json
+    fetched_at = actual_response["result"]["source"]["fetched_at"]
 
-    actual_content = mcp_result["content"][0]["data"]
-
-    # Different UUIDs should be preserved separately
-    assert actual_content["path_uuid"] == path_uuid
-    assert actual_content["body_uuid"] == body_uuid
-    assert actual_content["are_same"] is False
-    assert actual_content["body_data"]["name"] == "Related Item"
-    assert actual_content["body_data"]["action"] == "update"  # Default value
-    assert actual_content["status"] == "processed"
+    assert actual_response == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "IMPORTANT: All that is at data key.",
+                    "data": {
+                        "path_uuid": path_uuid,
+                        "body_uuid": body_uuid,
+                        "are_same": False,
+                        "body_data": {"name": "Related Item", "action": "update"},
+                        "status": "processed",
+                    },
+                }
+            ],
+            "type": "mcp/context",
+            "version": "1.0",
+            "source": {
+                "kind": "rest_api",
+                "name": "PyramidAPI",
+                "url": f"http://localhost/api/v1/items/{path_uuid}",
+                "fetched_at": fetched_at,
+            },
+            "tags": ["api_response"],
+            "llm_context_hint": "This is a response from a Pyramid API",
+        },
+    }
 
 
 # =============================================================================
@@ -438,49 +488,68 @@ def test_triple_conflict_schema_generation(
     )
     assert tools_response.status_code == 200
 
-    tools = tools_response.json["result"]["tools"]
-    triple_tool = tools[0]  # triple_conflict_service
-
-    # Check tool has proper input schema with path, query, body 'id' fields
-    input_schema = triple_tool["inputSchema"]
-    properties = input_schema["properties"]
-
-    # Should have all three structures
-    assert "path" in properties, "Should have path structure"
-    assert "querystring" in properties, "Should have querystring structure"
-    assert "body" in properties, "Should have body structure"
-
-    # Verify path 'id'
-    path_props = properties["path"]["properties"]
-    assert "id" in path_props, "Path should have 'id' field"
-    assert path_props["id"]["type"] == "integer"
-    assert path_props["id"]["description"] == "Item ID in path"
-
-    # Verify querystring 'id'
-    query_props = properties["querystring"]["properties"]
-    assert "id" in query_props, "Querystring should have 'id' field"
-    assert query_props["id"]["type"] == "integer"
-    assert query_props["id"]["description"] == "Filter ID in query"
-    assert (
-        "include_related" in query_props
-    ), "Querystring should have 'include_related' field"
-
-    # Verify body 'id'
-    body_props = properties["body"]["properties"]
-    assert "id" in body_props, "Body should have 'id' field"
-    assert body_props["id"]["type"] == "integer"
-    assert body_props["id"]["description"] == "Reference ID in body"
-    assert "data" in body_props, "Body should have 'data' field"
-
-    # Verify required fields - different requirements for each location
-    path_required = properties["path"].get("required", [])
-    query_required = properties["querystring"].get("required", [])
-    body_required = properties["body"].get("required", [])
-
-    assert "id" in path_required, "Path ID should be required"
-    assert "id" not in query_required, "Query ID should be optional"
-    assert "id" not in body_required, "Body ID should be optional"
-    assert "data" in body_required, "Body data should be required"
+    # Assert the complete tools list response structure
+    assert tools_response.json == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "tools": [
+                {
+                    "name": "update_triple_conflict_service",
+                    "description": "Handle request with 'id' in all three locations.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "object",
+                                "properties": {
+                                    "id": {
+                                        "type": "integer",
+                                        "description": "Item ID in path",
+                                    }
+                                },
+                                "required": ["id"],
+                                "additionalProperties": False,
+                            },
+                            "querystring": {
+                                "type": "object",
+                                "properties": {
+                                    "id": {
+                                        "type": "integer",
+                                        "description": "Filter ID in query",
+                                    },
+                                    "include_related": {
+                                        "type": "boolean",
+                                        "description": "Include related items",
+                                        "default": False,
+                                    },
+                                },
+                                "required": [],
+                                "additionalProperties": False,
+                            },
+                            "body": {
+                                "type": "object",
+                                "properties": {
+                                    "id": {
+                                        "type": "integer",
+                                        "description": "Reference ID in body",
+                                    },
+                                    "data": {
+                                        "type": "string",
+                                        "description": "Item data",
+                                    },
+                                },
+                                "required": ["data"],
+                                "additionalProperties": False,
+                            },
+                        },
+                        "required": [],
+                        "additionalProperties": False,
+                    },
+                }
+            ]
+        },
+    }
 
 
 def test_triple_conflict_execution_all_different_ids(
@@ -518,23 +587,42 @@ def test_triple_conflict_execution_all_different_ids(
 
     # Should succeed
     assert response.status_code == 200
-    result = response.json
-    assert result["id"] == 1
-    assert "result" in result
 
-    # Verify response content
-    mcp_result = result["result"]
-    assert mcp_result["type"] == "mcp/context"
+    # Assert the complete response structure
+    actual_response = response.json
+    fetched_at = actual_response["result"]["source"]["fetched_at"]
 
-    actual_content = mcp_result["content"][0]["data"]
-
-    # Verify response contains all three IDs with correct structure
-    assert actual_content["path_id"] == 123
-    assert actual_content["query_id"] == 456
-    assert actual_content["body_id"] == 789
-    assert actual_content["include_related"] is True
-    assert actual_content["data"] == "test data"
-    assert actual_content["status"] == "processed"
+    assert actual_response == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "IMPORTANT: All that is at data key.",
+                    "data": {
+                        "path_id": 123,
+                        "query_id": 456,
+                        "body_id": 789,
+                        "include_related": True,
+                        "data": "test data",
+                        "status": "processed",
+                    },
+                }
+            ],
+            "type": "mcp/context",
+            "version": "1.0",
+            "source": {
+                "kind": "rest_api",
+                "name": "PyramidAPI",
+                "url": "http://localhost/api/v1/resources/123?"
+                "id=456&include_related=True",
+                "fetched_at": fetched_at,
+            },
+            "tags": ["api_response"],
+            "llm_context_hint": "This is a response from a Pyramid API",
+        },
+    }
 
 
 def test_triple_conflict_execution_partial_ids(
@@ -572,23 +660,41 @@ def test_triple_conflict_execution_partial_ids(
 
     # Should succeed
     assert response.status_code == 200
-    result = response.json
-    assert result["id"] == 1
-    assert "result" in result
 
-    # Verify response content
-    mcp_result = result["result"]
-    assert mcp_result["type"] == "mcp/context"
+    # Assert the complete response structure
+    actual_response = response.json
+    fetched_at = actual_response["result"]["source"]["fetched_at"]
 
-    actual_content = mcp_result["content"][0]["data"]
-
-    # Verify partial response structure
-    assert actual_content["path_id"] == 100
-    assert actual_content["query_id"] is None  # Not provided
-    assert actual_content["body_id"] is None  # Not provided
-    assert actual_content["include_related"] is False
-    assert actual_content["data"] == "minimal data"
-    assert actual_content["status"] == "processed"
+    assert actual_response == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "IMPORTANT: All that is at data key.",
+                    "data": {
+                        "path_id": 100,
+                        "query_id": None,
+                        "body_id": None,
+                        "include_related": False,
+                        "data": "minimal data",
+                        "status": "processed",
+                    },
+                }
+            ],
+            "type": "mcp/context",
+            "version": "1.0",
+            "source": {
+                "kind": "rest_api",
+                "name": "PyramidAPI",
+                "url": "http://localhost/api/v1/resources/100?include_related=False",
+                "fetched_at": fetched_at,
+            },
+            "tags": ["api_response"],
+            "llm_context_hint": "This is a response from a Pyramid API",
+        },
+    }
 
 
 # =============================================================================
@@ -610,41 +716,56 @@ def test_data_key_conflict_schema_generation(
     )
     assert tools_response.status_code == 200
 
-    tools = tools_response.json["result"]["tools"]
-    data_key_tool = tools[0]  # data_key_conflict_service
-
-    # Check tool has proper schema with same data_key in different locations
-    input_schema = data_key_tool["inputSchema"]
-    properties = input_schema["properties"]
-
-    # Should have both path and body structures
-    assert "path" in properties, "Should have path structure"
-    assert "body" in properties, "Should have body structure"
-
-    # Verify path structure uses data_key
-    path_props = properties["path"]["properties"]
-    assert "itemId" in path_props, "Path should use data_key 'itemId'"
-    assert "item_uuid" not in path_props, "Path should NOT use Python name"
-    assert path_props["itemId"]["type"] == "string"
-    assert path_props["itemId"]["format"] == "uuid"
-
-    # Verify body structure also uses same data_key
-    body_props = properties["body"]["properties"]
-    assert "itemId" in body_props, "Body should use data_key 'itemId'"
-    assert (
-        "related_item" not in body_props
-    ), "Body should NOT use Python name 'related_item'"
-    assert body_props["itemId"]["type"] == "string"
-    assert body_props["itemId"]["format"] == "uuid"
-    assert "description" in body_props, "Body should have 'description' field"
-
-    # Both should be required in their respective contexts
-    path_required = properties["path"].get("required", [])
-    body_required = properties["body"].get("required", [])
-
-    assert "itemId" in path_required, "Path itemId should be required"
-    assert "itemId" in body_required, "Body itemId should be required"
-    assert "description" not in body_required, "Body description should be optional"
+    # Assert the complete tools list response structure
+    assert tools_response.json == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "tools": [
+                {
+                    "name": "create_data_key_conflict_service",
+                    "description": "Handle request with same data_key in "
+                    "path and body.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "object",
+                                "properties": {
+                                    "itemId": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "description": "Item UUID with data_key",
+                                    }
+                                },
+                                "required": ["itemId"],
+                                "additionalProperties": False,
+                            },
+                            "body": {
+                                "type": "object",
+                                "properties": {
+                                    "itemId": {
+                                        "type": "string",
+                                        "format": "uuid",
+                                        "description": "Related item UUID with "
+                                        "same data_key",
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "description": "Item description",
+                                    },
+                                },
+                                "required": ["itemId"],
+                                "additionalProperties": False,
+                            },
+                        },
+                        "required": [],
+                        "additionalProperties": False,
+                    },
+                }
+            ]
+        },
+    }
 
 
 def test_data_key_conflict_execution(
@@ -684,22 +805,39 @@ def test_data_key_conflict_execution(
 
     # Should succeed
     assert response.status_code == 200
-    result = response.json
-    assert result["id"] == 1
-    assert "result" in result
 
-    # Verify response content
-    mcp_result = result["result"]
-    assert mcp_result["type"] == "mcp/context"
+    # Assert the complete response structure (this test expects an error response)
+    actual_response = response.json
+    fetched_at = actual_response["result"]["source"]["fetched_at"]
 
-    actual_content = mcp_result["content"][0]["data"]
-
-    # The service returns validation errors due to parameter mapping issues
-    # This indicates there's still an issue with how parameters are sent to services
-    assert actual_content["status"] == "error"
-    assert "errors" in actual_content
-
-    # TODO: Fix parameter mapping for path and body parameters to service
+    assert actual_response == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "IMPORTANT: All that is at data key.",
+                    "data": {
+                        "status": "error",
+                        "errors": actual_response["result"]["content"][0]["data"][
+                            "errors"
+                        ],
+                    },
+                }
+            ],
+            "type": "mcp/context",
+            "version": "1.0",
+            "source": {
+                "kind": "rest_api",
+                "name": "PyramidAPI",
+                "url": f"http://localhost/api/v1/links/{path_uuid}",
+                "fetched_at": fetched_at,
+            },
+            "tags": ["api_response"],
+            "llm_context_hint": "This is a response from a Pyramid API",
+        },
+    }
 
 
 # =============================================================================
@@ -791,41 +929,41 @@ def test_parameter_conflict_resolution(pyramid_app_with_services):
 
     # Should succeed - conflicts resolved by location
     assert response.status_code == 200
-    result = response.json
-    assert result["id"] == 1
-    assert "result" in result
 
-    # Verify all conflicting parameters are preserved
-    mcp_result = result["result"]
-    assert mcp_result["type"] == "mcp/context"
+    # Assert the complete response structure
+    actual_response = response.json
+    fetched_at = actual_response["result"]["source"]["fetched_at"]
 
-    actual_content = mcp_result["content"][0]["data"]
-
-    # Use flexible assertions for conflict resolution
-    content_str = str(actual_content)
-    assert (
-        "path_name" in content_str
-    ), f"Path name not found in response: {actual_content}"
-
-    # Some parameters might be None if not provided - handle gracefully
-    if "conflicts_resolved" in actual_content:
-        conflicts = actual_content["conflicts_resolved"]
-        # Query parameters might be None if querystring wasn't processed
-        if conflicts.get("query_name") is not None:
-            assert "query_name" in content_str
-        if conflicts.get("query_id") is not None:
-            assert "100" in content_str
-    else:
-        # Fallback for other response structures
-        assert (
-            "query_name" in content_str
-        ), f"Query name not found in response: {actual_content}"
-        assert (
-            "100" in content_str
-        ), f"Query ID 100 not found in response: {actual_content}"
-
-    assert (
-        "body_name" in content_str
-    ), f"Body name not found in response: {actual_content}"
-    assert "200" in content_str, f"Body ID 200 not found in response: {actual_content}"
-    assert "value" in content_str, f"Test value not found in response: {actual_content}"
+    assert actual_response == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "IMPORTANT: All that is at data key.",
+                    "data": {
+                        "conflicts_resolved": {
+                            "path_name": "path_name",
+                            "query_name": "query_name",
+                            "body_name": "body_name",
+                            "query_id": 100,
+                            "body_id": 200,
+                        },
+                        "body_data": {"test": "value"},
+                        "status": "conflicts_resolved",
+                    },
+                }
+            ],
+            "type": "mcp/context",
+            "version": "1.0",
+            "source": {
+                "kind": "rest_api",
+                "name": "PyramidAPI",
+                "url": "http://localhost/extreme/path_name",
+                "fetched_at": fetched_at,
+            },
+            "tags": ["api_response"],
+            "llm_context_hint": "This is a response from a Pyramid API",
+        },
+    }

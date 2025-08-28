@@ -437,3 +437,72 @@ def test_list_tools_path_parameter_resolution_from_schema_marshmallow_validator(
             ]
         },
     }
+
+
+@pytest.mark.parametrize("uuid", ["059d1c3a-7cff-4d84-88ae-6b610c69a442"])
+def test_list_tools_path_parameter_resolution_from_schema_marshmallow_path_validator(
+    uuid, pyramid_app_with_services, logs
+):
+    """Test that path parameters are properly resolved in subrequests."""
+
+    # Create a simple Cornice service with path parameter
+    person_service = Service(
+        name="get_person",
+        path="/api/v1/persons/{uuid:.*}",
+        description="Get person by UUID or tax ID",
+    )
+
+    @person_service.get(
+        schema=PathSchema,
+        validators=(marshmallow_path_validator,),
+    )
+    def get_person_handler(request):
+        """Get person by UUID or tax ID."""
+        uuid = request.validated["path"]["uuid"]
+        return Response(
+            json={
+                "person_id": str(uuid),  # Convert UUID to string for JSON serialization
+                "name": f"Person {uuid}",
+                "status": "found",
+            }
+        )
+
+    # Create test app with the service
+    app = pyramid_app_with_services([person_service])
+
+    tools_response = app.post_json(
+        "/mcp", {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
+    )
+
+    assert tools_response.json == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {
+            "tools": [
+                {
+                    "name": "get_person",
+                    "description": "Get person by UUID or tax ID.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "path": {
+                                "type": "object",
+                                "properties": {
+                                    "uuid": {
+                                        "type": "string",
+                                        "description": "Path parameter: uuid",
+                                        "default": None,
+                                    }
+                                },
+                                "required": [],
+                                "additionalProperties": False,
+                                "description": "Path parameters for the request",
+                            }
+                        },
+                        "required": [],
+                        "additionalProperties": False,
+                    },
+                }
+            ]
+        },
+    }
