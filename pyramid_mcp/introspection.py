@@ -945,40 +945,55 @@ class PyramidIntrospector:
                             return result
 
                         # Schema lacks explicit structure - apply defaults
+                        # BUT ALWAYS include path parameters from route pattern
+                        schema_result: Dict[str, Any] = {
+                            "type": "object",
+                            "properties": {},
+                            "required": [],
+                            "additionalProperties": False,
+                        }
+
+                        # Add path parameters from route pattern
+                        path_params = re.findall(r"\{([^}]+)\}", pattern)
+                        if path_params:
+                            path_properties = {}
+                            for param in path_params:
+                                # Remove any regex constraints (e.g., {id:\d+} -> id)
+                                clean_param = param.split(":")[0]
+                                path_properties[clean_param] = {
+                                    "type": "string",
+                                    "description": f"Path parameter: {clean_param}",
+                                }
+
+                            schema_result["properties"]["path"] = {
+                                "type": "object",
+                                "properties": path_properties,
+                                "required": list(path_properties.keys()),
+                                "additionalProperties": False,
+                                "description": "Path parameters for the request",
+                            }
+
+                        # Add schema fields based on HTTP method
                         if method.upper() in ["GET", "DELETE"]:
                             # GET/DELETE typically use query parameters
-                            return {
+                            schema_result["properties"]["querystring"] = {
                                 "type": "object",
-                                "properties": {
-                                    "querystring": {
-                                        "type": "object",
-                                        "properties": schema_info["properties"],
-                                        "required": schema_info.get("required", []),
-                                        "additionalProperties": False,
-                                        "description": (
-                                            "Query parameters for the request"
-                                        ),
-                                    }
-                                },
-                                "required": [],
+                                "properties": schema_info["properties"],
+                                "required": schema_info.get("required", []),
                                 "additionalProperties": False,
+                                "description": "Query parameters for the request",
                             }
                         else:
                             # POST/PUT/PATCH typically use request body
-                            return {
+                            schema_result["properties"]["body"] = {
                                 "type": "object",
-                                "properties": {
-                                    "body": {
-                                        "type": "object",
-                                        "properties": schema_info["properties"],
-                                        "required": schema_info.get("required", []),
-                                        "additionalProperties": False,
-                                        "description": "Request body parameters",
-                                    }
-                                },
-                                "required": [],
+                                "properties": schema_info["properties"],
+                                "required": schema_info.get("required", []),
                                 "additionalProperties": False,
+                                "description": "Request body parameters",
                             }
+
+                        return schema_result
                     else:
                         logger.warning(
                             f"Schema extraction returned empty result for "
@@ -1283,7 +1298,8 @@ class PyramidIntrospector:
         # 🔧 SPECIAL HANDLING FOR QUERYSTRING PARAMETER
         # MCP clients (like Claude) send querystring parameters as a nested dict
         # e.g., {"querystring": {"page": 3, "limit": 50}}
-        # We need to extract the nested parameters and use them as actual query params
+        # Extract them as actual query params regardless of HTTP method
+        # This is because querystring parameters are meant to be URL query parameters
         if "querystring" in filtered_kwargs:
             querystring_value = filtered_kwargs.pop("querystring")
             logger.debug(f"🔧 Found querystring parameter: {querystring_value}")
@@ -1300,6 +1316,20 @@ class PyramidIntrospector:
                     f"🔧 Ignoring non-dict querystring value: {querystring_value}"
                 )
 
+        # Handle structured parameter groups
+        if "path" in filtered_kwargs:
+            path_group = filtered_kwargs.pop("path")
+            if isinstance(path_group, dict):
+                path_values.update(path_group)
+                logger.debug(f"🔧 Path parameter group: {path_group}")
+
+        if "body" in filtered_kwargs:
+            body_group = filtered_kwargs.pop("body")
+            if isinstance(body_group, dict):
+                json_body.update(body_group)
+                logger.debug(f"🔧 Body parameter group: {body_group}")
+
+        # Process remaining individual parameters
         for key, value in filtered_kwargs.items():
             if key in path_param_names:
                 path_values[key] = value

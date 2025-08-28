@@ -795,7 +795,7 @@ def test_data_key_conflict_execution(
         "params": {
             "name": tool_name,
             "arguments": {
-                "path": {"itemId": path_uuid},
+                "path": {"item_uuid": path_uuid},
                 "body": {"itemId": body_uuid, "description": "Link between items"},
             },
         },
@@ -960,7 +960,7 @@ def test_parameter_conflict_resolution(pyramid_app_with_services):
             "source": {
                 "kind": "rest_api",
                 "name": "PyramidAPI",
-                "url": "http://localhost/extreme/path_name",
+                "url": "http://localhost/extreme/path_name?name=query_name&id=100",
                 "fetched_at": fetched_at,
             },
             "tags": ["api_response"],

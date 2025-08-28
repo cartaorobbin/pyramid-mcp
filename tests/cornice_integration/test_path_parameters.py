@@ -490,13 +490,12 @@ def test_list_tools_path_parameter_resolution_from_schema_marshmallow_path_valid
                                 "properties": {
                                     "uuid": {
                                         "type": "string",
-                                        "description": "Path parameter: uuid",
-                                        "default": None,
+                                        "format": "uuid",
+                                        "description": "UUID",
                                     }
                                 },
-                                "required": [],
+                                "required": ["uuid"],
                                 "additionalProperties": False,
-                                "description": "Path parameters for the request",
                             }
                         },
                         "required": [],
