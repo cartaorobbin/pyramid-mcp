@@ -6,7 +6,10 @@ per HTTP verb doesn't generate correctly differentiated MCP tools.
 """
 
 from cornice import Service
-from cornice.validators import marshmallow_body_validator
+from cornice.validators import (
+    marshmallow_body_validator,
+    marshmallow_querystring_validator,
+)
 from marshmallow import Schema, fields
 
 
@@ -31,7 +34,9 @@ user_service = Service(
 )
 
 
-@user_service.get(schema=GetUserSchema(), validators=(marshmallow_body_validator,))
+@user_service.get(
+    schema=GetUserSchema(), validators=(marshmallow_querystring_validator,)
+)
 def get_user(request):
     """Get user details with optional query parameters."""
     return {"id": request.matchdict["id"], "name": "John"}

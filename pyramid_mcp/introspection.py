@@ -18,6 +18,11 @@ import marshmallow
 import marshmallow.fields as fields
 import marshmallow.validate as validate
 from cornice.service import get_services
+from cornice.validators import (
+    marshmallow_body_validator,
+    marshmallow_querystring_validator,
+    marshmallow_validator,
+)
 from pyramid.request import Request
 
 from pyramid_mcp.protocol import MCPTool
@@ -358,6 +363,118 @@ class PyramidIntrospector:
                 return service_info
 
         return None
+
+    def _determine_parameter_location_from_validators(
+        self, validators: List[Any], method_info: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Determine where parameters should be placed based on Cornice validators.
+
+        This examines the actual validators used in the Cornice service to determine
+        the correct parameter location, rather than guessing based on HTTP methods.
+
+        Args:
+            validators: List of Cornice validators
+            method_info: Additional method information (unused for now)
+
+        Returns:
+            Parameter location: 'querystring', 'body', or 'path'
+        """
+        # Check each validator against the imported functions
+        for validator in validators:
+            # Direct function comparison - much more reliable than string matching
+            if validator is marshmallow_body_validator:
+                return "body"
+            elif validator is marshmallow_querystring_validator:
+                return "querystring"
+            elif validator is marshmallow_validator:
+                # Generic validator - need to examine the schema structure
+                # to determine the appropriate parameter location
+                # This should be handled by the calling code that has access
+                # to the schema structure - we can't determine it from the
+                # validator alone
+                return "schema_dependent"
+            # Note: marshmallow_path_validator is less common, add if needed
+
+        # If no specific validator detected, this is a problem - we should not guess
+        logger.error(
+            f"Cannot determine parameter location from validators: {validators}"
+        )
+        for validator in validators:
+            logger.error(f"  - Validator: {validator}")
+            logger.error(f"  - Type: {type(validator)}")
+            logger.error(f"  - Module: {getattr(validator, '__module__', 'NO_MODULE')}")
+            logger.error(f"  - Name: {getattr(validator, '__name__', 'NO_NAME')}")
+
+        raise ValueError(
+            f"Cannot determine parameter location from validators: {validators}"
+        )
+
+    def _determine_location_from_schema_structure(
+        self, schema: Any, method_info: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Determine parameter location by examining the schema structure.
+
+        This method examines the actual schema to determine where parameters
+        should be placed when using the generic marshmallow_validator.
+
+        Args:
+            schema: Marshmallow schema instance or class
+            method_info: Additional method information
+
+        Returns:
+            Parameter location: 'querystring', 'body', or 'path'
+        """
+        if not schema:
+            # No schema - default to querystring
+            return "querystring"
+
+        try:
+            # Extract schema information to examine its structure
+            schema_info = self._extract_marshmallow_schema_info(schema)
+            schema_properties = schema_info.get("properties", {})
+
+            # If schema has explicit structure fields, it's handled elsewhere
+            # This method is for schemas without explicit structure
+            if any(
+                field in schema_properties for field in ["path", "querystring", "body"]
+            ):
+                # This should be handled by the explicit structure code path
+                return "querystring"  # Safe default
+
+            # For schemas without explicit structure, examine the field types
+            # and characteristics to make an intelligent decision
+
+            # Check if schema has fields that suggest it's for request body
+            # (complex objects, nested fields, file uploads, etc.)
+            has_complex_fields = False
+            has_file_fields = False
+
+            for field_name, field_info in schema_properties.items():
+                field_type = field_info.get("type", "string")
+                if field_type in ["object", "array"]:
+                    has_complex_fields = True
+                elif field_info.get("format") == "binary":
+                    has_file_fields = True
+
+            # Decision logic based on schema characteristics
+            if has_file_fields:
+                # File uploads typically go in request body
+                return "body"
+            elif has_complex_fields:
+                # Complex nested structures typically go in request body
+                return "body"
+            elif len(schema_properties) > 5:
+                # Many fields often indicate a form/body payload
+                return "body"
+            else:
+                # Simple schemas with few fields typically use querystring
+                return "querystring"
+
+        except Exception as e:
+            logger.warning(
+                f"Error examining schema structure: {e}, defaulting to querystring"
+            )
+            return "querystring"
 
     def _extract_cornice_view_metadata(
         self,
@@ -973,24 +1090,49 @@ class PyramidIntrospector:
                                 "description": "Path parameters for the request",
                             }
 
-                        # Add schema fields based on HTTP method
-                        if method.upper() in ["GET", "DELETE"]:
-                            # GET/DELETE typically use query parameters
-                            schema_result["properties"]["querystring"] = {
-                                "type": "object",
-                                "properties": schema_info["properties"],
-                                "required": schema_info.get("required", []),
-                                "additionalProperties": False,
-                                "description": "Query parameters for the request",
+                        # Determine parameter placement based on Cornice validators,
+                        # not HTTP method guessing
+                        schema_properties = schema_info.get("properties", {})
+                        if schema_properties:
+                            # Get validators to determine where parameters should go
+                            validators = method_info.get("validators", [])
+
+                            # Determine placement based on actual Cornice validators
+                            parameter_location = (
+                                self._determine_parameter_location_from_validators(
+                                    validators, method_info
+                                )
+                            )
+
+                            # Handle generic validator case by examining schema
+                            # structure
+                            if parameter_location == "schema_dependent":
+                                # For generic marshmallow_validator, examine the schema
+                                # to determine appropriate parameter location
+                                schema = method_info.get("schema")
+                                parameter_location = (
+                                    self._determine_location_from_schema_structure(
+                                        schema, method_info
+                                    )
+                                )
+
+                            # Map parameter location to proper description format
+                            description_map = {
+                                "body": "Request body parameters",
+                                "querystring": "Query parameters for the request",
+                                "path": "Path parameters for the request",
                             }
-                        else:
-                            # POST/PUT/PATCH typically use request body
-                            schema_result["properties"]["body"] = {
+
+                            schema_result["properties"][parameter_location] = {
                                 "type": "object",
-                                "properties": schema_info["properties"],
+                                "properties": schema_properties,
                                 "required": schema_info.get("required", []),
                                 "additionalProperties": False,
-                                "description": "Request body parameters",
+                                "description": description_map.get(
+                                    parameter_location,
+                                    f"{parameter_location.title()} parameters "
+                                    "for the request",
+                                ),
                             }
 
                         return schema_result
