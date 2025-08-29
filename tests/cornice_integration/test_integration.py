@@ -19,6 +19,16 @@ from pyramid.response import Response
 
 from pyramid_mcp.core import MCPConfiguration
 from pyramid_mcp.introspection import PyramidIntrospector
+from pyramid_mcp.introspection.cornice import (
+    discover_cornice_services,
+    extract_service_level_metadata,
+)
+from pyramid_mcp.introspection.requests import normalize_path_pattern
+from pyramid_mcp.introspection.schemas import (
+    add_validation_constraints,
+    extract_marshmallow_schema_info,
+    marshmallow_field_to_mcp_type,
+)
 
 # =============================================================================
 # 📋 CORNICE SERVICE SCHEMAS
@@ -125,10 +135,7 @@ def pyramid_config_with_cornice(users_service, products_service):
 
 def test_discover_cornice_services_with_real_services(pyramid_config_with_cornice):
     """Test Cornice service discovery with real services."""
-    introspector = PyramidIntrospector(pyramid_config_with_cornice)
-    services = introspector._discover_cornice_services(
-        pyramid_config_with_cornice.registry
-    )
+    services = discover_cornice_services(pyramid_config_with_cornice.registry)
 
     assert len(services) >= 2  # users and products
     service_names = [s.get("name", "") for s in services]
@@ -213,8 +220,6 @@ def test_tool_generation_with_cornice_metadata(pyramid_config_with_cornice):
 
 def test_normalize_path_pattern(pyramid_config):
     """Test path pattern normalization."""
-    config = pyramid_config()
-    introspector = PyramidIntrospector(config)
 
     test_cases = [
         ("/users", "/users"),
@@ -224,7 +229,7 @@ def test_normalize_path_pattern(pyramid_config):
     ]
 
     for input_pattern, expected in test_cases:
-        result = introspector._normalize_path_pattern(input_pattern)
+        result = normalize_path_pattern(input_pattern)
         assert result == expected
 
 
@@ -232,9 +237,7 @@ def test_extract_service_level_metadata_with_real_service(
     users_service, pyramid_config
 ):
     """Test extracting metadata from real Cornice service."""
-    config = pyramid_config()
-    introspector = PyramidIntrospector(config)
-    metadata = introspector._extract_service_level_metadata(users_service)
+    metadata = extract_service_level_metadata(users_service)
 
     assert metadata is not None
     assert "name" in metadata
@@ -251,9 +254,7 @@ def test_extract_service_level_metadata_with_minimal_service(pyramid_config):
     def get_minimal(request):
         return {"status": "ok"}
 
-    config = pyramid_config()
-    introspector = PyramidIntrospector(config)
-    metadata = introspector._extract_service_level_metadata(minimal_service)
+    metadata = extract_service_level_metadata(minimal_service)
 
     assert metadata is not None
     assert metadata["name"] == "minimal"
@@ -316,16 +317,13 @@ def test_end_to_end_cornice_integration():
 
 def test_extract_service_level_metadata(pyramid_config):
     """Test extracting metadata from Cornice service."""
-    config = pyramid_config()
-    introspector = PyramidIntrospector(config)
-
     service = Service(name="test_service", path="/test", description="Test service")
 
     @service.get()
     def get_test(request):
         return {"test": "data"}
 
-    metadata = introspector._extract_service_level_metadata(service)
+    metadata = extract_service_level_metadata(service)
 
     assert metadata is not None
     assert metadata["name"] == "test_service"
@@ -335,11 +333,8 @@ def test_extract_service_level_metadata(pyramid_config):
 
 def test_extract_marshmallow_schema_info(pyramid_config):
     """Test extracting Marshmallow schema information."""
-    config = pyramid_config()
-    introspector = PyramidIntrospector(config)
-
     # Test with CreateUserSchema
-    schema_info = introspector._extract_marshmallow_schema_info(CreateUserSchema())
+    schema_info = extract_marshmallow_schema_info(CreateUserSchema())
 
     assert schema_info is not None
     assert "type" in schema_info
@@ -366,9 +361,6 @@ def test_extract_marshmallow_schema_info(pyramid_config):
 
 def test_marshmallow_field_to_mcp_type(pyramid_config):
     """Test conversion of Marshmallow fields to MCP types."""
-    config = pyramid_config()
-    introspector = PyramidIntrospector(config)
-
     test_fields = {
         fields.Str(): {"type": "string"},
         fields.Int(): {"type": "integer"},
@@ -380,7 +372,7 @@ def test_marshmallow_field_to_mcp_type(pyramid_config):
     }
 
     for field_obj, expected_type in test_fields.items():
-        result = introspector._marshmallow_field_to_mcp_type(field_obj)
+        result = marshmallow_field_to_mcp_type(field_obj)
         assert (
             result == expected_type
         ), f"Field {field_obj} should map to {expected_type}, got {result}"
@@ -388,9 +380,6 @@ def test_marshmallow_field_to_mcp_type(pyramid_config):
 
 def test_add_validation_constraints(pyramid_config):
     """Test adding validation constraints from Marshmallow fields."""
-    config = pyramid_config()
-    introspector = PyramidIntrospector(config)
-
     # Test the actual functionality of _add_validation_constraints
     # which handles validation constraints, not descriptions
 
@@ -400,7 +389,7 @@ def test_add_validation_constraints(pyramid_config):
     name_field = fields.Str(validate=validate.Length(min=1, max=50))
 
     field_def = {"type": "string"}
-    introspector._add_validation_constraints(name_field, field_def)
+    add_validation_constraints(name_field, field_def)
 
     # Should add length constraints
     assert "minLength" in field_def
@@ -412,7 +401,7 @@ def test_add_validation_constraints(pyramid_config):
     simple_field = fields.Str()
 
     field_def = {"type": "string"}
-    introspector._add_validation_constraints(simple_field, field_def)
+    add_validation_constraints(simple_field, field_def)
 
     # Should remain unchanged since no validation constraints
     assert field_def == {"type": "string"}
@@ -431,9 +420,7 @@ def test_nested_marshmallow_schema(pyramid_config):
         email = fields.Email(required=True)
         address = fields.Nested(AddressSchema, required=True)
 
-    config = pyramid_config()
-    introspector = PyramidIntrospector(config)
-    schema_info = introspector._extract_marshmallow_schema_info(UserWithAddressSchema())
+    schema_info = extract_marshmallow_schema_info(UserWithAddressSchema())
 
     assert schema_info is not None
     assert "properties" in schema_info
@@ -512,11 +499,8 @@ def test_cornice_service_with_marshmallow_schema(
 
 def test_marshmallow_schema_without_cornice(pyramid_config):
     """Test that Marshmallow schema handling works without Cornice services."""
-    config = pyramid_config()
-    introspector = PyramidIntrospector(config)
-
     # Test direct schema extraction
-    schema_info = introspector._extract_marshmallow_schema_info(CreateProductSchema())
+    schema_info = extract_marshmallow_schema_info(CreateProductSchema())
 
     assert schema_info is not None
     assert "properties" in schema_info

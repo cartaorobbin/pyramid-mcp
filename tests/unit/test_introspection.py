@@ -17,6 +17,7 @@ from pyramid.response import Response
 
 from pyramid_mcp.core import MCPConfiguration
 from pyramid_mcp.introspection import PyramidIntrospector
+from pyramid_mcp.introspection.filters import pattern_matches_route
 
 # =============================================================================
 # 🔍 ROUTE DISCOVERY TESTS
@@ -319,34 +320,30 @@ def test_input_schema_complex_types():
 
 def test_pattern_matching(pyramid_config):
     """Test basic pattern matching functionality."""
-    config = pyramid_config()
-    introspector = PyramidIntrospector(config)
 
     # Test include patterns
     assert any(
-        introspector._pattern_matches(pattern, "/api/users", "test_route")
+        pattern_matches_route(pattern, "/api/users", "test_route")
         for pattern in ["api/*"]
     )
     assert any(
-        introspector._pattern_matches(pattern, "/api/posts", "test_route")
+        pattern_matches_route(pattern, "/api/posts", "test_route")
         for pattern in ["api/*"]
     )
     assert not any(
-        introspector._pattern_matches(pattern, "/admin/users", "test_route")
+        pattern_matches_route(pattern, "/admin/users", "test_route")
         for pattern in ["api/*"]
     )
 
     # Test exclude patterns (should be checked separately)
     assert any(
-        introspector._pattern_matches(pattern, "/admin/users", "test_route")
+        pattern_matches_route(pattern, "/admin/users", "test_route")
         for pattern in ["admin/*"]
     )
 
 
 def test_pattern_matching_advanced(pyramid_config):
     """Test advanced pattern matching scenarios."""
-    config = pyramid_config()
-    introspector = PyramidIntrospector(config)
 
     patterns = ["api/v1/*", "users/*", "admin/dashboard"]
 
@@ -361,8 +358,7 @@ def test_pattern_matching_advanced(pyramid_config):
 
     for path, expected in test_cases:
         result = any(
-            introspector._pattern_matches(pattern, path, "test_route")
-            for pattern in patterns
+            pattern_matches_route(pattern, path, "test_route") for pattern in patterns
         )
         assert result == expected, f"Pattern matching failed for {path}"
 

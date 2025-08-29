@@ -138,7 +138,7 @@ class PyramidMCP:
 
                 # Register discovered tools
                 for tool in tools:
-                    self.protocol_handler.register_tool(tool, self.config)
+                    self.protocol_handler.register_tool(tool, self.configurator)
 
         # Manual tools are now registered as Pyramid views via introspection
 

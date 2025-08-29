@@ -7,7 +7,6 @@ between MCP clients and servers.
 """
 
 import hashlib
-import inspect
 import json
 import logging
 import re
@@ -229,80 +228,12 @@ class MCPProtocolHandler:
             )
             tool.name = sanitized_name
 
-        # For manual tools, create a Pyramid view at setup time
-        if config and tool.handler and not self._is_route_based_tool(tool):
-            self._create_manual_tool_view(config, tool)
-
         # Register the tool
         self.tools[sanitized_name] = tool
         self._used_tool_names.add(sanitized_name)
 
         # Update capabilities to indicate we have tools
         self.capabilities["tools"] = {}
-
-    def _is_route_based_tool(self, tool: MCPTool) -> bool:
-        """Check if a tool is route-based."""
-        return (
-            tool.handler is not None
-            and hasattr(tool.handler, "__name__")
-            and tool.handler.__name__ == "handler"
-            and hasattr(tool.handler, "__qualname__")
-            and "PyramidIntrospector._create_route_handler" in tool.handler.__qualname__
-        )
-
-    def _create_manual_tool_view(self, config: Any, tool: MCPTool) -> None:
-        """Create a Pyramid view for a manual tool."""
-
-        route_name = f"mcp_tool_{tool.name}"
-        route_path = f"/mcp/tools/{tool.name}"
-
-        # Store route info in tool for subrequest
-        tool._internal_route_name = route_name
-        tool._internal_route_path = route_path
-
-        # Create the view function
-        def tool_view(request: Request) -> Dict[str, Any]:
-            """Pyramid view for manual tool execution."""
-            try:
-                # Extract args from request
-                if (
-                    request.method == "POST"
-                    and request.content_type == "application/json"
-                ):
-                    args_data = request.json_body or {}
-                else:
-                    args_data = dict(request.params)
-
-                # Call the tool handler
-                handler = tool.handler
-                if not handler:
-                    return {"error": "Tool handler not found", "tool_name": tool.name}
-
-                sig = inspect.signature(handler)
-                if "pyramid_request" in sig.parameters:
-                    result = handler(request, **args_data)
-                else:
-                    result = handler(**args_data)
-
-                # Return result for schema processing
-                return {"mcp_result": result, "tool_name": tool.name}
-
-            except Exception as e:
-                return {
-                    "error": f"Tool execution failed: {str(e)}",
-                    "tool_name": tool.name,
-                }
-
-        # Add route and view to Pyramid
-        config.add_route(route_name, route_path)
-        config.add_view(
-            tool_view,
-            route_name=route_name,
-            request_method="POST",
-            renderer="json",
-            permission=tool.permission,
-            context=tool.context,
-        )
 
     def handle_message(
         self,

@@ -13,6 +13,7 @@ No tool definitions to avoid configuration conflicts.
 from pyramid_mcp import PyramidMCP
 from pyramid_mcp.core import MCPConfiguration
 from pyramid_mcp.introspection import PyramidIntrospector
+from pyramid_mcp.introspection.security import convert_security_type_to_schema
 
 # =============================================================================
 # 🔐 CONFIGURABLE SECURITY PARAMETER TESTS
@@ -81,38 +82,29 @@ def test_introspector_uses_configurable_parameter(pyramid_config):
 
 def test_convert_security_type_bearer_variations(pyramid_config):
     """Test conversion of various bearer auth security types."""
-    config = pyramid_config()
-    introspector = PyramidIntrospector(config)
-
     # Test different bearer auth variations
     variations = ["bearer", "BearerAuth", "Bearer", "BEARER", "bearer_auth", "jwt"]
 
     for variation in variations:
-        result = introspector._convert_security_type_to_schema(variation)
+        result = convert_security_type_to_schema(variation)
         assert result is not None
         assert result.__class__.__name__ == "BearerAuthSchema"
 
 
 def test_convert_security_type_basic_variations(pyramid_config):
     """Test conversion of various basic auth security types."""
-    config = pyramid_config()
-    introspector = PyramidIntrospector(config)
-
     # Test different basic auth variations
     variations = ["basic", "BasicAuth", "Basic", "BASIC", "basic_auth"]
 
     for variation in variations:
-        result = introspector._convert_security_type_to_schema(variation)
+        result = convert_security_type_to_schema(variation)
         assert result is not None
         assert result.__class__.__name__ == "BasicAuthSchema"
 
 
 def test_convert_security_type_unknown(pyramid_config):
     """Test conversion of unknown security types returns None."""
-    config = pyramid_config()
-    introspector = PyramidIntrospector(config)
-
-    result = introspector._convert_security_type_to_schema("unknown_auth_type")
+    result = convert_security_type_to_schema("unknown_auth_type")
     assert result is None
 
 
@@ -138,7 +130,7 @@ def test_end_to_end_with_custom_security_parameter(pyramid_config):
     assert security_type == "BearerAuth"
 
     # Test that it can convert the security type
-    security_schema = introspector._convert_security_type_to_schema(security_type)
+    security_schema = convert_security_type_to_schema(security_type)
     assert security_schema is not None
     assert security_schema.__class__.__name__ == "BearerAuthSchema"
 
@@ -153,12 +145,8 @@ def test_mcp_security_parameter_backward_compatibility(pyramid_config):
     config = MCPConfiguration()
     assert config.security_parameter == "mcp_security"
 
-    # Test that introspector can handle mcp_security parameter
-    pyramid_conf = pyramid_config()
-    introspector = PyramidIntrospector(pyramid_conf)
-
     # Test the security conversion works for traditional values
-    bearer_result = introspector._convert_security_type_to_schema("bearer")
+    bearer_result = convert_security_type_to_schema("bearer")
     assert bearer_result is not None
     assert bearer_result.__class__.__name__ == "BearerAuthSchema"
 
@@ -167,22 +155,19 @@ def test_multiple_views_with_different_security_parameters(pyramid_config):
     """Test multiple views where some have security and some don't."""
 
     # Test that introspector can handle views with and without security
-    config = pyramid_config()
-    introspector = PyramidIntrospector(config)
-    introspector._security_parameter = "custom_security"
 
     # Test view with security
     view_with_security = {"custom_security": "BearerAuth"}
-    security_type = view_with_security.get(introspector._security_parameter)
+    security_type = view_with_security.get("custom_security")
     assert security_type == "BearerAuth"
 
     # Test view without security
     view_without_security = {}
-    security_type = view_without_security.get(introspector._security_parameter)
+    security_type = view_without_security.get("custom_security")
     assert security_type is None
 
     # Test that the security conversion works correctly
-    auth_schema = introspector._convert_security_type_to_schema("BearerAuth")
+    auth_schema = convert_security_type_to_schema("BearerAuth")
     assert auth_schema is not None
     assert auth_schema.__class__.__name__ == "BearerAuthSchema"
 
@@ -226,9 +211,6 @@ def test_none_security_parameter():
 
 def test_case_sensitivity_in_security_types(pyramid_config):
     """Test that security type matching is case-insensitive."""
-    config = pyramid_config()
-    introspector = PyramidIntrospector(config)
-
     # Test various case combinations
     test_cases = [
         ("bearer", "BearerAuthSchema"),
@@ -242,7 +224,7 @@ def test_case_sensitivity_in_security_types(pyramid_config):
     ]
 
     for input_type, expected_schema in test_cases:
-        result = introspector._convert_security_type_to_schema(input_type)
+        result = convert_security_type_to_schema(input_type)
         assert result is not None
         assert result.__class__.__name__ == expected_schema
 

@@ -21,7 +21,7 @@ from pyramid.config import Configurator
 from pyramid.request import Request
 from pyramid.view import view_config
 
-from pyramid_mcp.introspection import PyramidIntrospector
+from pyramid_mcp.introspection.requests import configure_transaction, create_subrequest
 
 # =============================================================================
 # 🐳 STDIO TRANSPORT TESTS (DOCKER-BASED)
@@ -448,9 +448,6 @@ def pyramid_tm_config():
 
 def test_pyramid_tm_transaction_sharing(pyramid_tm_config):
     """Test that subrequests share transaction context with parent request."""
-    # Create pyramid_mcp introspector
-    introspector = PyramidIntrospector(pyramid_tm_config)
-
     # Create a parent request that would have pyramid_tm active
     parent_request = Request.blank("/")
     parent_request.registry = pyramid_tm_config.registry
@@ -461,7 +458,7 @@ def test_pyramid_tm_transaction_sharing(pyramid_tm_config):
     parent_request.tm = transaction.TransactionManager()
 
     # Create subrequest using our introspector
-    subrequest = introspector._create_subrequest(parent_request, {}, "/test", "GET")
+    subrequest = create_subrequest(parent_request, {}, "/test", "GET")
 
     # Verify transaction sharing
     assert hasattr(subrequest, "tm")
@@ -471,9 +468,6 @@ def test_pyramid_tm_transaction_sharing(pyramid_tm_config):
 
 def test_configure_transaction_method(pyramid_tm_config):
     """Test the configure_transaction method directly."""
-    # Create pyramid_mcp introspector
-    introspector = PyramidIntrospector(pyramid_tm_config)
-
     # Create a parent request with transaction manager
     parent_request = Request.blank("/")
     parent_request.registry = pyramid_tm_config.registry
@@ -486,7 +480,7 @@ def test_configure_transaction_method(pyramid_tm_config):
     subrequest = Request.blank("/test")
 
     # Call configure_transaction directly
-    introspector.configure_transaction(parent_request, subrequest)
+    configure_transaction(parent_request, subrequest)
 
     # Verify transaction was configured
     assert hasattr(subrequest, "tm")
@@ -496,9 +490,6 @@ def test_configure_transaction_method(pyramid_tm_config):
 
 def test_subrequest_environ_sharing(pyramid_tm_config):
     """Test that subrequest inherits environ from parent request."""
-    # Create pyramid_mcp introspector
-    introspector = PyramidIntrospector(pyramid_tm_config)
-
     # Create a parent request with custom environ data
     parent_request = Request.blank("/")
     parent_request.registry = pyramid_tm_config.registry
@@ -510,7 +501,7 @@ def test_subrequest_environ_sharing(pyramid_tm_config):
     parent_request.environ["wsgi.version"] = (1, 0)
 
     # Create subrequest using our introspector
-    subrequest = introspector._create_subrequest(parent_request, {}, "/test", "GET")
+    subrequest = create_subrequest(parent_request, {}, "/test", "GET")
 
     # Verify environ sharing
     assert subrequest.environ["CUSTOM_VAR"] == "test_value"
@@ -544,8 +535,6 @@ def test_pyramid_tm_with_mcp_tool_execution(pyramid_tm_config):
 
 def test_pyramid_tm_subrequest_isolation(pyramid_tm_config):
     """Test that subrequests don't interfere with parent transaction state."""
-    introspector = PyramidIntrospector(pyramid_tm_config)
-
     # Create parent request with transaction
     parent_request = Request.blank("/")
     parent_request.registry = pyramid_tm_config.registry
@@ -556,8 +545,8 @@ def test_pyramid_tm_subrequest_isolation(pyramid_tm_config):
     parent_request.tm = parent_tm
 
     # Create multiple subrequests
-    subrequest1 = introspector._create_subrequest(parent_request, {}, "/test1", "GET")
-    subrequest2 = introspector._create_subrequest(parent_request, {}, "/test2", "POST")
+    subrequest1 = create_subrequest(parent_request, {}, "/test1", "GET")
+    subrequest2 = create_subrequest(parent_request, {}, "/test2", "POST")
 
     # All should share the same transaction manager
     assert subrequest1.tm is parent_tm
