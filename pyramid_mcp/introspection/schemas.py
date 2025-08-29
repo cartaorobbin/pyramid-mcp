@@ -238,18 +238,7 @@ def determine_parameter_location_from_validators(
             # validator alone
             return "schema_dependent"
         # Note: marshmallow_path_validator is less common, add if needed
-
-    # If no specific validator detected, this is a problem - we should not guess
-    logger.error(f"Cannot determine parameter location from validators: {validators}")
-    for validator in validators:
-        logger.error(f"  - Validator: {validator}")
-        logger.error(f"  - Type: {type(validator)}")
-        logger.error(f"  - Module: {getattr(validator, '__module__', 'NO_MODULE')}")
-        logger.error(f"  - Name: {getattr(validator, '__name__', 'NO_NAME')}")
-
-    raise ValueError(
-        f"Cannot determine parameter location from validators: {validators}"
-    )
+    return ""
 
 
 def determine_location_from_schema_structure(
