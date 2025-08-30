@@ -171,19 +171,6 @@ def create_subrequest(
     logger.debug(f"🔧 MCP tool arguments: {kwargs}")
     logger.debug(f"🔧 Security schema: {security}")
 
-    # Get authentication headers from pyramid_request if they were processed
-    # by MCP protocol handler
-    auth_headers = {}
-    if (
-        hasattr(pyramid_request, "mcp_auth_headers")
-        and pyramid_request.mcp_auth_headers
-    ):
-        auth_headers = pyramid_request.mcp_auth_headers
-        logger.debug(f"🔐 Found auth headers: {list(auth_headers.keys())}")
-    else:
-        auth_headers = {}
-        logger.debug("🔐 No auth headers found")
-
     # kwargs should already have auth parameters removed by MCP protocol handler
     filtered_kwargs = kwargs
     logger.debug(f"🔧 Filtered kwargs (after auth removal): {filtered_kwargs}")
@@ -298,10 +285,8 @@ def create_subrequest(
                 subrequest.headers[header_name] = pyramid_request.headers[header_name]
                 logger.debug(f"🔧 Copied header: {header_name}")
 
-    # Add authentication headers from MCP security parameters
-    for header_name, header_value in auth_headers.items():
-        subrequest.headers[header_name] = header_value
-        logger.debug(f"🔐 Added auth header: {header_name}")
+    # Note: Authentication headers are now handled directly by the MCP protocol handler
+    # in _create_tool_subrequest() method, not here
 
     # 🐛 INFO: Log final subrequest details
     logger.debug("🔧 Final subrequest details:")

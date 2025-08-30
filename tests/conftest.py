@@ -268,22 +268,13 @@ def expired_jwt_token():
 class TestSecurityPolicy:
     """Unified test security policy for all pyramid-mcp tests.
 
-    Handles both MCP auth headers and traditional HTTP Authorization headers.
+    Handles HTTP Authorization headers for authentication.
     This is the SINGLE security policy used across all tests.
     """
 
     def identity(self, request):
-        """Extract identity from auth headers (MCP or traditional)."""
-        # 1. Check MCP auth headers first (pyramid-mcp specific)
-        auth_headers = getattr(request, "mcp_auth_headers", {})
-        if "Authorization" in auth_headers:
-            auth_header = auth_headers["Authorization"]
-            if auth_header.startswith("Bearer "):
-                token = auth_header[7:]  # Remove 'Bearer ' prefix
-                if token and self._is_valid_token(token):
-                    return self._create_identity(token)
-
-        # 2. Check traditional HTTP Authorization header
+        """Extract identity from auth headers."""
+        # Check HTTP Authorization header
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:]  # Remove 'Bearer ' prefix

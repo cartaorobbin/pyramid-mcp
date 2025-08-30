@@ -747,6 +747,8 @@ The MCP Security Authentication Parameters feature had a critical bug: authentic
 5. Route handler accesses pre-processed headers from `pyramid_request.mcp_auth_headers`
 6. Pyramid view receives proper `Authorization` header in subrequest
 
+**UPDATE [2024-12-28]**: The `mcp_auth_headers` approach described above was later simplified and removed. Authentication now flows directly through the MCP protocol handler's `_create_tool_subrequest()` method, which adds headers directly to subrequests without the intermediate `mcp_auth_headers` storage mechanism. This change was made because `mcp_auth_headers` was never actually being set anywhere in the codebase, and authentication worked correctly through the direct header mechanism.
+
 ---
 
 # Completed Tasks

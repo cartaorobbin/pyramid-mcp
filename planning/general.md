@@ -8,7 +8,46 @@ This file tracks CURRENT/ACTIVE tasks being worked on right now (max 1-3 task gr
 
 ## 📋 ACTIVE TASKS
 
+### [2024-12-28] Remove Unused mcp_auth_headers Code
 
+**Status**: DONE ✅  
+**Assigned**: Assistant  
+**Estimated Time**: 30 minutes  
+**Related Issue**: User observation - "we don't need request.mcp_auth_headers since we only have one way to create MCP tools"
+
+#### 🎯 Problem Analysis
+The `request.mcp_auth_headers` mechanism was leftover code from an earlier implementation that is no longer used:
+
+1. **Never assigned**: `mcp_auth_headers` is never actually set anywhere in the codebase
+2. **Authentication works without it**: All tests pass, authentication flows through direct header mechanism
+3. **Redundant code**: The check always results in empty `auth_headers = {}`
+4. **Single tool creation path**: Only view introspection is used, no need for separate auth header mechanism
+
+#### ✅ Completed Tasks
+- [x] **Research**: Confirmed `mcp_auth_headers` is never assigned anywhere
+- [x] **Verify tests pass**: All authentication tests work without the mechanism  
+- [x] **Remove from requests.py**: Cleaned up unused auth header extraction code
+- [x] **Remove from conftest.py**: Updated test security policy to use only HTTP headers
+- [x] **Update comments**: Added clarifying comments about authentication flow
+- [x] **Run tests**: All 358 tests pass, 2 skipped
+- [x] **Code quality**: All `make check` validations pass
+
+#### 🎯 Changes Made
+1. **Removed unused code** in `pyramid_mcp/introspection/requests.py`:
+   - Lines 174-185: `mcp_auth_headers` extraction logic
+   - Lines 302-304: Empty auth headers loop
+2. **Simplified test security policy** in `tests/conftest.py`:
+   - Removed `mcp_auth_headers` check
+   - Uses only standard HTTP Authorization headers
+3. **Added clarifying comments** about authentication flow
+
+#### ✅ Verification Complete
+- ✅ **All tests pass**: 358 passed, 2 skipped
+- ✅ **Code quality passes**: `make check` successful
+- ✅ **Authentication works**: All auth tests pass (unit + integration + cornice)
+- ✅ **No regressions**: Full test suite confirms no functionality lost
+
+---
 
 ### [2024-12-28] Refactor Tool Decorator to Use Cornice Services
 
