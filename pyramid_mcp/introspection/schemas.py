@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from cornice.validators import (
     marshmallow_body_validator,
+    marshmallow_path_validator,
     marshmallow_querystring_validator,
     marshmallow_validator,
 )
@@ -45,6 +46,8 @@ def determine_parameter_location_from_validators(
             return "body"
         elif validator is marshmallow_querystring_validator:
             return "querystring"
+        elif validator is marshmallow_path_validator:
+            return "path"
         elif validator is marshmallow_validator:
             # Generic validator - need to examine the schema structure
             # to determine the appropriate parameter location
@@ -52,7 +55,6 @@ def determine_parameter_location_from_validators(
             # to the schema structure - we can't determine it from the
             # validator alone
             return "schema_dependent"
-        # Note: marshmallow_path_validator is less common, add if needed
     return ""
 
 

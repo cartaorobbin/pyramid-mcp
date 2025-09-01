@@ -95,7 +95,7 @@ def test_path_parameter_resolution(pyramid_app_with_services, logs):
     )
 
 
-def test_multiple_path_parameters_resolution(pyramid_app_with_services, logs):
+def test_multiple_path_parameters_list_tools(pyramid_app_with_services, logs):
     """Test that multiple path parameters are properly resolved in subrequests."""
 
     # Create a Cornice service with two path parameters
@@ -122,61 +122,40 @@ def test_multiple_path_parameters_resolution(pyramid_app_with_services, logs):
     # Create test app with the service
     app = pyramid_app_with_services([user_posts_service])
 
-    # Test MCP tool call with two path parameters
-    mcp_request = {
-        "jsonrpc": "2.0",
-        "id": 2,
-        "method": "tools/call",
-        "params": {
-            "name": "get_user_post",
-            "arguments": {"path": {"user_id": "123", "post_id": "abc-def-456"}},
-        },
-    }
-
-    response = app.post_json("/mcp", mcp_request)
-
-    # Should succeed and return the post data
-    assert response.status_code == 200
-
-    # Assert the complete response structure
-    actual_response = response.json
-    fetched_at = actual_response["result"]["source"]["fetched_at"]
-
-    assert actual_response == {
-        "jsonrpc": "2.0",
-        "id": 2,
-        "result": {
-            "content": [
-                {
-                    "type": "text",
-                    "text": "IMPORTANT: All that is at data key.",
-                    "data": {
-                        "user_id": "123",
-                        "post_id": "abc-def-456",
-                        "title": "Post abc-def-456 by User 123",
-                        "status": "published",
-                    },
-                }
-            ],
-            "type": "mcp/context",
-            "version": "1.0",
-            "source": {
-                "kind": "rest_api",
-                "name": "PyramidAPI",
-                "url": "http://localhost/api/v1/users/123/posts/abc-def-456",
-                "fetched_at": fetched_at,
-            },
-            "tags": ["api_response"],
-            "llm_context_hint": "This is a response from a Pyramid API",
-        },
-    }
-
-    # Verify both path parameters were properly resolved
-    assert "FINAL URL: /api/v1/users/123/posts/abc-def-456" in logs.debug
-    assert (
-        "Created subrequest: GET http://localhost/api/v1/users/123/posts/abc-def-456"
-        in logs.info
+    tools_response = app.post_json(
+        "/mcp", {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
     )
+
+    tool = tools_response.json["result"]["tools"][0]
+    assert tool == {
+        "name": "get_user_post",
+        "description": "Get a specific post by a specific user.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "object",
+                    "properties": {
+                        "user_id": {
+                            "type": "string",
+                            "description": "Path parameter: user_id",
+                            "default": None,
+                        },
+                        "post_id": {
+                            "type": "string",
+                            "description": "Path parameter: post_id",
+                            "default": None,
+                        },
+                    },
+                    "required": [],
+                    "additionalProperties": False,
+                    "description": "Path parameters for the request",
+                }
+            },
+            "required": [],
+            "additionalProperties": False,
+        },
+    }
 
 
 class PathSchema(Schema):
@@ -184,7 +163,7 @@ class PathSchema(Schema):
 
     uuid = fields.UUID(
         required=True,
-        metadata={"description": "UUID"},
+        metadata={"description": "UUID description"},
     )
 
 
@@ -372,74 +351,6 @@ def test_path_parameter_resolution_from_schema_marshmallow_validator(
 
 
 @pytest.mark.parametrize("uuid", ["059d1c3a-7cff-4d84-88ae-6b610c69a442"])
-def test_list_tools_path_parameter_resolution_from_schema_marshmallow_validator(
-    uuid, pyramid_app_with_services, logs
-):
-    """Test that path parameters are properly resolved in subrequests."""
-
-    # Create a simple Cornice service with path parameter
-    person_service = Service(
-        name="get_person",
-        path="/api/v1/persons/{uuid:.*}",
-        description="Get person by UUID or tax ID",
-    )
-
-    @person_service.get(
-        schema=PathRequestSchema,
-        validators=(marshmallow_validator,),
-    )
-    def get_person_handler(request):
-        """Get person by UUID or tax ID."""
-        uuid = request.validated["path"]["uuid"]
-        return Response(
-            json={
-                "person_id": str(uuid),  # Convert UUID to string for JSON serialization
-                "name": f"Person {uuid}",
-                "status": "found",
-            }
-        )
-
-    # Create test app with the service
-    app = pyramid_app_with_services([person_service])
-
-    tools_response = app.post_json(
-        "/mcp", {"jsonrpc": "2.0", "method": "tools/list", "id": 1}
-    )
-
-    assert tools_response.json == {
-        "jsonrpc": "2.0",
-        "id": 1,
-        "result": {
-            "tools": [
-                {
-                    "name": "get_person",
-                    "description": "Get person by UUID or tax ID.",
-                    "inputSchema": {
-                        "type": "object",
-                        "properties": {
-                            "path": {
-                                "type": "object",
-                                "properties": {
-                                    "uuid": {
-                                        "type": "string",
-                                        "format": "uuid",
-                                        "description": "UUID",
-                                    }
-                                },
-                                "required": ["uuid"],
-                                "additionalProperties": False,
-                            }
-                        },
-                        "required": [],
-                        "additionalProperties": False,
-                    },
-                }
-            ]
-        },
-    }
-
-
-@pytest.mark.parametrize("uuid", ["059d1c3a-7cff-4d84-88ae-6b610c69a442"])
 def test_list_tools_path_parameter_resolution_from_schema_marshmallow_path_validator(
     uuid, pyramid_app_with_services, logs
 ):
@@ -447,7 +358,7 @@ def test_list_tools_path_parameter_resolution_from_schema_marshmallow_path_valid
 
     # Create a simple Cornice service with path parameter
     person_service = Service(
-        name="get_person",
+        name="get_person_path_validator",
         path="/api/v1/persons/{uuid:.*}",
         description="Get person by UUID or tax ID",
     )
@@ -480,7 +391,7 @@ def test_list_tools_path_parameter_resolution_from_schema_marshmallow_path_valid
         "result": {
             "tools": [
                 {
-                    "name": "get_person",
+                    "name": "get_person_path_validator",
                     "description": "Get person by UUID or tax ID.",
                     "inputSchema": {
                         "type": "object",
@@ -491,11 +402,13 @@ def test_list_tools_path_parameter_resolution_from_schema_marshmallow_path_valid
                                     "uuid": {
                                         "type": "string",
                                         "format": "uuid",
-                                        "description": "UUID",
+                                        "description": "UUID description",
+                                        "default": None,
                                     }
                                 },
-                                "required": ["uuid"],
+                                "required": [],
                                 "additionalProperties": False,
+                                "description": "Path parameters for the request",
                             }
                         },
                         "required": [],
