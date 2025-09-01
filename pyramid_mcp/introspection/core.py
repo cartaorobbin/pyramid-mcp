@@ -15,11 +15,11 @@ from pyramid_mcp.introspection.routes import discover_routes, extract_permission
 from pyramid_mcp.introspection.schemas import (
     determine_location_from_schema_structure,
     determine_parameter_location_from_validators,
-    extract_marshmallow_schema_info,
 )
 from pyramid_mcp.introspection.security import convert_security_type_to_schema
 from pyramid_mcp.introspection.tools import convert_route_to_tools
 from pyramid_mcp.protocol import MCPTool
+from pyramid_mcp.schemas import extract_marshmallow_schema_info
 
 logger = logging.getLogger(__name__)
 

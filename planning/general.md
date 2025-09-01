@@ -49,6 +49,60 @@ The `request.mcp_auth_headers` mechanism was leftover code from an earlier imple
 
 ---
 
+### [2024-12-28] Consolidate Duplicate Schema Code
+
+**Status**: DONE ✅  
+**Assigned**: Assistant  
+**Estimated Time**: 1 hour  
+**Related Issue**: User observation - "we have duplication code at pyramid_mcp/schemas.py and pyramid_mcp/introspection/schemas.py"
+
+#### 🎯 Problem Analysis
+There was significant code duplication between two schema files:
+
+**Duplicated Functions:**
+1. **Field conversion**: `convert_marshmallow_field_to_mcp_type()` vs `marshmallow_field_to_mcp_type()`
+2. **Nested schema extraction**: `_get_nested_schema_class_safely()` vs `get_nested_schema_class_safely()`
+3. **Validation constraints**: `_add_field_validation_constraints()` vs `add_validation_constraints()`
+4. **Schema introspection**: `extract_marshmallow_schema_info()` just wraps `_safe_nested_schema_introspection()`
+
+#### ✅ Completed Tasks
+- [x] **Task 1**: Updated imports in introspection modules to use main schema functions
+- [x] **Task 2**: Removed duplicated field conversion function from introspection/schemas.py
+- [x] **Task 3**: Removed duplicated nested schema extraction function
+- [x] **Task 4**: Removed duplicated validation constraints function
+- [x] **Task 5**: Removed wrapper function that just calls main schemas.py
+- [x] **Task 6**: Kept introspection-specific functions (parameter location logic)
+- [x] **Task 7**: Updated all imports throughout codebase
+- [x] **Task 8**: Ran tests to ensure no regressions
+
+#### 🎯 Changes Made
+1. **Consolidated imports**: Updated `pyramid_mcp/introspection/core.py` to use `_safe_nested_schema_introspection` directly
+2. **Removed duplicated functions**: Eliminated ~180 lines of duplicated code from `introspection/schemas.py`
+3. **Updated test imports**: Fixed `tests/cornice_integration/test_integration.py` to use main schema functions
+4. **Cleaned up unused imports**: Removed unused marshmallow imports after consolidation
+5. **Fixed import sorting**: Applied isort to maintain code quality standards
+
+#### ✅ Verification Complete
+- ✅ **All tests pass**: 358 passed, 2 skipped (same as before)
+- ✅ **Code quality passes**: `make check` successful after import cleanup
+- ✅ **No regressions**: Full functionality maintained with single source of truth
+- ✅ **Cleaner codebase**: ~180 lines of duplicate code eliminated
+
+#### 🎯 Achieved Benefits
+- **Single source of truth**: All schema conversion logic now in `pyramid_mcp/schemas.py`
+- **Cleaner introspection module**: Only introspection-specific parameter location logic remains
+- **Better maintainability**: Schema changes only need to be made in one place
+- **Consistent behavior**: No more subtle differences between duplicate implementations
+- **Public API**: Functions are now properly exposed with public names (no more private `_` prefixes)
+
+#### 🔧 Additional Improvement: Public Function Names
+- **Renamed**: `_safe_nested_schema_introspection` → `extract_marshmallow_schema_info`
+- **Renamed**: `_get_nested_schema_class_safely` → `get_nested_schema_class_safely`
+- **Renamed**: `_add_field_validation_constraints` → `add_field_validation_constraints`
+- **Benefit**: No more awkward import renaming (`as` aliases), cleaner public API
+
+---
+
 ### [2024-12-28] Refactor Tool Decorator to Use Cornice Services
 
 **Status**: IN PROGRESS  

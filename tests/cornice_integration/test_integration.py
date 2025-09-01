@@ -24,11 +24,10 @@ from pyramid_mcp.introspection.cornice import (
     extract_service_level_metadata,
 )
 from pyramid_mcp.introspection.requests import normalize_path_pattern
-from pyramid_mcp.introspection.schemas import (
-    add_validation_constraints,
-    extract_marshmallow_schema_info,
-    marshmallow_field_to_mcp_type,
+from pyramid_mcp.schemas import (
+    convert_marshmallow_field_to_mcp_type as marshmallow_field_to_mcp_type,
 )
+from pyramid_mcp.schemas import extract_marshmallow_schema_info
 
 # =============================================================================
 # 📋 CORNICE SERVICE SCHEMAS
@@ -380,16 +379,17 @@ def test_marshmallow_field_to_mcp_type(pyramid_config):
 
 def test_add_validation_constraints(pyramid_config):
     """Test adding validation constraints from Marshmallow fields."""
-    # Test the actual functionality of _add_validation_constraints
+    # Test the actual functionality of add_field_validation_constraints
     # which handles validation constraints, not descriptions
-
     # Test string field with length validation
     import marshmallow.validate as validate
+
+    from pyramid_mcp.schemas import add_field_validation_constraints
 
     name_field = fields.Str(validate=validate.Length(min=1, max=50))
 
     field_def = {"type": "string"}
-    add_validation_constraints(name_field, field_def)
+    add_field_validation_constraints(name_field, field_def)
 
     # Should add length constraints
     assert "minLength" in field_def
@@ -401,7 +401,7 @@ def test_add_validation_constraints(pyramid_config):
     simple_field = fields.Str()
 
     field_def = {"type": "string"}
-    add_validation_constraints(simple_field, field_def)
+    add_field_validation_constraints(simple_field, field_def)
 
     # Should remain unchanged since no validation constraints
     assert field_def == {"type": "string"}

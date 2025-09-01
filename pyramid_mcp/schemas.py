@@ -158,10 +158,10 @@ def convert_marshmallow_field_to_mcp_type(field: Any) -> Dict[str, Any]:
     elif isinstance(field, fields_module.Nested):
         field_info["type"] = "object"
         # CRITICAL ISOLATION: Get nested schema class WITHOUT triggering instances
-        nested_schema_class = _get_nested_schema_class_safely(field)
+        nested_schema_class = get_nested_schema_class_safely(field)
         if nested_schema_class:
             # Use completely isolated introspection that never creates instances
-            nested_info = _safe_nested_schema_introspection(nested_schema_class)
+            nested_info = extract_marshmallow_schema_info(nested_schema_class)
             if nested_info and isinstance(nested_info, dict):
                 field_info.update(nested_info)
     elif isinstance(field, fields_module.Dict):
@@ -180,12 +180,12 @@ def convert_marshmallow_field_to_mcp_type(field: Any) -> Dict[str, Any]:
             field_info["description"] = description
 
     # Add validation constraints
-    _add_field_validation_constraints(field, field_info)
+    add_field_validation_constraints(field, field_info)
 
     return field_info
 
 
-def _get_nested_schema_class_safely(nested_field: Any) -> Optional[type]:
+def get_nested_schema_class_safely(nested_field: Any) -> Optional[type]:
     """Get the schema class from a Nested field WITHOUT triggering instances.
 
     This function avoids accessing field.schema which triggers automatic instance
@@ -236,7 +236,7 @@ def _get_nested_schema_class_safely(nested_field: Any) -> Optional[type]:
     return None
 
 
-def _safe_nested_schema_introspection(schema_or_class: Any) -> Dict[str, Any]:
+def extract_marshmallow_schema_info(schema_or_class: Any) -> Dict[str, Any]:
     """Safely introspect nested schema without global state pollution.
 
     This function ensures complete isolation by:
@@ -299,7 +299,7 @@ def _safe_nested_schema_introspection(schema_or_class: Any) -> Dict[str, Any]:
     }
 
 
-def _add_field_validation_constraints(field: Any, field_info: Dict[str, Any]) -> None:
+def add_field_validation_constraints(field: Any, field_info: Dict[str, Any]) -> None:
     """Add validation constraints from field to field_info dict."""
     import marshmallow.validate as validate
 
@@ -363,7 +363,7 @@ class MCPSchemaInfoSchema(Schema):
         state pollution that could affect Cornice or other schema usage.
         """
         # Use the completely isolated introspection function
-        return _safe_nested_schema_introspection(schema)
+        return extract_marshmallow_schema_info(schema)
 
 
 # =============================================================================
