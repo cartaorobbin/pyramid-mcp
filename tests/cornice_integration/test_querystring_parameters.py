@@ -224,7 +224,7 @@ def test_cornice_querystring_validation(
     # Verify query parameters were processed correctly by checking logs
     # contain key indicators
     assert "Added query params:" in logs.debug
-    assert "FINAL URL: /api/v1/users" in logs.debug
+    assert "Created subrequest: GET http://localhost/api/v1/users" in logs.debug
 
 
 def test_querystring_parameter_schema_generation(

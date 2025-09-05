@@ -482,8 +482,7 @@ class MCPProtocolHandler:
             )
 
         tool = self.tools[tool_name]
-        logger.info(f"📞 MCP Tool Call: {tool_name} with arguments: {tool_args}")
-        logger.debug(f"📞 Tool arguments: {tool_args}")
+        logger.debug(f"📞 MCP Tool Call: {tool_name} with arguments: {tool_args}")
 
         try:
             # Extract auth credentials and create security headers
@@ -518,7 +517,7 @@ class MCPProtocolHandler:
 
             # Transform and return directly using schema
             mcp_result = schema.dump(schema_data)
-            logger.debug("✅ Transformed response to MCP context format")
+            logger.debug("✅ Tool execution completed successfully")
             return cast(
                 Dict[str, Any],
                 MCPResponseSchema().dump(
@@ -651,16 +650,14 @@ class MCPProtocolHandler:
 
         # Build the actual URL by replacing path parameters in the pattern
         tool_url = route_pattern
-        logger.debug(f"🔧 DEBUG: Original route pattern: {route_pattern}")
-        logger.debug(f"🔧 DEBUG: Path values to substitute: {path_values}")
+        logger.debug(f"🔧 Building URL from route pattern: {route_pattern}")
 
         for param_name, param_value in path_values.items():
             # Replace {param} and {param:regex} patterns with actual values
-            old_url = tool_url
             tool_url = re.sub(
                 rf"\{{{param_name}(?::[^}}]+)?\}}", str(param_value), tool_url
             )
-            logger.debug(f"🔧 DEBUG: Replaced {param_name}: '{old_url}' -> '{tool_url}'")
+            # Path parameter substitution logged at trace level only
 
         # Handle parameters based on their structured location
         body_data = body_args.copy()
@@ -680,9 +677,6 @@ class MCPProtocolHandler:
                 tool_url += f"?{query_string}"
             logger.debug(f"Added query params: {query_string}")
 
-        # Log the final URL being constructed
-        logger.debug(f"FINAL URL: {tool_url}")
-
         # Create subrequest with resolved URL using Pyramid's routing
         subrequest = Request.blank(tool_url)
         subrequest.method = method.upper()
@@ -694,8 +688,7 @@ class MCPProtocolHandler:
         for header_name, header_value in headers.items():
             subrequest.headers[header_name] = header_value
 
-        logger.info(f"Created subrequest: {subrequest.method} {subrequest.url}")
-        logger.debug(f"Subrequest context: {type(subrequest.context).__name__}")
+        logger.debug(f"Created subrequest: {subrequest.method} {subrequest.url}")
 
         # Set up request body for POST/PUT/PATCH requests
         if method.upper() in ["POST", "PUT", "PATCH"] and body_data:

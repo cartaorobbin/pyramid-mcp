@@ -50,8 +50,8 @@ def create_route_handler(
 
     def handler(pyramid_request: Any, **kwargs: Any) -> Dict[str, Any]:
         """MCP tool handler that delegates to Pyramid view via subrequest."""
-        # 🐛 DEBUG: Log tool execution start
-        logger.info(
+        # Log tool execution start
+        logger.debug(
             f"🚀 Executing MCP tool for route: {route_name} "
             f"({method} {route_pattern})"
         )
@@ -63,39 +63,26 @@ def create_route_handler(
                 pyramid_request, kwargs, route_pattern, method, security
             )
 
-            # 🐛 DEBUG: Log subrequest execution
+            # Log subrequest execution
             logger.debug(
                 f"🔧 Executing subrequest: {subrequest.method} {subrequest.url}"
-            )
-            logger.debug(
-                f"🔧 Subrequest Content-Type: "
-                f"{getattr(subrequest, 'content_type', 'None')}"
             )
 
             # Execute the subrequest
             response = pyramid_request.invoke_subrequest(subrequest)
 
-            # 🐛 DEBUG: Log response details
-            logger.debug("✅ Subrequest completed successfully")
-            logger.debug(f"✅ Response type: {type(response)}")
-            if hasattr(response, "status_code"):
-                logger.debug(f"✅ Response status: {response.status_code}")
-            if hasattr(response, "content_type"):
-                logger.debug(f"✅ Response Content-Type: {response.content_type}")
-
             # Convert response to MCP format
-            logger.debug("🔄 Converting response to MCP format...")
+            logger.debug("✅ Subrequest completed successfully")
             mcp_result = convert_response_to_mcp(response, view_info)
-            logger.debug("✅ MCP conversion completed successfully")
 
             return mcp_result
 
         except Exception as e:
-            # 🐛 DEBUG: Log detailed error information
+            # Log detailed error information
             logger.error(f"❌ Error executing MCP tool for {route_name}: {str(e)}")
-            logger.error(f"❌ Error type: {type(e).__name__}")
-            logger.error(f"❌ Route: {route_name} ({method} {route_pattern})")
-            logger.error(f"❌ Arguments: {kwargs}")
+            logger.debug(f"❌ Error type: {type(e).__name__}")
+            logger.debug(f"❌ Route: {route_name} ({method} {route_pattern})")
+            logger.debug(f"❌ Arguments: {kwargs}")
 
             # Log additional error context if available
             if hasattr(e, "response"):
@@ -168,12 +155,12 @@ def create_subrequest(
 
     # 🐛 DEBUG: Log incoming parameters
     logger.debug(f"🔧 Creating subrequest - Route: {route_pattern}, Method: {method}")
-    logger.debug(f"🔧 MCP tool arguments: {kwargs}")
-    logger.debug(f"🔧 Security schema: {security}")
 
     # kwargs should already have auth parameters removed by MCP protocol handler
     filtered_kwargs = kwargs
-    logger.debug(f"🔧 Filtered kwargs (after auth removal): {filtered_kwargs}")
+    # Filtered kwargs logged only if different from original
+    if len(filtered_kwargs) != len(kwargs):
+        logger.debug(f"🔧 Filtered kwargs (after auth removal): {filtered_kwargs}")
 
     # Extract path parameters from route pattern
     path_params = re.findall(r"\{([^}]+)\}", route_pattern)
@@ -219,19 +206,18 @@ def create_subrequest(
     for key, value in filtered_kwargs.items():
         if key in path_param_names:
             path_values[key] = value
-            logger.debug(f"🔧 Path parameter: {key} = {value}")
         else:
             if method.upper() in ["POST", "PUT", "PATCH"]:
                 json_body[key] = value
-                logger.debug(f"🔧 Body parameter: {key} = {value}")
             else:
                 query_params[key] = value
-                logger.debug(f"🔧 Query parameter: {key} = {value}")
 
-    logger.debug("🔧 Final parameter distribution:")
-    logger.debug(f"   - Path values: {path_values}")
-    logger.debug(f"   - Query params: {query_params}")
-    logger.debug(f"   - JSON body: {json_body}")
+    # Log parameter distribution summary
+    if path_values or query_params or json_body:
+        logger.debug(
+            f"🔧 Parameters: {len(path_values)} path, "
+            f"{len(query_params)} query, {len(json_body)} body"
+        )
 
     # Build the actual URL by replacing path parameters in the pattern
     url = route_pattern
@@ -245,12 +231,10 @@ def create_subrequest(
         url = f"{url}?{query_string}"
         logger.debug(f"🔧 Added query string: {query_string}")
 
-    logger.debug(f"FINAL URL: {url}")
-
     # Create the subrequest
     subrequest = Request.blank(url)
     subrequest.method = method.upper()
-    logger.info(f"🔧 Created subrequest: {method.upper()} {url}")
+    logger.debug(f"🔧 Created subrequest: {method.upper()} {url}")
 
     # 🌍 ENVIRON SHARING SUPPORT
     # Copy parent request environ to subrequest for better context preservation
@@ -289,12 +273,8 @@ def create_subrequest(
     # in _create_tool_subrequest() method, not here
 
     # 🐛 INFO: Log final subrequest details
-    logger.debug("🔧 Final subrequest details:")
-    logger.debug(f"   - Method: {subrequest.method}")
-    logger.debug(f"   - URL: {subrequest.url}")
-    logger.debug(f"   - Content-Type: {getattr(subrequest, 'content_type', 'None')}")
-    logger.debug(f"   - Headers: {dict(subrequest.headers)}")
-    logger.debug(f"   - Body length: {len(getattr(subrequest, 'body', b''))} bytes")
+    # Log final subrequest summary
+    logger.debug(f"🔧 Subrequest: {subrequest.method} {subrequest.url}")
 
     # 🔄 PYRAMID_TM TRANSACTION SHARING SUPPORT
     # Ensure subrequest shares the same transaction context as the parent request

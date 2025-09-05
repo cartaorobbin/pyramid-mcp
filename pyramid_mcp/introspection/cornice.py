@@ -170,27 +170,6 @@ def extract_cornice_view_metadata(
             )
 
         if method_matches or view_matches:
-            # 🔍 DEEP DEBUG: Special logging for workspace parts path
-            service_path = cornice_service.get("path", "")
-            if (
-                "/api/v1/workspaces/parts" in service_path
-                or "workspace" in service_path.lower()
-            ):
-                logger.info(f"🔍 WORKSPACE PARTS DEBUG - Service path: {service_path}")
-                logger.info(f"   Service name: {cornice_service.get('name', 'N/A')}")
-                logger.info(f"   Method: {method}")
-                logger.info(f"   View callable: {view}")
-                logger.info(
-                    f"   View callable name: {getattr(view, '__name__', 'N/A')}"
-                )
-                logger.info(f"   Method matches: {method_matches}")
-                logger.info(f"   View matches: {view_matches}")
-                logger.info(f"   Args keys: {list(args.keys())}")
-                logger.info(f"   Schema in args: {args.get('schema')}")
-                logger.info(f"   Schema type: {type(args.get('schema'))}")
-                logger.info(f"   Validators in args: {args.get('validators', [])}")
-                logger.info(f"   Full args: {args}")
-
             method_metadata = {
                 "method": method,
                 "validators": args.get("validators", []),

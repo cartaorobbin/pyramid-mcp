@@ -87,11 +87,9 @@ def test_path_parameter_resolution(pyramid_app_with_services, logs):
 
     # Verify the URL was properly constructed using logassert
     # The final URL should have the resolved parameter
-    assert "FINAL URL: /api/v1/persons/17143981885" in logs.debug
-    # The subrequest should also have the resolved URL
     assert (
         "Created subrequest: GET http://localhost/api/v1/persons/17143981885"
-        in logs.info
+        in logs.debug
     )
 
 
@@ -246,10 +244,8 @@ def test_path_parameter_resolution_from_schema(uuid, pyramid_app_with_services, 
 
     # Verify the URL was properly constructed using logassert
     # The final URL should have the resolved parameter
-    assert f"FINAL URL: /api/v1/persons/{uuid}" in logs.debug
-    # The subrequest should also have the resolved URL
     assert (
-        f"Created subrequest: GET http://localhost/api/v1/persons/{uuid}" in logs.info
+        f"Created subrequest: GET http://localhost/api/v1/persons/{uuid}" in logs.debug
     )
 
 
@@ -343,10 +339,8 @@ def test_path_parameter_resolution_from_schema_marshmallow_validator(
 
     # Verify the URL was properly constructed using logassert
     # The final URL should have the resolved parameter
-    assert f"FINAL URL: /api/v1/persons/{uuid}" in logs.debug
-    # The subrequest should also have the resolved URL
     assert (
-        f"Created subrequest: GET http://localhost/api/v1/persons/{uuid}" in logs.info
+        f"Created subrequest: GET http://localhost/api/v1/persons/{uuid}" in logs.debug
     )
 
 

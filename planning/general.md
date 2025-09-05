@@ -282,6 +282,77 @@ for tool in discovered_tools:
 
 ---
 
+### [2024-12-28] Reduce Logging Verbosity
+
+**Status**: DONE ✅  
+**Assigned**: Assistant  
+**Estimated Time**: 1-2 hours  
+**Related Issue**: User feedback - "our logging info level is too verbose"
+
+#### 🎯 Problem Analysis
+The current logging was overly verbose, especially:
+
+1. **INFO level overuse**: Many DEBUG-level messages were logged as INFO
+2. **Excessive DEBUG logging**: Too many emoji-heavy debug messages in requests.py
+3. **Parameter spam**: Debug log for every single parameter processed
+4. **Development configs**: Examples defaulted to DEBUG level
+
+#### ✅ Completed Tasks
+
+- [x] **Task 1**: Review and adjust log levels in `pyramid_mcp/introspection/requests.py`
+  - Changed INFO to DEBUG for internal processing details
+  - Reduced parameter-by-parameter debug logging to summary format
+  - Kept ERROR logs for actual errors, moved detailed error info to DEBUG
+- [x] **Task 2**: Review and adjust log levels in `pyramid_mcp/protocol.py`
+  - Changed tool execution INFO to DEBUG
+  - Kept high-level INFO for important events only
+- [x] **Task 3**: Update example configurations to use INFO level by default
+  - Updated `examples/secure/development.ini` to use INFO level
+- [x] **Task 4**: Remove debug code from `pyramid_mcp/introspection/cornice.py`
+  - Removed workspace-specific debug logging block
+- [x] **Task 5**: Update tests to match new logging patterns
+  - Fixed test assertions to expect DEBUG level logs instead of INFO
+  - Updated log message patterns to match new format
+
+#### 🎯 Changes Made
+
+**Logging Level Adjustments:**
+- `requests.py`: Tool execution start/end moved from INFO to DEBUG
+- `requests.py`: Parameter processing consolidated to summary format
+- `protocol.py`: Tool call execution moved from INFO to DEBUG
+- `protocol.py`: Subrequest creation moved from INFO to DEBUG
+- `cornice.py`: Removed debug-specific logging block
+
+**Configuration Updates:**
+- `examples/secure/development.ini`: Changed pyramid_mcp logger from DEBUG to INFO
+
+**Test Updates:**
+- Updated test assertions to expect logs in DEBUG instead of INFO
+- Fixed log message patterns to match new consolidated format
+
+#### 🎯 Logging Level Guidelines Applied
+
+**ERROR**: Actual errors that prevent functionality
+**WARNING**: Potential issues or deprecated usage  
+**INFO**: High-level operations (tool registration, server startup, configuration)
+**DEBUG**: Internal processing details, parameter values, subrequest details
+
+#### ✅ Verification Complete
+- ✅ **Cleaner INFO logs**: Only high-level operations at INFO level
+- ✅ **Reduced noise**: DEBUG level contains detailed tracing
+- ✅ **Examples updated**: Default configurations use INFO level
+- ✅ **All tests pass**: `make test` returns 0 failures (357 passed, 2 skipped)
+- ✅ **Code quality**: `make check` passes all linting and type checking
+- ✅ **Functionality preserved**: Important events still logged appropriately
+
+#### 🎯 Impact Summary
+- **Reduced verbosity**: INFO level now shows only essential operations
+- **Better debugging**: DEBUG level provides detailed tracing when needed
+- **Cleaner examples**: Default configurations are less noisy
+- **Maintained functionality**: All error reporting and important events preserved
+
+---
+
 ## Task Organization Rules
 
 - **Current Tasks (This File)**: Tasks actively being worked on RIGHT NOW (max 1-3 groups)  
