@@ -493,8 +493,8 @@ class MCPProtocolHandler:
             subrequest = self._create_tool_subrequest(
                 request, tool, tool_args, security_headers
             )
-
             # Execute subrequest - Pyramid handles auth, permissions, and execution
+
             response = request.invoke_subrequest(subrequest)
 
             # Transform response to MCP context format using schema

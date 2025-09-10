@@ -419,9 +419,6 @@ class MCPContentItemSchema(Schema):
     @pre_dump
     def transform_content_item(self, obj: Any, **kwargs: Any) -> Dict[str, Any]:
         """Transform raw content into proper MCP content item format."""
-        # Handle case where obj is already a proper content item
-        if isinstance(obj, dict) and "type" in obj:
-            return obj
 
         # Transform raw content into content item
         if isinstance(obj, (dict, list)):
@@ -491,6 +488,7 @@ class MCPContextResultSchema(Schema):
         1. Pyramid HTTP responses (with response + view_info)
         2. Simple tool results (with content + metadata)
         """
+
         from datetime import datetime, timezone
 
         fetched_at = datetime.now(timezone.utc)
