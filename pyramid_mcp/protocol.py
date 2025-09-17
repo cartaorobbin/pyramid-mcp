@@ -494,7 +494,6 @@ class MCPProtocolHandler:
                 request, tool, tool_args, security_headers
             )
             # Execute subrequest - Pyramid handles auth, permissions, and execution
-
             response = request.invoke_subrequest(subrequest)
 
             # Transform response to MCP context format using schema
@@ -667,6 +666,9 @@ class MCPProtocolHandler:
         for key, value in querystring_args.items():
             if isinstance(value, (str, int, float, bool)):
                 query_params[key] = str(value)
+            if isinstance(value, list):
+                query_params[key] = str(value)
+                # query_params[key] = ",".join([str(i) for i in value])
 
         # Add query parameters to URL if any
         if query_params:
