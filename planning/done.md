@@ -2,6 +2,52 @@
 
 ## ✅ Recent Completions
 
+### [2024-12-28] ✅ Fix Path Parameter Required Fields Bug
+
+**Status**: DONE ✅  
+**Assigned**: Assistant  
+**Completed**: 2024-12-28  
+**Time Taken**: ~30 minutes  
+**Related Issue**: User reported bug - "the 'required': [] field should be path or uuid. I know the uuid at path is required."
+
+#### 🎯 Goal Achieved
+
+Successfully fixed path parameter schema generation to respect Marshmallow schema required fields, eliminating an unnecessary special case that broke normal schema processing.
+
+#### 🐛 Bug Details
+
+**Problem**: Path parameters with Marshmallow schemas that had `required=True` fields were showing `"required": []` instead of the actual required field names.
+
+**Root Cause**: Unnecessary special case in `pyramid_mcp/introspection/tools.py` that hardcoded `"required": []` for path parameters, ignoring the schema's actual requirements.
+
+**Impact**: MCP tool definitions showed incorrect schema information, making it unclear which path parameters were actually required.
+
+#### 🔧 Solution Implemented
+
+**Key Insight**: "Path should behave like the other schemas" - removed the special case entirely.
+
+**Changes Made:**
+1. **Removed special case code** (lines 418-442) in `pyramid_mcp/introspection/tools.py`
+2. **Unified schema processing** - path parameters now use same logic as querystring/body parameters
+3. **Updated test expectations** to match correct behavior (`"required": ["uuid"]`)
+
+#### ✅ Verification Results
+
+- ✅ **Bug fixed**: Path parameters correctly show required fields from Marshmallow schemas
+- ✅ **Consistent behavior**: All parameter types use unified schema processing logic
+- ✅ **All tests pass**: 357 passed, 2 skipped (no regressions)
+- ✅ **Code quality**: All `make check` validations pass
+- ✅ **Existing tests**: Other path parameter tests already expected correct behavior
+
+#### 🎯 Benefits Achieved
+
+- **Correct MCP schemas**: Tool definitions now accurately reflect required path parameters
+- **Simplified codebase**: Eliminated unnecessary special case logic (~25 lines removed)
+- **Consistent behavior**: Path parameters work exactly like other parameter types
+- **Better maintainability**: Single code path for all parameter schema generation
+
+---
+
 ### [2024-12-28] ✅ Refactor Introspection Module for Better Organization
 
 **Status**: DONE ✅  

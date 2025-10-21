@@ -415,43 +415,18 @@ def generate_input_schema(
                             "path": "Path parameters for the request",
                         }
 
-                        # Special handling for path parameters:
-                        # Replace generic path parameters with Marshmallow schema ones
-                        if parameter_location == "path":
-                            # Path parameters are special - always provided by URL
-                            # routing so they should have required=[] and default=None
-                            schema_path_properties: Dict[str, Any] = {}
-                            for field_name, field_info in schema_properties.items():
-                                path_field_info = dict(field_info)
-                                path_field_info[
-                                    "default"
-                                ] = None  # Add default for paths
-                                schema_path_properties[field_name] = path_field_info
-
-                            # Override generic path parameters with schema-based ones
-                            schema_result["properties"]["path"] = {
-                                "type": "object",
-                                "properties": schema_path_properties,
-                                "required": [],  # Path params provided by routing
-                                "additionalProperties": False,
-                                "description": description_map.get(
-                                    parameter_location,
-                                    f"{parameter_location.title()} parameters "
-                                    "for the request",
-                                ),
-                            }
-                        else:
-                            schema_result["properties"][parameter_location] = {
-                                "type": "object",
-                                "properties": schema_properties,
-                                "required": schema_info.get("required", []),
-                                "additionalProperties": False,
-                                "description": description_map.get(
-                                    parameter_location,
-                                    f"{parameter_location.title()} parameters "
-                                    "for the request",
-                                ),
-                            }
+                        # Use consistent schema processing for all parameter locations
+                        schema_result["properties"][parameter_location] = {
+                            "type": "object",
+                            "properties": schema_properties,
+                            "required": schema_info.get("required", []),
+                            "additionalProperties": False,
+                            "description": description_map.get(
+                                parameter_location,
+                                f"{parameter_location.title()} parameters "
+                                "for the request",
+                            ),
+                        }
 
                     return schema_result
                 else:
