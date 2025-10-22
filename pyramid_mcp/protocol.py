@@ -667,7 +667,7 @@ class MCPProtocolHandler:
             if isinstance(value, (str, int, float, bool)):
                 query_params[key] = str(value)
             if isinstance(value, list):
-                query_params[key] = str(value)
+                query_params[key] = json.dumps(value)
                 # query_params[key] = ",".join([str(i) for i in value])
 
         # Add query parameters to URL if any
