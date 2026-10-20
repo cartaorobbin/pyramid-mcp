@@ -31,13 +31,19 @@ from pyramid.config import Configurator
 from pyramid.settings import asbool
 
 from pyramid_mcp.core import (
+    MCPAnnotationsPredicate,
     MCPConfiguration,
     MCPDescriptionPredicate,
     MCPLLMContextHintPredicate,
+    MCPMetaPredicate,
+    MCPOutputSchemaPredicate,
     MCPSecurityPredicate,
+    MCPTitlePredicate,
     PyramidMCP,
 )
-from pyramid_mcp.decorators import tool
+from pyramid_mcp.decorators import resource, tool
+from pyramid_mcp.oauth import protected_resource_metadata_url, www_authenticate
+from pyramid_mcp.result import MCPToolResult
 from pyramid_mcp.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -47,10 +53,18 @@ __all__ = [
     "MCPConfiguration",
     "MCPDescriptionPredicate",
     "MCPLLMContextHintPredicate",
+    "MCPAnnotationsPredicate",
+    "MCPMetaPredicate",
+    "MCPOutputSchemaPredicate",
+    "MCPTitlePredicate",
     "MCPSecurityPredicate",
+    "MCPToolResult",
     "__version__",
     "includeme",
+    "protected_resource_metadata_url",
+    "resource",
     "tool",
+    "www_authenticate",
 ]
 
 
@@ -100,6 +114,10 @@ def includeme(config: Configurator) -> None:
 
     # Register the MCP llm_context_hint view predicate
     config.add_view_predicate("llm_context_hint", MCPLLMContextHintPredicate)
+    config.add_view_predicate("mcp_meta", MCPMetaPredicate)
+    config.add_view_predicate("mcp_output_schema", MCPOutputSchemaPredicate)
+    config.add_view_predicate("mcp_title", MCPTitlePredicate)
+    config.add_view_predicate("mcp_annotations", MCPAnnotationsPredicate)
 
     # Register the MCP security view predicate using configurable parameter name
     if mcp_config.add_security_predicate:
@@ -176,6 +194,12 @@ def _extract_mcp_config_from_settings(settings: dict) -> MCPConfiguration:
         ),
         # Authentication parameter exposure settings
         expose_auth_as_params=asbool(settings.get("mcp.expose_auth_as_params", "true")),
+        instructions=settings.get("mcp.instructions") or None,
+        oauth_resource=settings.get("mcp.oauth.resource") or None,
+        oauth_authorization_servers=_parse_list_setting(
+            settings.get("mcp.oauth.authorization_servers")
+        ),
+        oauth_scopes=_parse_list_setting(settings.get("mcp.oauth.scopes")),
         # Tool filtering settings
         filter_forbidden_tools=asbool(
             settings.get("mcp.filter_forbidden_tools", "true")

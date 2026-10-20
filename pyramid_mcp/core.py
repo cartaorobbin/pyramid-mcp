@@ -15,6 +15,10 @@ from pyramid.request import Request
 from pyramid.response import Response
 
 from pyramid_mcp.introspection import PyramidIntrospector
+from pyramid_mcp.oauth import (
+    protected_resource_document,
+    protected_resource_metadata_path,
+)
 from pyramid_mcp.protocol import MCPProtocolHandler
 from pyramid_mcp.wsgi import MCPWSGIApp
 
@@ -43,6 +47,11 @@ class MCPConfiguration:
     expose_auth_as_params: bool = True
     # Tool filtering configuration
     filter_forbidden_tools: bool = True
+    instructions: Optional[str] = None
+    # OAuth protected-resource discovery. Empty values are filled from the request.
+    oauth_resource: Optional[str] = None
+    oauth_authorization_servers: Optional[List[str]] = None
+    oauth_scopes: Optional[List[str]] = None
 
 
 class PyramidMCP:
@@ -198,6 +207,8 @@ class PyramidMCP:
                 renderer="json",
             )
 
+        self._add_protected_resource_route(mount_path)
+
         if self.config.enable_sse:
             # Add SSE endpoint for MCP streaming
             sse_route_name = "mcp_sse"
@@ -208,6 +219,36 @@ class PyramidMCP:
                 route_name=sse_route_name,
                 request_method=["GET", "POST"],
             )
+
+    def _add_protected_resource_route(self, mount_path: str) -> None:
+        """Advertise RFC 9728 metadata for this MCP resource."""
+        resource = (
+            self.config.oauth_resource
+            or f"https://placeholder{self._resource_path(mount_path)}"
+        )
+        route_path = protected_resource_metadata_path(resource)
+        self.configurator.add_route("mcp_oauth_protected_resource", route_path)
+        self.configurator.add_view(
+            self._handle_protected_resource,
+            route_name="mcp_oauth_protected_resource",
+            request_method="GET",
+            renderer="json",
+        )
+
+    def _resource_path(self, mount_path: str) -> str:
+        mount_path = mount_path.strip("/")
+        return f"/{mount_path}" if mount_path else "/"
+
+    def _handle_protected_resource(self, request: Request) -> Dict[str, Any]:
+        mount_path = self.config.mount_path.strip("/")
+        resource_path = self._resource_path(mount_path)
+        resource = self.config.oauth_resource or (
+            request.application_url.rstrip("/") + resource_path
+        )
+        servers = self.config.oauth_authorization_servers or [
+            request.application_url.rstrip("/")
+        ]
+        return protected_resource_document(resource, servers, self.config.oauth_scopes)
 
     def _handle_mcp_http(self, request: Request) -> Dict[str, Any]:
         """Handle HTTP-based MCP messages.
@@ -411,6 +452,82 @@ class MCPLLMContextHintPredicate:
 
     def __call__(self, context: Any, request: Any) -> bool:
         """Always return True - this is a non-filtering predicate."""
+        return True
+
+
+class MCPMetaPredicate:
+    """Non-filtering predicate that stores MCP ``_meta`` on a view."""
+
+    def __init__(self, val: Any, config: Any) -> None:
+        """Initialize the predicate with the metadata mapping."""
+        self.val = val
+        self.config = config
+
+    def text(self) -> str:
+        """Return text representation for introspection."""
+        return f"mcp_meta = {self.val!r}"
+
+    phash = text
+
+    def __call__(self, context: Any, request: Any) -> bool:
+        """Always match. The value is metadata, not a filter."""
+        return True
+
+
+class MCPOutputSchemaPredicate:
+    """Non-filtering predicate that stores a tool output schema on a view."""
+
+    def __init__(self, val: Any, config: Any) -> None:
+        """Initialize the predicate with a schema class or JSON Schema dict."""
+        self.val = val
+        self.config = config
+
+    def text(self) -> str:
+        """Return text representation for introspection."""
+        return f"mcp_output_schema = {self.val!r}"
+
+    phash = text
+
+    def __call__(self, context: Any, request: Any) -> bool:
+        """Always match. The value is metadata, not a filter."""
+        return True
+
+
+class MCPTitlePredicate:
+    """Non-filtering predicate that stores a tool title on a view."""
+
+    def __init__(self, val: Any, config: Any) -> None:
+        """Initialize the predicate with the display title."""
+        self.val = val
+        self.config = config
+
+    def text(self) -> str:
+        """Return text representation for introspection."""
+        return f"mcp_title = {self.val!r}"
+
+    phash = text
+
+    def __call__(self, context: Any, request: Any) -> bool:
+        """Always match. The value is metadata, not a filter."""
+        return True
+
+
+class MCPAnnotationsPredicate:
+    """Non-filtering predicate that stores MCP tool annotations on a view."""
+
+    def __init__(self, val: Any, config: Any) -> None:
+        """Initialize the predicate with the annotations mapping."""
+        self.val = val
+        self.config = config
+
+    def text(self) -> str:
+        """Return text representation for introspection."""
+        return f"mcp_annotations = {self.val!r}"
+
+    phash = text
+
+    def __call__(self, context: Any, request: Any) -> bool:
+        """Always match. The value is metadata, not a filter."""
         return True
 
 

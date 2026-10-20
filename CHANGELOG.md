@@ -7,8 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-20
+
 ### Added
-- Preparing for initial PyPI release
+- Generic MCP Apps transport: `resources/list` and `resources/read`, tool `outputSchema` and `_meta`, and `MCPToolResult` so a tool result can pass through without the `mcp/context` envelope. A tool that returns a plain value keeps the envelope.
+- Tool `title` and `annotations`, resource `_meta`, and optional `initialize` instructions.
+- Optional OAuth Protected Resource Metadata (RFC 9728) and a `WWW-Authenticate` helper. The library does not issue tokens.
 
 ## [0.1.0] - 2024-01-XX
 

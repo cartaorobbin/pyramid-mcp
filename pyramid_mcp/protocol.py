@@ -24,6 +24,7 @@ from pyramid.interfaces import (
 )
 from pyramid.request import Request
 
+from pyramid_mcp.result import PASSTHROUGH_KEY, public_tool_result
 from pyramid_mcp.schemas import (
     MCPContextResultSchema,
     MCPRequestSchema,
@@ -143,6 +144,10 @@ class MCPTool:
     context: Optional[Any] = None  # Context for permission checking
     security: Optional[MCPSecurityType] = None  # Authentication parameter specification
     llm_context_hint: Optional[str] = None  # Custom context hint for LLM responses
+    output_schema: Optional[Any] = None  # Marshmallow schema or JSON Schema dict
+    meta: Optional[Dict[str, Any]] = None  # MCP _meta, such as ui.resourceUri
+    title: Optional[str] = None
+    annotations: Optional[Dict[str, Any]] = None
     config: Optional[Any] = None  # MCP configuration object
     # Internal fields for unified security architecture
     _internal_route_name: Optional[str] = None  # Route name for manual tools
@@ -176,8 +181,46 @@ class MCPTool:
         tool_dict["inputSchema"] = merge_auth_into_schema(
             base_schema, self.security, expose_auth
         )
+        if self.output_schema is not None:
+            if isinstance(self.output_schema, dict):
+                tool_dict["outputSchema"] = self.output_schema
+            else:
+                tool_dict["outputSchema"] = create_json_schema_from_marshmallow(
+                    self.output_schema
+                )
+        if self.meta:
+            tool_dict["_meta"] = self.meta
+        if self.title:
+            tool_dict["title"] = self.title
+        if self.annotations:
+            tool_dict["annotations"] = self.annotations
 
         return tool_dict
+
+
+@dataclass
+class MCPResource:
+    """A resource the host can list and read. The handler returns text."""
+
+    uri: str
+    mime_type: str
+    handler: Callable
+    name: Optional[str] = None
+    description: Optional[str] = None
+    meta: Optional[Dict[str, Any]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to an MCP resource listing entry."""
+        listed: Dict[str, Any] = {
+            "uri": self.uri,
+            "name": self.name or self.uri,
+            "mimeType": self.mime_type,
+        }
+        if self.description:
+            listed["description"] = self.description
+        if self.meta:
+            listed["_meta"] = self.meta
+        return listed
 
 
 class MCPProtocolHandler:
@@ -200,6 +243,7 @@ class MCPProtocolHandler:
         self.server_version = server_version
         self.config = config
         self.tools: Dict[str, MCPTool] = {}
+        self.resources: Dict[str, MCPResource] = {}
         self.capabilities: Dict[str, Any] = {
             "tools": {"listChanged": True},
             "resources": {"subscribe": False, "listChanged": True},
@@ -234,6 +278,12 @@ class MCPProtocolHandler:
 
         # Update capabilities to indicate we have tools
         self.capabilities["tools"] = {}
+
+    def register_resource(self, resource: "MCPResource") -> None:
+        """Register a resource served by resources/list and resources/read."""
+        if resource.uri in self.resources:
+            raise ValueError(f"MCP resource already registered: {resource.uri}")
+        self.resources[resource.uri] = resource
 
     def handle_message(
         self,
@@ -287,6 +337,8 @@ class MCPProtocolHandler:
                 return self._handle_call_tool(mcp_request, request)
             elif mcp_request["method"] == "resources/list":
                 return self._handle_list_resources(mcp_request)
+            elif mcp_request["method"] == "resources/read":
+                return self._handle_read_resource(mcp_request, request)
             elif mcp_request["method"] == "prompts/list":
                 return self._handle_list_prompts(mcp_request)
             elif mcp_request["method"] == "notifications/initialized":
@@ -334,6 +386,11 @@ class MCPProtocolHandler:
             "capabilities": self.capabilities,
             "serverInfo": {"name": self.server_name, "version": self.server_version},
         }
+        instructions = (
+            getattr(self.config, "instructions", None) if self.config else None
+        )
+        if instructions:
+            result["instructions"] = instructions
         return cast(
             Dict[str, Any],
             MCPResponseSchema().dump({"id": mcp_request.get("id"), "result": result}),
@@ -495,6 +552,16 @@ class MCPProtocolHandler:
             )
             # Execute subrequest - Pyramid handles auth, permissions, and execution
             response = request.invoke_subrequest(subrequest)
+
+            passthrough = _passthrough_result(response)
+            if passthrough is not None:
+                logger.debug("✅ Tool execution completed successfully")
+                return cast(
+                    Dict[str, Any],
+                    MCPResponseSchema().dump(
+                        {"id": mcp_request.get("id"), "result": passthrough}
+                    ),
+                )
 
             # Transform response to MCP context format using schema
             schema = MCPContextResultSchema()
@@ -760,12 +827,68 @@ class MCPProtocolHandler:
 
     def _handle_list_resources(self, mcp_request: Dict[str, Any]) -> Dict[str, Any]:
         """Handle MCP resources/list request."""
-        # For now, return empty resources list
-        # This can be extended to support MCP resources in the future
-        result: Dict[str, Any] = {"resources": []}
+        result: Dict[str, Any] = {
+            "resources": [item.to_dict() for item in self.resources.values()]
+        }
         return cast(
             Dict[str, Any],
             MCPResponseSchema().dump({"id": mcp_request.get("id"), "result": result}),
+        )
+
+    def _handle_read_resource(
+        self, mcp_request: Dict[str, Any], request: Request
+    ) -> Dict[str, Any]:
+        """Handle MCP resources/read request."""
+        params = mcp_request.get("params") or {}
+        uri = params.get("uri") if isinstance(params, dict) else None
+        resource = self.resources.get(uri) if isinstance(uri, str) else None
+        if resource is None:
+            return cast(
+                Dict[str, Any],
+                MCPResponseSchema().dump(
+                    {
+                        "id": mcp_request.get("id"),
+                        "error_code": MCPErrorCode.INVALID_PARAMS.value,
+                        "error_message": f"Resource not found: {uri}",
+                    }
+                ),
+            )
+        try:
+            body = resource.handler(request)
+        except Exception as exc:
+            logger.error("Error reading resource '%s': %s", uri, exc)
+            return cast(
+                Dict[str, Any],
+                MCPResponseSchema().dump(
+                    {
+                        "id": mcp_request.get("id"),
+                        "error_code": MCPErrorCode.INTERNAL_ERROR.value,
+                        "error_message": f"Resource read failed: {exc}",
+                    }
+                ),
+            )
+        if isinstance(body, dict) and "text" in body:
+            text = body["text"]
+            mime_type = body.get("mimeType", resource.mime_type)
+        else:
+            text = "" if body is None else str(body)
+            mime_type = resource.mime_type
+        item: Dict[str, Any] = {
+            "uri": resource.uri,
+            "mimeType": mime_type,
+            "text": text,
+        }
+        if resource.meta:
+            item["_meta"] = resource.meta
+        contents = [item]
+        return cast(
+            Dict[str, Any],
+            MCPResponseSchema().dump(
+                {
+                    "id": mcp_request.get("id"),
+                    "result": {"contents": contents},
+                }
+            ),
         )
 
     def _handle_list_prompts(self, mcp_request: Dict[str, Any]) -> Dict[str, Any]:
@@ -786,6 +909,21 @@ class MCPProtocolHandler:
         # But since our current architecture expects a response, we'll return None
         # and handle this special case in the main handler
         return None
+
+
+def _passthrough_result(response: Any) -> Optional[Dict[str, Any]]:
+    """Return a standard MCP tool result when the view opted out of the envelope."""
+    if not hasattr(response, "json"):
+        return None
+    try:
+        payload = response.json
+    except Exception:
+        return None
+    if not isinstance(payload, dict) or not payload.get(PASSTHROUGH_KEY):
+        return None
+    if "content" not in payload:
+        return None
+    return public_tool_result(payload)
 
 
 def create_json_schema_from_marshmallow(schema_class: type) -> Dict[str, Any]:
