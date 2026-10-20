@@ -42,6 +42,7 @@ from pyramid_mcp.core import (
     PyramidMCP,
 )
 from pyramid_mcp.decorators import resource, tool
+from pyramid_mcp.oauth import protected_resource_metadata_url, www_authenticate
 from pyramid_mcp.result import MCPToolResult
 from pyramid_mcp.version import __version__
 
@@ -60,8 +61,10 @@ __all__ = [
     "MCPToolResult",
     "__version__",
     "includeme",
+    "protected_resource_metadata_url",
     "resource",
     "tool",
+    "www_authenticate",
 ]
 
 
@@ -192,6 +195,11 @@ def _extract_mcp_config_from_settings(settings: dict) -> MCPConfiguration:
         # Authentication parameter exposure settings
         expose_auth_as_params=asbool(settings.get("mcp.expose_auth_as_params", "true")),
         instructions=settings.get("mcp.instructions") or None,
+        oauth_resource=settings.get("mcp.oauth.resource") or None,
+        oauth_authorization_servers=_parse_list_setting(
+            settings.get("mcp.oauth.authorization_servers")
+        ),
+        oauth_scopes=_parse_list_setting(settings.get("mcp.oauth.scopes")),
         # Tool filtering settings
         filter_forbidden_tools=asbool(
             settings.get("mcp.filter_forbidden_tools", "true")
