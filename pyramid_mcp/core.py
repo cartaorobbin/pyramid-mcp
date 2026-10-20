@@ -43,6 +43,7 @@ class MCPConfiguration:
     expose_auth_as_params: bool = True
     # Tool filtering configuration
     filter_forbidden_tools: bool = True
+    instructions: Optional[str] = None
 
 
 class PyramidMCP:
@@ -411,6 +412,82 @@ class MCPLLMContextHintPredicate:
 
     def __call__(self, context: Any, request: Any) -> bool:
         """Always return True - this is a non-filtering predicate."""
+        return True
+
+
+class MCPMetaPredicate:
+    """Non-filtering predicate that stores MCP ``_meta`` on a view."""
+
+    def __init__(self, val: Any, config: Any) -> None:
+        """Initialize the predicate with the metadata mapping."""
+        self.val = val
+        self.config = config
+
+    def text(self) -> str:
+        """Return text representation for introspection."""
+        return f"mcp_meta = {self.val!r}"
+
+    phash = text
+
+    def __call__(self, context: Any, request: Any) -> bool:
+        """Always match. The value is metadata, not a filter."""
+        return True
+
+
+class MCPOutputSchemaPredicate:
+    """Non-filtering predicate that stores a tool output schema on a view."""
+
+    def __init__(self, val: Any, config: Any) -> None:
+        """Initialize the predicate with a schema class or JSON Schema dict."""
+        self.val = val
+        self.config = config
+
+    def text(self) -> str:
+        """Return text representation for introspection."""
+        return f"mcp_output_schema = {self.val!r}"
+
+    phash = text
+
+    def __call__(self, context: Any, request: Any) -> bool:
+        """Always match. The value is metadata, not a filter."""
+        return True
+
+
+class MCPTitlePredicate:
+    """Non-filtering predicate that stores a tool title on a view."""
+
+    def __init__(self, val: Any, config: Any) -> None:
+        """Initialize the predicate with the display title."""
+        self.val = val
+        self.config = config
+
+    def text(self) -> str:
+        """Return text representation for introspection."""
+        return f"mcp_title = {self.val!r}"
+
+    phash = text
+
+    def __call__(self, context: Any, request: Any) -> bool:
+        """Always match. The value is metadata, not a filter."""
+        return True
+
+
+class MCPAnnotationsPredicate:
+    """Non-filtering predicate that stores MCP tool annotations on a view."""
+
+    def __init__(self, val: Any, config: Any) -> None:
+        """Initialize the predicate with the annotations mapping."""
+        self.val = val
+        self.config = config
+
+    def text(self) -> str:
+        """Return text representation for introspection."""
+        return f"mcp_annotations = {self.val!r}"
+
+    phash = text
+
+    def __call__(self, context: Any, request: Any) -> bool:
+        """Always match. The value is metadata, not a filter."""
         return True
 
 

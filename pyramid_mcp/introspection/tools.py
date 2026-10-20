@@ -157,6 +157,10 @@ def convert_route_to_tools(
             permission=permission,
             security=security,
             llm_context_hint=llm_context_hint,
+            output_schema=view.get("mcp_output_schema"),
+            meta=view.get("mcp_meta"),
+            title=view.get("mcp_title"),
+            annotations=view.get("mcp_annotations"),
             config=config,
         )
 

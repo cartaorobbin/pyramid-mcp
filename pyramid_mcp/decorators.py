@@ -7,14 +7,17 @@ approach of creating Pyramid views with metadata.
 """
 
 import inspect
-from typing import Any, Callable, Optional, get_type_hints
+from typing import Any, Callable, Dict, Optional, get_type_hints
 
 import venusian  # type: ignore[import-untyped]
 from cornice import Service
 from cornice.validators import marshmallow_body_validator
 from marshmallow import Schema, fields
 
+from pyramid_mcp.result import MCPToolResult
 from pyramid_mcp.security import MCPSecurityType
+
+_INJECTED_PARAMETERS = {"self", "request", "pyramid_request"}
 
 
 def _generate_marshmallow_schema_from_signature(func: Callable) -> type:
@@ -32,7 +35,7 @@ def _generate_marshmallow_schema_from_signature(func: Callable) -> type:
     schema_fields = {}
 
     for param_name, param in sig.parameters.items():
-        if param_name == "self":
+        if param_name in _INJECTED_PARAMETERS:
             continue
 
         param_type = type_hints.get(param_name, str)
@@ -76,6 +79,8 @@ class tool:
         permission: Pyramid permission requirement for this tool
         context: Context or context factory to use for permission checking
         security: Authentication parameter specification for this tool
+        output_schema: Marshmallow schema advertised as outputSchema
+        meta: Mapping advertised as the tool ``_meta`` (for example a UI URI)
 
     Usage:
         >>> @tool(name="add", description="Add two numbers")
@@ -125,6 +130,10 @@ class tool:
             permission = settings.get("permission")
             context_factory = settings.get("context")
             security = settings.get("security")
+            output_schema = settings.get("output_schema")
+            meta = settings.get("meta")
+            title = settings.get("title")
+            annotations = settings.get("annotations")
 
             # Generate unique route name and path for this tool
             # NOTE: Don't use "mcp_" prefix as introspection excludes those routes
@@ -168,16 +177,27 @@ class tool:
                     "Schema", ""
                 )  # BearerAuthSchema -> BearerAuth
                 service_kwargs[security_param] = security_type_str
+            if output_schema is not None:
+                service_kwargs["mcp_output_schema"] = output_schema
+            if meta is not None:
+                service_kwargs["mcp_meta"] = meta
+            if title is not None:
+                service_kwargs["mcp_title"] = title
+            if annotations is not None:
+                service_kwargs["mcp_annotations"] = annotations
 
             @service.post(**service_kwargs)  # type: ignore[misc]
             def tool_endpoint(request: Any) -> Any:
                 """Tool endpoint function."""
                 try:
                     # Extract validated arguments from request
-                    validated_data = request.validated
+                    validated_data = request.validated or {}
+                    arguments = _call_arguments(wrapped, request, validated_data)
 
                     # Call the original function with validated arguments
-                    result = wrapped(**validated_data)
+                    result = wrapped(**arguments)
+                    if isinstance(result, MCPToolResult):
+                        return result.to_payload()
 
                     # Return just the result - protocol handler will wrap it
                     return result
@@ -197,4 +217,72 @@ class tool:
         # Attach venusian decorator for deferred registration
         self.venusian.attach(wrapped, callback, category="pyramid_mcp", depth=depth + 1)
 
+        return wrapped
+
+
+def _call_arguments(func: Callable, request: Any, validated: Any) -> Dict[str, Any]:
+    """Build the tool call, injecting the Pyramid request when asked for."""
+    available = dict(validated)
+    arguments: Dict[str, Any] = {}
+    for name in inspect.signature(func).parameters:
+        if name in ("request", "pyramid_request"):
+            arguments[name] = request
+        elif name in available:
+            arguments[name] = available[name]
+    return arguments
+
+
+class resource:
+    """Register a text resource served by ``resources/list`` and ``resources/read``.
+
+    The handler receives the Pyramid request and returns a string, or a dict
+    with ``text`` and an optional ``mimeType``. This decorator does not know
+    what the text is.
+    """
+
+    venusian = venusian
+
+    def __init__(
+        self,
+        uri: str,
+        mime_type: str = "text/plain",
+        description: Optional[str] = None,
+        name: Optional[str] = None,
+        meta: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Store the resource identity. Registration happens at scan time."""
+        self.uri = uri
+        self.mime_type = mime_type
+        self.description = description
+        self.name = name
+        self.meta = meta
+
+    def __call__(self, wrapped: Callable) -> Callable:
+        """Attach deferred registration of this resource."""
+        uri = self.uri
+        mime_type = self.mime_type
+        description = self.description
+        resource_name = self.name
+        meta = self.meta
+
+        def callback(context: Any, name: str, ob: Callable[..., Any]) -> None:
+            """Register the resource once pyramid_mcp is included."""
+            config = context.config
+            pyramid_mcp = getattr(config.registry, "pyramid_mcp", None)
+            if pyramid_mcp is None:
+                return
+            from pyramid_mcp.protocol import MCPResource
+
+            pyramid_mcp.protocol_handler.register_resource(
+                MCPResource(
+                    uri=uri,
+                    mime_type=mime_type,
+                    handler=wrapped,
+                    name=resource_name or wrapped.__name__,
+                    description=description or wrapped.__doc__,
+                    meta=meta,
+                )
+            )
+
+        self.venusian.attach(wrapped, callback, category="pyramid_mcp", depth=1)
         return wrapped

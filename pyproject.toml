@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pyramid-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "Model Context Protocol (MCP) integration for Pyramid web framework"
 authors = ["pyramid-mcp contributors"]
 license = "MIT"
