@@ -233,6 +233,25 @@ def test_call_tool_with_string_result(pyramid_app):
     assert len(response.json["result"]["content"]) > 0
 
 
+def test_terminated_request_body_is_not_validated_as_tool_input(pyramid_app):
+    """The JSON-RPC envelope must not reach a tool whose server reads the body until EOF."""
+    app = pyramid_app(scan_path="tests.unit.test_protocol")
+
+    response = app.post_json(
+        "/mcp",
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "simple_test_tool", "arguments": {}},
+        },
+        extra_environ={"wsgi.input_terminated": True},
+    )
+
+    assert response.status_code == 200
+    assert response.json["result"]["content"][0]["text"] == "Simple result"
+
+
 # =============================================================================
 # ❌ MCP ERROR HANDLING TESTS
 # =============================================================================

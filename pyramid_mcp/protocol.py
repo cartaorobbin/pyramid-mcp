@@ -759,8 +759,9 @@ class MCPProtocolHandler:
 
         logger.debug(f"Created subrequest: {subrequest.method} {subrequest.url}")
 
-        # Set up request body for POST/PUT/PATCH requests
-        if method.upper() in ["POST", "PUT", "PATCH"] and body_data:
+        # The tool body is only its arguments. An empty object still replaces
+        # whatever the parent request carried.
+        if method.upper() in ["POST", "PUT", "PATCH"]:
             subrequest.content_type = "application/json"
             body_json = json.dumps(body_data).encode("utf-8")
             subrequest.body = body_json
@@ -785,7 +786,10 @@ class MCPProtocolHandler:
         if hasattr(request, "tm"):
             subrequest.tm = request.tm
 
-        # Copy important environ variables (but not request-specific ones)
+        # Copy important environ variables (but not request-specific ones).
+        # The parent body is the JSON-RPC envelope. A server that sets
+        # wsgi.input_terminated makes that stream readable again, and Cornice
+        # would reject jsonrpc/id/method/params as unknown tool fields.
         request_specific_keys = {
             "PATH_INFO",
             "SCRIPT_NAME",
@@ -795,6 +799,16 @@ class MCPProtocolHandler:
             "CONTENT_LENGTH",
             "REQUEST_URI",
             "RAW_URI",
+            "wsgi.input",
+            "wsgi.errors",
+            "wsgi.input_terminated",
+            "webob.is_body_seekable",
+            "webob.is_body_readable",
+            "webob._body_file",
+            "pyramid.request",
+            "pyramid.route",
+            "pyramid.matched_route",
+            "pyramid.matchdict",
         }
 
         for key, value in request.environ.items():

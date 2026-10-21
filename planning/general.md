@@ -8,6 +8,19 @@ This file tracks CURRENT/ACTIVE tasks being worked on right now (max 1-3 task gr
 
 ## 📋 ACTIVE TASKS
 
+### [2026-10-21] Tool subrequest must not reuse the JSON-RPC body
+
+**Status**: DONE
+**Assigned**: Assistant
+
+A tool call whose WSGI server sets `wsgi.input_terminated` re-reads the parent body. Cornice then rejects `jsonrpc`, `id`, `method` and `params` as unknown fields, and the client only sees "IMPORTANT: All that is at data key."
+
+- [x] Stop copying the parent body onto the tool subrequest
+- [x] Send the tool body explicitly, including `{}` when the tool has no arguments
+- [x] Test with `wsgi.input_terminated` (245 unit tests passed)
+
+Staging still runs rev 7fe7d94 until this commit is pinned in multi-bbfs and deployed.
+
 ### [2024-12-28] Remove Unused mcp_auth_headers Code
 
 **Status**: DONE ✅  
