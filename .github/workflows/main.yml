@@ -13,10 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Cache pre-commit hooks
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
@@ -40,10 +40,10 @@ jobs:
       fail-fast: false
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -53,7 +53,7 @@ jobs:
           virtualenvs-in-project: true
 
       - name: Cache tox environments
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .tox
           key: tox-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('poetry.lock') }}
@@ -67,7 +67,7 @@ jobs:
         run: tox
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         if: matrix.python-version == '3.11'
         with:
           fail_ci_if_error: false
@@ -79,7 +79,7 @@ jobs:
   #   runs-on: ubuntu-latest
   #   steps:
   #     - name: Check out repository
-  #       uses: actions/checkout@v4
+  #       uses: actions/checkout@v6
   #
   #     - name: Set up Python environment
   #       uses: ./.github/actions/setup-poetry-env
