@@ -1,0 +1,14 @@
+# Robbin git hooks: https://github.com/cartaorobbin/security-gate-actions
+# JavaScript repositories: pnpm install turns the hook on. Others, once per machine: brew install lefthook
+# then once per clone: lefthook install
+remotes:
+  - git_url: https://github.com/cartaorobbin/security-gate-actions
+    ref: v1
+    refetch_frequency: 24h
+    configs:
+      - lefthook/gitleaks.yml
+
+pre-commit:
+  jobs:
+    - name: pre-commit
+      run: pre-commit run
